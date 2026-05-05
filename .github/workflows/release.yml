@@ -12,13 +12,17 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: bun test
+      - run: bun test --timeout 15000
       - name: Publish to npm
         run: npm publish --access public
         env:
