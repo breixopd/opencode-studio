@@ -1,0 +1,16 @@
+---
+description: Always use git worktrees for isolated development branches
+globs: "*"
+alwaysApply: true
+---
+
+# Git Worktree Workflow
+
+Always work in a git worktree, never in the main working directory.
+
+- Create worktree: `git worktree add <path> <branch>`
+- On completion: sync .sisyphus state back, merge worktree branch into main, remove worktree
+- Commit after each logical change using conventional commits
+- Push when user confirms work is complete
+- Before finishing: verify CI/github actions passes, fix if red
+- When user approves push to main: merge branch, delete remote branch, remove worktree

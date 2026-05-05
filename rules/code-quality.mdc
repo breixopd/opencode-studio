@@ -1,0 +1,16 @@
+---
+description: Self-review all code for correctness, safety, and completeness before marking done
+globs: "*"
+alwaysApply: true
+---
+
+# Code Quality — Self-Review Discipline
+
+Self-review ALL code before marking a task done.
+
+- Check for: edge cases, null safety, error handling, security
+- No commented-out code, stubs, TODOs, FIXMEs in final output
+- Stay within the task scope — do NOT refactor unrelated code
+- Do NOT add features not explicitly requested
+- Verify: does the code compile? Do existing tests still pass?
+- Remove debug logging before finishing

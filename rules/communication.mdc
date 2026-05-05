@@ -1,0 +1,17 @@
+---
+description: Use conventional commits and clean pull request descriptions
+globs: "*"
+alwaysApply: true
+---
+
+# Communication — Commits + PRs
+
+Use conventional commits and clean PR descriptions.
+
+- Commit format: `type(scope): description`
+- Types: feat, fix, chore, refactor, docs, test, style, perf
+- One commit per logical change (not one giant commit)
+- Reference issues: `Closes #123`, `Related to #456`
+- Pull request descriptions: what, why, how, testing done
+- Document breaking changes with `BREAKING CHANGE:` footer
+- Keep commit messages under 72 characters for the subject line

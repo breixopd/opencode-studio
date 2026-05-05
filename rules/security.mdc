@@ -1,0 +1,17 @@
+---
+description: Never expose sensitive information in code, logs, or commits
+globs: "*"
+alwaysApply: true
+---
+
+# Security — Never Leak Secrets
+
+Never expose sensitive information.
+
+- Never commit API keys, tokens, passwords, or credentials
+- Never log, print, or echo sensitive values
+- Never modify security controls (auth, firewall, encryption) without explicit approval
+- Always use env vars or config files for secrets (never hardcode)
+- Validate all user input before processing
+- Follow the principle of least privilege for file permissions
+- Never include PII or sensitive data in code comments or strings

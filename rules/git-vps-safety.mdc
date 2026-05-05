@@ -1,0 +1,22 @@
+---
+description: Never commit VPS/remote dev configuration files to git repositories
+globs: "*"
+alwaysApply: true
+---
+
+# Git VPS Config Safety
+
+## Never Stage VPS Config Files
+
+The following files contain remote host configurations and MUST NEVER be staged, committed, or pushed:
+
+- `opencode-studio.json`
+- `~/.config/opencode-studio/config.json`
+- Any file matching `.studio-*` or `studio-*.json`
+
+## Agent Instructions
+
+- Before running `git add`, check if VPS config files are in the staging area
+- If found, REMOVE them: `git reset HEAD <file>`
+- Warn the user: "VPS config files staged. Removed from staging."
+- Do NOT add these to `.gitignore` (that leaves traces of tooling)

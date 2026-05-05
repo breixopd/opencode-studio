@@ -1,0 +1,16 @@
+---
+description: Research project structure and conventions before starting work
+globs: "*"
+alwaysApply: true
+---
+
+# Project Context — Research + Conventions
+
+Before working on any project, research and save context.
+
+- Before starting work: research project structure, patterns, configs
+- Save findings to PROJECT_CONVENTIONS.md in the project root
+- Keep conventions up to date as the project evolves
+- Always re-read conventions before starting new work sessions
+- Check existing patterns before creating new files
+- When conventions are missing or stale, create/update them
