@@ -30,6 +30,7 @@
   "keywords": ["opencode", "opencode-plugin", "remote-development", "ssh", "sync", "studio"],
   "license": "MIT",
   "dependencies": {
-    "chokidar": "^5.0.0"
+    "chokidar": "^5.0.0",
+    "zod": "^4.4.3"
   }
 }

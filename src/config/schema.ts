@@ -1,0 +1,38 @@
+import { z } from "zod"
+
+export const ProjectMappingSchema = z.object({
+  local: z.string().min(1, "local path must not be empty"),
+  remote: z.string().min(1, "remote path must not be empty"),
+  excludes: z.array(z.string()),
+})
+
+export const SSHConfigSchema = z.object({
+  user: z.string().min(1, "SSH user must not be empty"),
+  host: z.string().min(1, "SSH host must not be empty"),
+  identityFile: z.string().min(1, "identity file path must not be empty"),
+  port: z.number().int().min(1).max(65535).optional(),
+  strictHostChecking: z.boolean().optional(),
+})
+
+export const TunnelConfigSchema = z.object({
+  localPort: z.number().int().min(1).max(65535),
+  remotePort: z.number().int().min(1).max(65535),
+  host: z.string().min(1, "tunnel host must not be empty"),
+})
+
+export const StudioConfigSchema = z.object({
+  ssh: SSHConfigSchema,
+  tunnel: TunnelConfigSchema,
+  projects: z.record(z.string(), ProjectMappingSchema),
+  defaultExcludes: z.array(z.string()),
+})
+
+export type ValidatedStudioConfig = z.infer<typeof StudioConfigSchema>
+
+export function validateConfig(raw: unknown): ValidatedStudioConfig {
+  return StudioConfigSchema.parse(raw)
+}
+
+export function safeValidateConfig(raw: unknown) {
+  return StudioConfigSchema.safeParse(raw)
+}
