@@ -1,11 +1,22 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import { studio_sync_start, studio_sync_stop } from "./tools/sync"
+import { studio_tunnel_status, studio_tunnel_restart } from "./tools/tunnel"
+import { studio_add_project, studio_remove_project } from "./tools/config"
+import { studio_status, studio_list_projects } from "./tools/status"
 
-export const OpenCodeRemotes: Plugin = async () => {
+export const OpenCodeStudio: Plugin = async () => {
   return {
     tool: {
-      // Tools will be implemented per the Prometheus plan
+      studio_sync_start,
+      studio_sync_stop,
+      studio_tunnel_status,
+      studio_tunnel_restart,
+      studio_add_project,
+      studio_remove_project,
+      studio_status,
+      studio_list_projects,
     },
   }
 }
 
-export default OpenCodeRemotes
+export default OpenCodeStudio
