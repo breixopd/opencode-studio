@@ -42,7 +42,7 @@ function writeTestConfig(data: unknown) {
   writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2))
 }
 
-describe.skipIf(process.env.CI)("loadConfig", () => {
+describe.skipIf(!!process.env.CI)("loadConfig", () => {
   it("returns defaults when no config file exists", () => {
     cleanConfig()
     const config = loadConfig()
@@ -82,7 +82,7 @@ describe.skipIf(process.env.CI)("loadConfig", () => {
   })
 })
 
-describe.skipIf(process.env.CI)("saveConfig", () => {
+describe.skipIf(!!process.env.CI)("saveConfig", () => {
   it("writes valid JSON that loadConfig can read back", () => {
     cleanConfig()
     const cfg: StudioConfig = {
@@ -99,7 +99,7 @@ describe.skipIf(process.env.CI)("saveConfig", () => {
   })
 })
 
-describe.skipIf(process.env.CI)("addProject", () => {
+describe.skipIf(!!process.env.CI)("addProject", () => {
   it("adds a project", () => {
     cleanConfig()
     const cfg = loadConfig()
@@ -149,7 +149,7 @@ describe.skipIf(process.env.CI)("addProject", () => {
   })
 })
 
-describe.skipIf(process.env.CI)("removeProject", () => {
+describe.skipIf(!!process.env.CI)("removeProject", () => {
   it("removes a project", () => {
     cleanConfig()
     const cfg = loadConfig()
@@ -179,7 +179,7 @@ describe.skipIf(process.env.CI)("removeProject", () => {
   })
 })
 
-describe.skipIf(process.env.CI)("listProjects", () => {
+describe.skipIf(!!process.env.CI)("listProjects", () => {
   it("returns all configured projects", () => {
     cleanConfig()
     const cfg = loadConfig()

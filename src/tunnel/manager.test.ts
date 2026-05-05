@@ -79,7 +79,7 @@ describe("Tunnel Manager", () => {
     _resetTunnelState()
   })
 
-  describe.skipIf(process.env.CI)("startTunnel", () => {
+  describe.skipIf(!!process.env.CI)("startTunnel", () => {
     test("spawns SSH with correct args", async () => {
       const state = await startTunnel(defaultConfig)
 
@@ -178,7 +178,7 @@ describe("Tunnel Manager", () => {
   })
 
   describe("stopTunnel", () => {
-    test.skipIf(process.env.CI)("sends SIGTERM to running tunnel", async () => {
+    test.skipIf(!!process.env.CI)("sends SIGTERM to running tunnel", async () => {
       await startTunnel(defaultConfig)
 
       const result = stopTunnel()
@@ -187,7 +187,7 @@ describe("Tunnel Manager", () => {
       expect(sharedProcess.kill).toHaveBeenCalledWith("SIGTERM")
     })
 
-    test.skipIf(process.env.CI)("returns false when no tunnel is running", () => {
+    test.skipIf(!!process.env.CI)("returns false when no tunnel is running", () => {
       expect(stopTunnel()).toBe(false)
     })
 
@@ -230,14 +230,14 @@ describe("Tunnel Manager", () => {
       expect(isTunnelAlive()).toBe(false)
     })
 
-    test.skipIf(process.env.CI)("returns false after process exits", async () => {
+    test.skipIf(!!process.env.CI)("returns false after process exits", async () => {
       await startTunnel(defaultConfig)
       sharedProcess.emit("close", 0)
       expect(isTunnelAlive()).toBe(false)
     })
   })
 
-  describe.skipIf(process.env.CI)("findAvailablePort", () => {
+  describe.skipIf(!!process.env.CI)("findAvailablePort", () => {
     test("returns preferred port when available", async () => {
       const port = await findAvailablePort(8444)
       expect(port).toBe(8444)
@@ -274,7 +274,7 @@ describe("Tunnel Manager", () => {
       expect(available).toBe(true)
     })
 
-    test.skipIf(process.env.CI)("returns false when port is occupied", async () => {
+    test.skipIf(!!process.env.CI)("returns false when port is occupied", async () => {
       portStatus.set(8444, false)
       const available = await isPortAvailable(8444)
       expect(available).toBe(false)
@@ -282,7 +282,7 @@ describe("Tunnel Manager", () => {
   })
 
   describe("getTunnelState", () => {
-    test.skipIf(process.env.CI)("returns null when no tunnel is running", () => {
+    test.skipIf(!!process.env.CI)("returns null when no tunnel is running", () => {
       expect(getTunnelState()).toBeNull()
     })
 

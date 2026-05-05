@@ -44,7 +44,7 @@ function makeSession(): SSHSession {
   }
 }
 
-describe.skipIf(process.env.CI)("transfers", () => {
+describe.skipIf(!!process.env.CI)("transfers", () => {
   let tmpDir: string
   let tmpFile: string
 

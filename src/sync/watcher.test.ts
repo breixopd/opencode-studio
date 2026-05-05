@@ -32,7 +32,7 @@ function cleanup(dir: string): void {
   rmSync(dir, { recursive: true, force: true })
 }
 
-describe.skipIf(process.env.CI)("createWatcher", () => {
+describe.skipIf(!!process.env.CI)("createWatcher", () => {
   let dirs: string[] = []
 
   afterEach(() => {
