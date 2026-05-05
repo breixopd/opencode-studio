@@ -1,0 +1,32 @@
+{
+  "name": "opencode-remotes",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for remote development — sync, tunnel, and dev workflow tools inspired by VS Code Remote",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "rules"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --watch",
+    "prepublishOnly": "bun run build"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.1.51",
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  },
+  "keywords": ["opencode", "opencode-plugin", "remote-development", "ssh", "sync", "vps"],
+  "license": "MIT"
+}
