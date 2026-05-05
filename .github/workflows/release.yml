@@ -22,7 +22,7 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: bun test --timeout 15000
+      - run: bun test --timeout=15000
       - name: Publish to npm
         run: npm publish --access public
         env:
