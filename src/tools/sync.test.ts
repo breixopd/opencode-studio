@@ -78,7 +78,8 @@ describe("studio_sync_start", () => {
     expect(mockBulkSync).toHaveBeenCalledTimes(1)
     expect(mockCreateWatcher).toHaveBeenCalledTimes(1)
 
-    const opts = mockCreateWatcher.mock.calls[0][0] as WatcherOptions
+    // @ts-expect-error bun mock call args typing limitation
+    const opts = mockCreateWatcher.mock.calls[0]?.[0] as WatcherOptions
     expect(opts.projectName).toBe("myapp")
     expect(opts.projectPath).toBe("/home/dev/myapp")
     expect(opts.excludes).toEqual([".git/", "node_modules/"])
