@@ -1,21 +1,8 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import type { WatcherOptions } from "../sync/watcher"
-import { EventEmitter } from "events"
 import type { FSWatcher } from "chokidar"
-
-function createFakeProcess() {
-  const proc = new EventEmitter()
-  ;(proc as any).stdout = new EventEmitter()
-  ;(proc as any).stderr = new EventEmitter()
-  ;(proc as any).stdin = new EventEmitter()
-  ;(proc as any).stdin.write = mock(() => true)
-  ;(proc as any).stdin.end = mock(() => {})
-  ;(proc as any).kill = mock(() => {})
-  return proc
-}
-
-const sharedProcess = createFakeProcess()
-const mockSpawn = mock(() => sharedProcess)
+import { setSSHFactory, resetSSHFactory } from "../ssh/factory"
+import type { Client } from "ssh2"
 
 const mockLoadConfig = mock(() => ({
   ssh: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", port: 22 },
@@ -37,7 +24,6 @@ const fakeWatcher: Partial<FSWatcher> & { close: () => Promise<void> } = {
 }
 const mockCreateWatcher = mock(() => fakeWatcher as FSWatcher)
 
-mock.module("child_process", () => ({ spawn: mockSpawn }))
 mock.module("../config/config", () => ({
   loadConfig: mockLoadConfig,
   addProject: mock(() => {}),
@@ -53,6 +39,28 @@ mock.module("../sync/transfers", () => ({
 
 const { studio_sync_start, studio_sync_stop } = await import("./sync")
 
+beforeEach(() => {
+  const client = {
+    exec: mock(() => {}),
+    sftp: mock((cb: Function) => cb(null, { fastPut: mock((_: string, __: string, cb: Function) => cb(null)) })),
+    end: mock(() => {}),
+    on: mock(() => {}),
+    connect: mock(() => {}),
+  }
+  setSSHFactory({
+    connect: mock(async () => ({
+      client: client as unknown as Client,
+      config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", port: 22 },
+      alive: true,
+      controlPath: "ssh2://dev@remote.example.com",
+    })),
+  })
+})
+
+afterEach(() => {
+  resetSSHFactory()
+})
+
 const ctx: any = null!
 
 describe("studio_sync_start", () => {
@@ -62,7 +70,6 @@ describe("studio_sync_start", () => {
 
   beforeEach(() => {
     mockLoadConfig.mockClear()
-    mockSpawn.mockClear()
     mockBulkSync.mockClear()
     mockCreateWatcher.mockClear()
     fakeWatcherClose.mockClear()
@@ -74,7 +81,6 @@ describe("studio_sync_start", () => {
     expect(result).toContain("Sync started for 'myapp'")
     expect(result).toContain("remote.example.com:/opt/app/myapp")
     expect(mockLoadConfig).toHaveBeenCalled()
-    expect(mockSpawn).toHaveBeenCalled()
     expect(mockBulkSync).toHaveBeenCalledTimes(1)
     expect(mockCreateWatcher).toHaveBeenCalledTimes(1)
 
@@ -119,7 +125,6 @@ describe("studio_sync_stop", () => {
 
   beforeEach(() => {
     mockLoadConfig.mockClear()
-    mockSpawn.mockClear()
     mockBulkSync.mockClear()
     mockCreateWatcher.mockClear()
     fakeWatcherClose.mockClear()

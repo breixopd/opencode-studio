@@ -1,300 +1,218 @@
 import { mock, describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { EventEmitter } from "events"
-import { mkdtempSync, writeFileSync, existsSync, unlinkSync } from "fs"
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 
-let procQueue: any[] = []
-
-function createFakeProcess() {
-  const proc = new EventEmitter() as any
-  proc.stdout = new EventEmitter() as any
-  proc.stdout.pipe = mock(() => proc.stdout)
-  proc.stderr = new EventEmitter() as any
-  proc.stdin = new EventEmitter() as any
-  proc.stdin.write = mock(() => true)
-  proc.stdin.end = mock(() => {})
-  proc.kill = mock(() => {})
-  proc.pid = 99999
-  return proc
-}
-
-const mockSpawn = mock((..._args: any[]) => {
-  return procQueue.shift() ?? createFakeProcess()
-})
-
-mock.module("child_process", () => ({
-  spawn: mockSpawn,
-  ChildProcess: class {},
-}))
-
 import { bulkSync, syncFile, deleteRemoteFile } from "./transfers"
 import type { SSHSession } from "../ssh/types"
+import type { Client } from "ssh2"
 
-function makeSession(): SSHSession {
+function mockStream(exitCode = 0): any {
   return {
+    on: mock((event: string, handler: Function) => {
+      if (event === "close") handler(exitCode)
+    }),
+    stderr: { on: mock(() => {}) },
+  }
+}
+
+interface TestCtx {
+  session: SSHSession
+  client: any
+  sftp: any
+  fastPutCalls: Array<{ local: string; remote: string }>
+  execCalls: Array<string>
+}
+
+function createCtx(): TestCtx {
+  const fastPutCalls: Array<{ local: string; remote: string }> = []
+  const execCalls: Array<string> = []
+
+  const sftp = {
+    fastPut: mock(
+      (local: string, remote: string, cb: (err?: Error | null) => void) => {
+        fastPutCalls.push({ local, remote })
+        cb(null)
+      },
+    ),
+  }
+
+  const client: any = {
+    exec: mock((cmd: string, cb: (err: Error | null, s: any) => void) => {
+      execCalls.push(cmd)
+      cb(null, mockStream())
+    }),
+    sftp: mock((cb: (err: Error | null, s?: any) => void) => {
+      cb(null, sftp)
+    }),
+  }
+
+  const session: SSHSession = {
     config: {
       user: "testuser",
       host: "testhost.example.com",
       identityFile: "/home/testuser/.ssh/id_ed25519",
     },
-    process: createFakeProcess(),
-    controlPath: "/tmp/studio-ssh-testuser@testhost.example.com",
+    client: client as unknown as Client,
+    controlPath: "ssh2://testuser@testhost.example.com",
     alive: true,
   }
+
+  return { session, client, sftp, fastPutCalls, execCalls }
 }
 
-describe.skipIf(!!process.env.CI)("transfers", () => {
+describe("transfers (ssh2 SFTP)", () => {
   let tmpDir: string
-  let tmpFile: string
+  let ctx: TestCtx
 
   beforeEach(() => {
-    mockSpawn.mockClear()
-    procQueue = []
     tmpDir = mkdtempSync(join(tmpdir(), "transfers-test-"))
-    tmpFile = join(tmpDir, "testfile.txt")
+    ctx = createCtx()
   })
 
   afterEach(() => {
-    if (existsSync(tmpFile)) unlinkSync(tmpFile)
-    if (existsSync(tmpDir)) {
-      try { unlinkSync(tmpDir) } catch { /* ok */ }
-    }
+    rmSync(tmpDir, { recursive: true, force: true })
   })
 
   describe("bulkSync", () => {
-    test("builds correct tar exclude args", async () => {
-      const mkdirFake = createFakeProcess()
-      const tarFake = createFakeProcess()
-      const sshFake = createFakeProcess()
-      procQueue = [mkdirFake, tarFake, sshFake]
+    test("uploads files with atomic rename per file", async () => {
+      writeFileSync(join(tmpDir, "a.txt"), "aaa")
+      writeFileSync(join(tmpDir, "b.txt"), "bbb")
 
-      const session = makeSession()
-      const promise = bulkSync(session, "/local/project", "/remote/project", [
-        "node_modules",
-        ".git",
+      await bulkSync(ctx.session, tmpDir, "/remote/proj", [])
+
+      expect(ctx.fastPutCalls).toEqual([
+        { local: join(tmpDir, "a.txt"), remote: "/remote/proj/a.txt.tmp" },
+        { local: join(tmpDir, "b.txt"), remote: "/remote/proj/b.txt.tmp" },
       ])
 
-      mkdirFake.emit("close", 0)
-      await new Promise((r) => setImmediate(r))
-
-      expect(mockSpawn.mock.calls[0][0]).toBe("ssh")
-      expect(mockSpawn.mock.calls[0][1]).toContain("mkdir -p /remote/project")
-
-      expect(mockSpawn.mock.calls[1][0]).toBe("tar")
-      const tarArgs = mockSpawn.mock.calls[1][1] as string[]
-      expect(tarArgs).toContain("--exclude")
-      expect(tarArgs).toContain("node_modules")
-      expect(tarArgs).toContain(".git")
-      expect(tarArgs).toContain("-C")
-      expect(tarArgs).toContain("/local/project")
-
-      expect(mockSpawn.mock.calls[2][0]).toBe("ssh")
-      expect(mockSpawn.mock.calls[2][1]).toContain("tar xf - -C /remote/project")
-
-      sshFake.emit("close", 0)
-      await expect(promise).resolves.toBeUndefined()
+      const mvCalls = ctx.execCalls.filter((c) => c.startsWith("mv"))
+      expect(mvCalls).toEqual([
+        "mv /remote/proj/a.txt.tmp /remote/proj/a.txt",
+        "mv /remote/proj/b.txt.tmp /remote/proj/b.txt",
+      ])
     })
 
-    test("pipes tar stdout to ssh stdin", async () => {
-      const mkdirFake = createFakeProcess()
-      const tarFake = createFakeProcess()
-      const sshFake = createFakeProcess()
-      procQueue = [mkdirFake, tarFake, sshFake]
-
-      const session = makeSession()
-      const promise = bulkSync(session, "/local", "/remote", [])
-
-      mkdirFake.emit("close", 0)
-      await new Promise((r) => setImmediate(r))
-
-      expect(tarFake.stdout.pipe).toHaveBeenCalledWith(sshFake.stdin)
-
-      sshFake.emit("close", 0)
-      await expect(promise).resolves.toBeUndefined()
+    test("creates remote root directory", async () => {
+      writeFileSync(join(tmpDir, "f.txt"), "data")
+      await bulkSync(ctx.session, tmpDir, "/remote/proj", [])
+      expect(ctx.execCalls).toContain("mkdir -p /remote/proj")
     })
 
-    test("rejects when mkdir fails", async () => {
-      const mkdirFake = createFakeProcess()
-      procQueue = [mkdirFake]
+    test("creates subdirectories for nested files", async () => {
+      mkdirSync(join(tmpDir, "sub"), { recursive: true })
+      writeFileSync(join(tmpDir, "sub", "nested.txt"), "nested")
+      await bulkSync(ctx.session, tmpDir, "/remote/proj", [])
+      expect(ctx.execCalls).toContain("mkdir -p /remote/proj/sub")
+    })
 
-      const session = makeSession()
-      const promise = bulkSync(session, "/local", "/remote", [])
+    test("skips excluded directories", async () => {
+      mkdirSync(join(tmpDir, "node_modules"), { recursive: true })
+      writeFileSync(join(tmpDir, "node_modules", "pkg.js"), "pkg")
+      writeFileSync(join(tmpDir, "src.js"), "src")
 
-      mkdirFake.emit("close", 1)
+      await bulkSync(ctx.session, tmpDir, "/remote/proj", ["node_modules"])
 
-      await expect(promise).rejects.toThrow(
-        "Failed to create remote directory: /remote",
+      expect(ctx.fastPutCalls.length).toBe(1)
+      expect(ctx.fastPutCalls[0].local).toBe(join(tmpDir, "src.js"))
+    })
+
+    test("resolves immediately when directory is empty", async () => {
+      await expect(
+        bulkSync(ctx.session, tmpDir, "/remote/proj", []),
+      ).resolves.toBeUndefined()
+      expect(ctx.fastPutCalls.length).toBe(0)
+    })
+
+    test("rejects when a file fails to upload", async () => {
+      writeFileSync(join(tmpDir, "f.txt"), "data")
+      ctx.sftp.fastPut = mock(
+        (_local: string, _remote: string, cb: Function) => {
+          cb(new Error("disk full"))
+        },
       )
+      await expect(
+        bulkSync(ctx.session, tmpDir, "/remote/proj", []),
+      ).rejects.toThrow(/failed to sync/)
     })
 
-    test("rejects when tar transfer fails", async () => {
-      const mkdirFake = createFakeProcess()
-      const tarFake = createFakeProcess()
-      const sshFake = createFakeProcess()
-      procQueue = [mkdirFake, tarFake, sshFake]
-
-      const session = makeSession()
-      const promise = bulkSync(session, "/local", "/remote", [])
-
-      mkdirFake.emit("close", 0)
-      await new Promise((r) => setImmediate(r))
-
-      sshFake.stderr.emit("data", Buffer.from("disk full"))
-      sshFake.emit("close", 1)
-
-      await expect(promise).rejects.toThrow("disk full")
-    })
-
-    test("rejects tar transfer with fallback exit code when stderr is empty", async () => {
-      const mkdirFake = createFakeProcess()
-      const tarFake = createFakeProcess()
-      const sshFake = createFakeProcess()
-      procQueue = [mkdirFake, tarFake, sshFake]
-
-      const session = makeSession()
-      const promise = bulkSync(session, "/local", "/remote", [])
-
-      mkdirFake.emit("close", 0)
-      await new Promise((r) => setImmediate(r))
-
-      sshFake.emit("close", 2)
-
-      await expect(promise).rejects.toThrow("exit 2")
+    test("rejects when SFTP connection fails", async () => {
+      writeFileSync(join(tmpDir, "f.txt"), "data")
+      ctx.client.sftp = mock((cb: Function) => cb(new Error("sftp failed")))
+      await expect(
+        bulkSync(ctx.session, tmpDir, "/remote/proj", []),
+      ).rejects.toThrow("sftp failed")
     })
   })
 
   describe("syncFile", () => {
-    test("uses atomic write pattern (cat > .tmp && mv)", async () => {
-      writeFileSync(tmpFile, "file content")
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
+    test("uploads single file via SFTP with atomic rename", async () => {
+      const localFile = join(tmpDir, "test.txt")
+      writeFileSync(localFile, "content")
 
-      const session = makeSession()
-      const promise = syncFile(session, tmpFile, "/remote/path/file.txt")
+      await syncFile(ctx.session, localFile, "/remote/path/file.txt")
 
-      await new Promise((r) => setTimeout(r, 10))
-      sshFake.emit("close", 0)
-
-      const sshCommand = mockSpawn.mock.calls[0][1].find(
-        (arg: string) =>
-          typeof arg === "string" &&
-          arg.includes("cat >") &&
-          arg.includes(".tmp") &&
-          arg.includes("mv"),
+      expect(ctx.fastPutCalls).toEqual([
+        { local: localFile, remote: "/remote/path/file.txt.tmp" },
+      ])
+      expect(ctx.execCalls).toContain(
+        "mv /remote/path/file.txt.tmp /remote/path/file.txt",
       )
-      expect(sshCommand).toBeDefined()
-      expect(sshCommand).toContain("cat > /remote/path/file.txt.tmp")
-      expect(sshCommand).toContain("mv /remote/path/file.txt.tmp /remote/path/file.txt")
-
-      await expect(promise).resolves.toBeUndefined()
     })
 
-    test("creates remote directory before writing", async () => {
-      writeFileSync(tmpFile, "file content")
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
+    test("creates remote directory before uploading", async () => {
+      const localFile = join(tmpDir, "test.txt")
+      writeFileSync(localFile, "data")
+      await syncFile(ctx.session, localFile, "/remote/dir/file.txt")
+      expect(ctx.execCalls).toContain("mkdir -p /remote/dir")
+    })
 
-      const session = makeSession()
-      const promise = syncFile(session, tmpFile, "/remote/path/file.txt")
+    test("throws when local file does not exist", async () => {
+      await expect(
+        syncFile(ctx.session, "/nonexistent/path.txt", "/remote/path.txt"),
+      ).rejects.toThrow("File not found: /nonexistent/path.txt")
+    })
 
-      await new Promise((r) => setTimeout(r, 10))
-      sshFake.emit("close", 0)
+    test("rejects on SFTP error", async () => {
+      writeFileSync(join(tmpDir, "f.txt"), "data")
+      ctx.client.sftp = mock((cb: Function) => cb(new Error("sftp failed")))
+      await expect(
+        syncFile(ctx.session, join(tmpDir, "f.txt"), "/remote/f.txt"),
+      ).rejects.toThrow("sftp failed")
+    })
 
-      const sshCommand = mockSpawn.mock.calls[0][1].find(
-        (arg: string) =>
-          typeof arg === "string" && arg.includes("mkdir -p"),
+    test("rejects on fastPut error", async () => {
+      writeFileSync(join(tmpDir, "f.txt"), "data")
+      ctx.sftp.fastPut = mock(
+        (_local: string, _remote: string, cb: Function) => {
+          cb(new Error("disk full"))
+        },
       )
-      expect(sshCommand).toBeDefined()
-
-      await expect(promise).resolves.toBeUndefined()
-    })
-
-    test("pipes file content to ssh stdin", async () => {
-      writeFileSync(tmpFile, "file content")
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = syncFile(session, tmpFile, "/remote/file.txt")
-
-      await new Promise((r) => setTimeout(r, 10))
-      sshFake.emit("close", 0)
-
-      expect(sshFake.stdin.write).toHaveBeenCalled()
-      await expect(promise).resolves.toBeUndefined()
-    })
-
-    test("rejects on remote failure", async () => {
-      writeFileSync(tmpFile, "data")
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = syncFile(session, tmpFile, "/remote/file.txt")
-
-      await new Promise((r) => setTimeout(r, 10))
-      sshFake.stderr.emit("data", Buffer.from("permission denied"))
-      sshFake.emit("close", 1)
-
-      await expect(promise).rejects.toThrow("permission denied")
+      await expect(
+        syncFile(ctx.session, join(tmpDir, "f.txt"), "/remote/f.txt"),
+      ).rejects.toThrow("disk full")
     })
   })
 
   describe("deleteRemoteFile", () => {
     test("runs rm -f on remote", async () => {
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = deleteRemoteFile(session, "/remote/file.txt")
-
-      sshFake.emit("close", 0)
-
-      expect(mockSpawn.mock.calls[0][0]).toBe("ssh")
-      const sshArgs = mockSpawn.mock.calls[0][1] as string[]
-      expect(sshArgs.some((a) => a.includes("rm -f /remote/file.txt"))).toBe(
-        true,
-      )
-
-      await expect(promise).resolves.toBeUndefined()
+      await deleteRemoteFile(ctx.session, "/remote/file.txt")
+      expect(ctx.execCalls).toContain("rm -f /remote/file.txt")
     })
 
     test("resolves on success", async () => {
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = deleteRemoteFile(session, "/remote/file.txt")
-
-      sshFake.emit("close", 0)
-
-      await expect(promise).resolves.toBeUndefined()
+      await expect(
+        deleteRemoteFile(ctx.session, "/remote/file.txt"),
+      ).resolves.toBeUndefined()
     })
 
-    test("rejects on remote failure", async () => {
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = deleteRemoteFile(session, "/remote/file.txt")
-
-      sshFake.stderr.emit("data", Buffer.from("no such file"))
-      sshFake.emit("close", 1)
-
-      await expect(promise).rejects.toThrow("no such file")
-    })
-
-    test("rejects with exit code fallback when stderr is empty", async () => {
-      const sshFake = createFakeProcess()
-      procQueue = [sshFake]
-
-      const session = makeSession()
-      const promise = deleteRemoteFile(session, "/remote/file.txt")
-
-      sshFake.emit("close", 127)
-
-      await expect(promise).rejects.toThrow("exit 127")
+    test("rejects on exec failure", async () => {
+      ctx.client.exec = mock((_cmd: string, cb: Function) => {
+        cb(new Error("permission denied"))
+      })
+      await expect(
+        deleteRemoteFile(ctx.session, "/remote/file.txt"),
+      ).rejects.toThrow("permission denied")
     })
   })
 })

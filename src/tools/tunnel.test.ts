@@ -16,16 +16,15 @@ const mockGetTunnelState = mock(() => (tunnelState ? { ...tunnelState } : null))
 const mockStopTunnel = mock(() => { alive = false; return true })
 const mockStartTunnel = mock(() => {
   alive = true
-  tunnelState = {
-    config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", localPort: 8443, remotePort: 8443 },
-    process: null,
-    alive: true,
-    startTime: Date.now(),
-    lastHeartbeat: Date.now(),
-    lastError: null,
-  }
-  return Promise.resolve(tunnelState)
-})
+    tunnelState = {
+     config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", localPort: 8443, remotePort: 8443 },
+     alive: true,
+     startTime: Date.now(),
+     lastHeartbeat: Date.now(),
+     lastError: null,
+   }
+   return Promise.resolve(tunnelState)
+ })
 
 mock.module("../config/config", () => ({
   loadConfig: mockLoadConfig,
@@ -70,7 +69,6 @@ describe("studio_tunnel_status", () => {
     alive = true
     tunnelState = {
       config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", localPort: 8443, remotePort: 8443 },
-      process: null,
       alive: true,
       startTime,
       lastHeartbeat: Date.now(),
@@ -90,7 +88,6 @@ describe("studio_tunnel_status", () => {
     alive = true
     tunnelState = {
       config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", localPort: 8443, remotePort: 8443 },
-      process: null,
       alive: true,
       startTime: Date.now(),
       lastHeartbeat: Date.now(),
@@ -124,7 +121,6 @@ describe("studio_tunnel_restart", () => {
     alive = true
     tunnelState = {
       config: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", localPort: 8443, remotePort: 8443 },
-      process: null,
       alive: true,
       startTime: Date.now(),
       lastHeartbeat: Date.now(),

@@ -1,51 +1,95 @@
 import { mock, describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { EventEmitter } from "events"
+import { setSSHFactory, resetSSHFactory } from "../ssh/factory"
+import type { SSHClientFactory } from "../ssh/factory"
+import type { SSHSession, SSHSessionConfig } from "../ssh/types"
+import type { Client } from "ssh2"
 
-function createFakeProcess() {
-  const proc: any = new EventEmitter()
-  proc.stdout = new EventEmitter()
-  proc.stderr = new EventEmitter()
-  proc.stdin = new EventEmitter()
-  proc.stdin.write = mock(() => true)
-  proc.stdin.end = mock(() => {})
-  proc.kill = mock(() => {})
-  proc.pid = 99999
-  return proc
-}
-
-let sharedProcess: ReturnType<typeof createFakeProcess>
-const mockSpawn = mock<(cmd: string, args: readonly string[], opts?: object) => any>(
-  () => sharedProcess,
-)
-
-mock.module("child_process", () => ({
-  spawn: mockSpawn,
-  ChildProcess: class {},
-}))
-
+// ---------------------------------------------------------------------------
+// Port availability tracking (for isPortAvailable / findAvailablePort)
+// ---------------------------------------------------------------------------
 let portStatus: Map<number, boolean> = new Map()
+let netCreateServerHandler: ((socket: any) => void) | null = null
 
-const mockCreateServer = mock(() => {
+const mockCreateServer = mock((handler?: (socket: any) => void) => {
+  netCreateServerHandler = handler || null
+
   const server: any = new EventEmitter()
+  server._listening = false
+
   server.listen = mock((port: number, ...rest: any[]) => {
-    const cb = rest[rest.length - 1]
-    if (typeof cb === "function") {
-      if (portStatus.get(port) === false) {
-        setImmediate(() => server.emit("error", new Error("EADDRINUSE")))
-      } else {
-        cb()
-      }
+    if (portStatus.get(port) === false) {
+      setImmediate(() => server.emit("error", new Error("EADDRINUSE")))
+      return
     }
-  })
-  server.close = mock((cb?: () => void) => {
+    server._listening = true
+    const cb = rest.find((a) => typeof a === "function")
     if (cb) setImmediate(cb)
   })
+
+  server.close = mock((cb?: () => void) => {
+    server._listening = false
+    if (cb) setImmediate(cb)
+  })
+
+  Object.defineProperty(server, "listening", {
+    get: () => server._listening,
+    configurable: true,
+  })
+
   return server
 })
 
 mock.module("net", () => ({
   createServer: mockCreateServer,
 }))
+
+// ---------------------------------------------------------------------------
+// ssh2 mock
+// ---------------------------------------------------------------------------
+
+function createMockClient() {
+  const client: any = new EventEmitter()
+  client.connect = mock(() => {})
+  client.end = mock(() => {})
+
+  const forwardOutStream: any = new EventEmitter()
+  forwardOutStream.pipe = mock(() => forwardOutStream)
+  forwardOutStream.end = mock(() => {})
+
+  client.forwardOut = mock(
+    (
+      _srcIP: string,
+      _srcPort: number,
+      _dstIP: string,
+      _dstPort: number,
+      cb: (err: Error | null, stream?: any) => void,
+    ) => {
+      setImmediate(() => cb(null, forwardOutStream))
+    },
+  )
+
+  return { client, forwardOutStream }
+}
+
+let mockClient: ReturnType<typeof createMockClient>
+
+const mockFactory: SSHClientFactory = {
+  connect: mock(
+    async (config: SSHSessionConfig): Promise<SSHSession> => {
+      return {
+        config,
+        client: mockClient.client as unknown as Client,
+        alive: true,
+        controlPath: `ssh2://${config.user}@${config.host}`,
+      }
+    },
+  ),
+}
+
+// ---------------------------------------------------------------------------
+// Module under test
+// ---------------------------------------------------------------------------
 
 import {
   startTunnel,
@@ -66,21 +110,33 @@ const defaultConfig: TunnelConfig = {
   remotePort: 8443,
 }
 
-describe("Tunnel Manager", () => {
+describe("Tunnel Manager (ssh2)", () => {
   beforeEach(() => {
     _resetTunnelState()
-    sharedProcess = createFakeProcess()
-    mockSpawn.mockClear()
-    mockCreateServer.mockClear()
     portStatus = new Map()
+    netCreateServerHandler = null
+    mockCreateServer.mockClear()
+
+    mockClient = createMockClient()
+    mockClient.client.forwardOut.mockClear()
+
+    // Reset mock factory connect
+    ;(mockFactory.connect as ReturnType<typeof mock>).mockClear()
+
+    setSSHFactory(mockFactory)
   })
 
   afterEach(() => {
     _resetTunnelState()
+    resetSSHFactory()
   })
 
-  describe.skipIf(!!process.env.CI)("startTunnel", () => {
-    test("spawns SSH with correct args", async () => {
+  // -----------------------------------------------------------------------
+  // startTunnel
+  // -----------------------------------------------------------------------
+
+  describe("startTunnel", () => {
+    test("connects via sshFactory with correct config", async () => {
       const state = await startTunnel(defaultConfig)
 
       expect(state.alive).toBe(true)
@@ -88,32 +144,19 @@ describe("Tunnel Manager", () => {
       expect(state.config.user).toBe("dev")
       expect(state.config.host).toBe("devbox.example.com")
 
-      expect(mockSpawn).toHaveBeenCalledTimes(1)
-      const call = mockSpawn.mock.calls[0] as [string, string[], { stdio: string[] }]
+      expect(mockFactory.connect).toHaveBeenCalledTimes(1)
 
-      expect(call[0]).toBe("ssh")
+      const connectArg = (mockFactory.connect as ReturnType<typeof mock>).mock
+        .calls[0][0] as SSHSessionConfig
+      expect(connectArg.user).toBe("dev")
+      expect(connectArg.host).toBe("devbox.example.com")
+      expect(connectArg.identityFile).toBe("/home/dev/.ssh/id_ed25519")
 
-      const args = call[1]
-      expect(args).toContain("-o")
-      expect(args).toContain("StrictHostKeyChecking=accept-new")
-      expect(args).toContain("ExitOnForwardFailure=yes")
-      expect(args).toContain("ServerAliveInterval=30")
-      expect(args).toContain("ServerAliveCountMax=3")
-      expect(args).toContain("TCPKeepAlive=yes")
-      expect(args).toContain("-i")
-      expect(args).toContain("/home/dev/.ssh/id_ed25519")
-      expect(args).toContain("-L")
-      expect(args).toContain("8444:localhost:8443")
-      expect(args).toContain("-N")
-      expect(args).toContain("dev@devbox.example.com")
-
-      const controlPathArg = args.find((a: string) =>
-        a.startsWith("ControlPath="),
-      )
-      expect(controlPathArg).toBeDefined()
-      expect(controlPathArg).toContain("studio-tunnel-dev@devbox.example.com")
-
-      expect(call[2]?.stdio).toEqual(["pipe", "pipe", "pipe"])
+      // Last createServer call is the tunnel's forwarding server
+      // (earlier calls are from isPortAvailable / findAvailablePort)
+      const results = mockCreateServer.mock.results
+      const server = results[results.length - 1]?.value
+      expect(server.listen).toHaveBeenCalledWith(8444, "127.0.0.1")
     })
 
     test("falls back to next port when preferred port is occupied", async () => {
@@ -122,9 +165,6 @@ describe("Tunnel Manager", () => {
       const state = await startTunnel(defaultConfig)
 
       expect(state.config.localPort).toBe(8445)
-
-      const call = mockSpawn.mock.calls[0] as [string, string[]]
-      expect(call[1]).toContain("8445:localhost:8443")
     })
 
     test("falls back to port 8446 when 8444 and 8445 are occupied", async () => {
@@ -148,46 +188,70 @@ describe("Tunnel Manager", () => {
       const state = await startTunnel(defaultConfig)
 
       expect(state.alive).toBe(true)
-      expect(state.process).toBe(sharedProcess)
       expect(state.startTime).toBeGreaterThan(0)
       expect(state.lastHeartbeat).toBeGreaterThan(0)
       expect(state.lastError).toBeNull()
     })
 
-    test("captures stderr output", async () => {
+    test("creates server connection handler that forwardOuts to remote port", async () => {
       await startTunnel(defaultConfig)
 
-      sharedProcess.stderr.emit(
-        "data",
-        Buffer.from("ssh: connect to host devbox.example.com port 22: Connection refused"),
-      )
+      // Simulate an incoming connection
+      const fakeSocket: any = new EventEmitter()
+      fakeSocket.pipe = mock(() => fakeSocket)
+      fakeSocket.end = mock(() => {})
+      fakeSocket.destroy = mock(() => {})
 
-      const state = getTunnelState()
-      expect(state?.lastError).toContain("Connection refused")
+      netCreateServerHandler!(fakeSocket)
+
+      expect(mockClient.client.forwardOut).toHaveBeenCalledWith(
+        "127.0.0.1",
+        8444,
+        "127.0.0.1",
+        8443,
+        expect.any(Function),
+      )
     })
 
-    test("marks tunnel as dead and sets error on close", async () => {
+    test("marks tunnel as dead and records error on SSH close", async () => {
       await startTunnel(defaultConfig)
 
-      sharedProcess.emit("close", 255)
+      expect(isTunnelAlive()).toBe(true)
+
+      mockClient.client.emit("close")
+
+      expect(isTunnelAlive()).toBe(false)
 
       const state = getTunnelState()
       expect(state?.alive).toBe(false)
-      expect(state?.lastError).toContain("exited with code 255")
+      expect(state?.lastError).toContain("SSH connection closed")
+    })
+
+    test("records error on SSH error event", async () => {
+      await startTunnel(defaultConfig)
+
+      mockClient.client.emit("error", new Error("Connection refused"))
+
+      const state = getTunnelState()
+      expect(state?.lastError).toBe("Connection refused")
     })
   })
 
+  // -----------------------------------------------------------------------
+  // stopTunnel
+  // -----------------------------------------------------------------------
+
   describe("stopTunnel", () => {
-    test.skipIf(!!process.env.CI)("sends SIGTERM to running tunnel", async () => {
+    test("calls client.end() on running tunnel", async () => {
       await startTunnel(defaultConfig)
 
       const result = stopTunnel()
 
       expect(result).toBe(true)
-      expect(sharedProcess.kill).toHaveBeenCalledWith("SIGTERM")
+      expect(mockClient.client.end).toHaveBeenCalled()
     })
 
-    test.skipIf(!!process.env.CI)("returns false when no tunnel is running", () => {
+    test("returns false when no tunnel is running", () => {
       expect(stopTunnel()).toBe(false)
     })
 
@@ -199,11 +263,11 @@ describe("Tunnel Manager", () => {
       expect(isTunnelAlive()).toBe(false)
     })
 
-    test("does not throw if process is already dead", async () => {
-      sharedProcess.kill = mock(() => {
-        throw new Error("ESRCH")
-      })
+    test("does not throw if session is already dead", async () => {
       await startTunnel(defaultConfig)
+      mockClient.client.end = mock(() => {
+        throw new Error("not connected")
+      })
 
       await expect(
         new Promise<void>((resolve) => {
@@ -213,6 +277,10 @@ describe("Tunnel Manager", () => {
       ).resolves.toBeUndefined()
     })
   })
+
+  // -----------------------------------------------------------------------
+  // isTunnelAlive
+  // -----------------------------------------------------------------------
 
   describe("isTunnelAlive", () => {
     test("returns false before tunnel is started", () => {
@@ -230,14 +298,18 @@ describe("Tunnel Manager", () => {
       expect(isTunnelAlive()).toBe(false)
     })
 
-    test.skipIf(!!process.env.CI)("returns false after process exits", async () => {
+    test("returns false after SSH session closes", async () => {
       await startTunnel(defaultConfig)
-      sharedProcess.emit("close", 0)
+      mockClient.client.emit("close")
       expect(isTunnelAlive()).toBe(false)
     })
   })
 
-  describe.skipIf(!!process.env.CI)("findAvailablePort", () => {
+  // -----------------------------------------------------------------------
+  // findAvailablePort
+  // -----------------------------------------------------------------------
+
+  describe("findAvailablePort", () => {
     test("returns preferred port when available", async () => {
       const port = await findAvailablePort(8444)
       expect(port).toBe(8444)
@@ -268,21 +340,29 @@ describe("Tunnel Manager", () => {
     })
   })
 
+  // -----------------------------------------------------------------------
+  // isPortAvailable
+  // -----------------------------------------------------------------------
+
   describe("isPortAvailable", () => {
     test("returns true when port is free", async () => {
       const available = await isPortAvailable(8444)
       expect(available).toBe(true)
     })
 
-    test.skipIf(!!process.env.CI)("returns false when port is occupied", async () => {
+    test("returns false when port is occupied", async () => {
       portStatus.set(8444, false)
       const available = await isPortAvailable(8444)
       expect(available).toBe(false)
     })
   })
 
+  // -----------------------------------------------------------------------
+  // getTunnelState
+  // -----------------------------------------------------------------------
+
   describe("getTunnelState", () => {
-    test.skipIf(!!process.env.CI)("returns null when no tunnel is running", () => {
+    test("returns null when no tunnel is running", () => {
       expect(getTunnelState()).toBeNull()
     })
 

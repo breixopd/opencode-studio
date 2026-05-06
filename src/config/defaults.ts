@@ -16,14 +16,14 @@ export const DEFAULT_EXCLUDES = [
 
 export const DEFAULT_CONFIG: StudioConfig = {
   ssh: {
-    user: "breixopd14",
-    host: "skynet-vps",
-    identityFile: join(homedir(), ".ssh", "militech_breixopd14"),
+    user: "",
+    host: "",
+    identityFile: "",
   },
   tunnel: {
     localPort: 8443,
     remotePort: 8443,
-    host: "skynet-vps",
+    host: "",
   },
   projects: {},
   defaultExcludes: DEFAULT_EXCLUDES,

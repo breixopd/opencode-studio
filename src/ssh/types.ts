@@ -1,4 +1,4 @@
-import type { ChildProcess } from "child_process"
+import type { Client } from "ssh2"
 
 export interface SSHSessionConfig {
   user: string
@@ -10,7 +10,7 @@ export interface SSHSessionConfig {
 
 export interface SSHSession {
   config: SSHSessionConfig
-  process: ChildProcess
-  controlPath: string
+  client: Client
   alive: boolean
+  controlPath: string
 }

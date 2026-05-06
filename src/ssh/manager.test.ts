@@ -1,158 +1,237 @@
-import { mock, describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { EventEmitter } from "events"
-import { writeFileSync, existsSync, unlinkSync } from "fs"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { existsSync, unlinkSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import type { Client } from "ssh2"
+import { setSSHFactory, resetSSHFactory } from "./factory"
+import { createSession, execCommand, uploadFile, closeSession } from "./manager"
+import type { SSHSession, SSHSessionConfig } from "./types"
 
-// mock.module must precede imports; a single process is shared so that
-// createSession, execCommand, uploadFile, and closeSession all interact
-// with the same EventEmitter.
-let sharedProcess: any
-
-function createFakeProcess() {
-  const proc: any = new EventEmitter()
-  proc.stdout = new EventEmitter()
-  proc.stderr = new EventEmitter()
-  proc.stdin = new EventEmitter()
-  proc.stdin.write = mock(() => true)
-  proc.stdin.end = mock(() => {})
-  proc.kill = mock(() => {})
-  proc.pid = 99999
-  return proc
+function makeMockSession(client: MockClient, config: SSHSessionConfig): SSHSession {
+  return {
+    client: client as unknown as Client,
+    config,
+    alive: true,
+    controlPath: "ssh2://testuser@testhost.example.com",
+  }
 }
 
-const mockSpawn = mock<(cmd: string, args: readonly string[], opts?: object) => any>(() => sharedProcess)
+interface MockStream {
+  on: ReturnType<typeof mock>
+  stderr: { on: ReturnType<typeof mock> }
+}
 
-mock.module("child_process", () => ({
-  spawn: mockSpawn,
-  ChildProcess: class {},
-}))
+interface MockSftp {
+  fastPut: ReturnType<typeof mock>
+}
 
-import { createSession, execCommand, uploadFile, closeSession } from "./manager"
-import type { SSHSessionConfig } from "./types"
+interface MockClient {
+  exec: ReturnType<typeof mock>
+  sftp: ReturnType<typeof mock>
+  end: ReturnType<typeof mock>
+  on: ReturnType<typeof mock>
+  connect: ReturnType<typeof mock>
+}
 
-const defaultConfig: SSHSessionConfig = {
+function mockStream(opts?: { exitCode?: number; stderrData?: string }): MockStream {
+  const exitCode = opts?.exitCode ?? 0
+  const stderrData = opts?.stderrData
+  return {
+    on: mock((event: string, handler: Function) => {
+      if (event === "data") handler(Buffer.from("mock output"))
+      if (event === "close") setTimeout(() => handler(exitCode), 1)
+    }),
+    stderr: {
+      on: mock((event: string, handler: Function) => {
+        if (event === "data" && stderrData) handler(Buffer.from(stderrData))
+      }),
+    },
+  }
+}
+
+function mockClient(opts?: {
+  execError?: Error
+  exitCode?: number
+  stderrData?: string
+  sftpError?: Error
+  fastPutError?: Error
+  sftpObj?: MockSftp
+}): MockClient {
+  const sftpObj: MockSftp = opts?.sftpObj ?? {
+    fastPut: mock((local: string, remote: string, cb: Function) => {
+      cb(opts?.fastPutError ?? null)
+    }),
+  }
+
+  return {
+    exec: mock((cmd: string, cb: Function) => {
+      if (opts?.execError) return cb(opts.execError)
+      const stream = mockStream({ exitCode: opts?.exitCode, stderrData: opts?.stderrData })
+      cb(null, stream)
+    }),
+    sftp: mock((cb: Function) => {
+      if (opts?.sftpError) return cb(opts.sftpError)
+      cb(null, sftpObj)
+    }),
+    end: mock(() => {}),
+    on: mock(() => {}),
+    connect: mock(() => {}),
+  }
+}
+
+const testConfig: SSHSessionConfig = {
   user: "testuser",
   host: "testhost.example.com",
   identityFile: "/home/testuser/.ssh/id_ed25519",
 }
 
-describe("SSH Manager", () => {
-  let tmpFile: string
+describe("SSH Manager (ssh2)", () => {
+  let client: MockClient
 
   beforeEach(() => {
-    sharedProcess = createFakeProcess()
-    mockSpawn.mockClear()
-    tmpFile = join(tmpdir(), `ssh-test-${Date.now()}`)
+    client = mockClient()
+    setSSHFactory({
+      connect: mock(async () => makeMockSession(client, testConfig)),
+    })
   })
 
   afterEach(() => {
-    if (existsSync(tmpFile)) unlinkSync(tmpFile)
+    resetSSHFactory()
   })
 
   describe("createSession", () => {
-    test("builds correct SSH args with ControlMaster", () => {
-      const session = createSession(defaultConfig)
+    it("delegates to factory.connect and returns a session", async () => {
+      const session = await createSession(testConfig)
 
+      expect(session.config).toEqual(testConfig)
       expect(session.alive).toBe(true)
-      expect(session.config).toEqual(defaultConfig)
-      expect(session.controlPath).toContain("studio-ssh-testuser@testhost.example.com")
-
-      expect(mockSpawn).toHaveBeenCalledTimes(1)
-      const call = mockSpawn.mock.calls[0] as [string, readonly string[], { stdio: string[] }]
-      expect(call[0]).toBe("ssh")
-      expect(call[1]).toContain("-o")
-      expect(call[1]).toContain("ControlMaster=auto")
-      expect(call[1]).toContain("-i")
-      expect(call[1]).toContain(defaultConfig.identityFile)
-      expect(call[1]).toContain("testuser@testhost.example.com")
-      expect(call[1]).toContain("-N")
-      expect(call[2]?.stdio).toEqual(["pipe", "pipe", "pipe"])
+      expect(session.controlPath).toBe("ssh2://testuser@testhost.example.com")
+      expect(session.client as unknown).toBe(client as unknown)
     })
   })
 
   describe("execCommand", () => {
-    test("resolves with stdout on success", async () => {
-      const session = createSession(defaultConfig)
+    it("resolves with stdout on success", async () => {
+      const session = await createSession(testConfig)
+      const result = await execCommand(session, "echo OK")
 
-      const promise = execCommand(session, "ls -la")
-      sharedProcess.stdout.emit("data", Buffer.from("file1\nfile2\n"))
-      sharedProcess.emit("close", 0)
-
-      await expect(promise).resolves.toBe("file1\nfile2")
+      expect(result).toBe("mock output")
+      expect(client.exec).toHaveBeenCalledWith("echo OK", expect.any(Function))
     })
 
-    test("rejects on non-zero exit code", async () => {
-      const session = createSession(defaultConfig)
+    it("rejects on non-zero exit code with stderr", async () => {
+      client = mockClient({ exitCode: 1, stderrData: "permission denied" })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
+      const session = await createSession(testConfig)
 
-      const promise = execCommand(session, "ls /nonexistent")
-      sharedProcess.stderr.emit("data", Buffer.from("No such file"))
-      sharedProcess.emit("close", 1)
-
-      await expect(promise).rejects.toThrow("No such file")
+      await expect(execCommand(session, "ls /root")).rejects.toThrow("permission denied")
     })
 
-    test("rejects on non-zero exit without stderr", async () => {
-      const session = createSession(defaultConfig)
+    it("rejects on non-zero exit code without stderr", async () => {
+      client = mockClient({ exitCode: 127 })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
+      const session = await createSession(testConfig)
 
-      const promise = execCommand(session, "crash")
-      sharedProcess.emit("close", 127)
+      await expect(execCommand(session, "crash")).rejects.toThrow("exit 127")
+    })
 
-      await expect(promise).rejects.toThrow("exit 127")
+    it("rejects on exec error", async () => {
+      client = mockClient({ execError: new Error("connection lost") })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
+      const session = await createSession(testConfig)
+
+      await expect(execCommand(session, "cmd")).rejects.toThrow("connection lost")
     })
   })
 
   describe("uploadFile", () => {
-    test("rejects when local file does not exist", async () => {
-      const session = createSession(defaultConfig)
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = join(tmpdir(), `ssh-test-${Date.now()}-${Math.random()}`)
+    })
+
+    afterEach(() => {
+      if (existsSync(tmpFile)) unlinkSync(tmpFile)
+    })
+
+    it("rejects when local file does not exist", async () => {
+      const session = await createSession(testConfig)
 
       await expect(uploadFile(session, "/nonexistent/path", "/remote/path")).rejects.toThrow(
         "File not found: /nonexistent/path",
       )
     })
 
-    test("pipes file content to stdin and resolves on success", async () => {
+    it("uploads via sftp.fastPut with atomic rename", async () => {
+      const sftpObj: MockSftp = {
+        fastPut: mock((local: string, remote: string, cb: Function) => cb(null)),
+      }
+      client = mockClient({ sftpObj })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
       writeFileSync(tmpFile, "hello world")
-      const session = createSession(defaultConfig)
+      const session = await createSession(testConfig)
 
-      const promise = uploadFile(session, tmpFile, "/remote/file.txt")
-      await new Promise((r) => setTimeout(r, 10))
-      sharedProcess.emit("close", 0)
+      await uploadFile(session, tmpFile, "/remote/file.txt")
 
-      await expect(promise).resolves.toBeUndefined()
-      expect(sharedProcess.stdin.write).toHaveBeenCalled()
+      expect(client.sftp).toHaveBeenCalled()
+      expect(sftpObj.fastPut).toHaveBeenCalledWith(tmpFile, "/remote/file.txt.tmp", expect.any(Function))
+      expect(client.exec).toHaveBeenCalledWith(
+        "mv /remote/file.txt.tmp /remote/file.txt",
+        expect.any(Function),
+      )
     })
 
-    test("rejects on remote failure", async () => {
+    it("rejects on sftp error", async () => {
+      client = mockClient({ sftpError: new Error("sftp failed") })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
       writeFileSync(tmpFile, "data")
-      const session = createSession(defaultConfig)
+      const session = await createSession(testConfig)
 
-      const promise = uploadFile(session, tmpFile, "/remote/file.txt")
-      await new Promise((r) => setTimeout(r, 10))
-      sharedProcess.stderr.emit("data", Buffer.from("disk full"))
-      sharedProcess.emit("close", 1)
+      await expect(uploadFile(session, tmpFile, "/remote/file.txt")).rejects.toThrow("sftp failed")
+    })
 
-      await expect(promise).rejects.toThrow("disk full")
+    it("rejects on fastPut error", async () => {
+      client = mockClient({ fastPutError: new Error("disk full") })
+      setSSHFactory({
+        connect: mock(async () => makeMockSession(client, testConfig)),
+      })
+      writeFileSync(tmpFile, "data")
+      const session = await createSession(testConfig)
+
+      await expect(uploadFile(session, tmpFile, "/remote/file.txt")).rejects.toThrow("disk full")
     })
   })
 
   describe("closeSession", () => {
-    test("sends SIGTERM then SIGKILL after timeout", async () => {
-      const session = createSession(defaultConfig)
+    it("sets alive to false and calls client.end()", async () => {
+      const session = await createSession(testConfig)
 
-      const promise = closeSession(session)
+      expect(session.alive).toBe(true)
+
+      await closeSession(session)
+
       expect(session.alive).toBe(false)
-      expect(sharedProcess.kill).toHaveBeenCalledWith("SIGTERM")
+      expect(client.end).toHaveBeenCalled()
+    })
 
-      await promise
-      expect(sharedProcess.kill).toHaveBeenCalledWith("SIGKILL")
-    }, 5000)
+    it("is safe to call multiple times", async () => {
+      const session = await createSession(testConfig)
 
-    test("does not throw if process already dead", async () => {
-      sharedProcess.kill = mock(() => { throw new Error("ESRCH") })
-      const session = createSession(defaultConfig)
+      await closeSession(session)
+      await closeSession(session)
 
-      await expect(closeSession(session)).resolves.toBeUndefined()
+      expect(client.end).toHaveBeenCalledTimes(2)
     })
   })
 })

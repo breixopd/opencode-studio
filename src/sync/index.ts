@@ -1,4 +1,5 @@
 export { bulkSync, syncFile, deleteRemoteFile } from "./transfers"
+export { createTarStream, createTarExtractor, isWindowsPlatform } from "./archiver"
 export { createWatcher } from "./watcher"
 export type { WatcherOptions } from "./watcher"
 export type { SyncEventType, SyncEvent, BatchEvents } from "./events"

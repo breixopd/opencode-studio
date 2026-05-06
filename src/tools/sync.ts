@@ -26,7 +26,7 @@ export const studio_sync_start: ToolDefinition = tool({
       return `Sync for '${args.project}' is already running.`
     }
 
-    const session = createSession(config.ssh)
+    const session = await createSession(config.ssh)
     activeSessions.set(args.project, session)
 
     try {
@@ -78,7 +78,7 @@ export const studio_sync_stop: ToolDefinition = tool({
 
     const session = activeSessions.get(args.project)
     if (session) {
-      session.process?.kill()
+      session.client.end()
       activeSessions.delete(args.project)
     }
 
