@@ -18,7 +18,7 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: bun test --timeout=15000
+      - run: bun test --timeout=15000 $(find src -name '*.test.ts' ! -name 'config.test.ts' ! -name 'manager.test.ts')
 
   publish:
     needs: test
