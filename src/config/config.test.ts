@@ -11,7 +11,7 @@ import {
   addProject,
   removeProject,
   listProjects,
-} from "./config"
+} from "./index"
 
 const TMP_HOME = join(import.meta.dir, ".test-home")
 const CONFIG_DIR = join(TMP_HOME, ".config", "opencode-studio")

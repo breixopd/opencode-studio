@@ -99,8 +99,8 @@ import {
   findAvailablePort,
   getTunnelState,
   _resetTunnelState,
-} from "./manager"
-import type { TunnelConfig } from "./manager"
+} from "./index"
+import type { TunnelConfig } from "./index"
 
 const defaultConfig: TunnelConfig = {
   user: "dev",
