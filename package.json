@@ -14,7 +14,7 @@
   },
   "files": ["dist", "rules"],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin",
+    "build": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --external ssh2 --external tar-stream",
     "typecheck": "tsc --noEmit",
     "dev": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --watch",
     "prepublishOnly": "bun run build"

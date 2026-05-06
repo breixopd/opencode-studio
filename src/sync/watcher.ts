@@ -27,6 +27,8 @@ export function createWatcher(options: WatcherOptions): FSWatcher {
     ignoreInitial: true,
     followSymlinks: false,
     depth: 99,
+    usePolling: !!process.env.CI,
+    interval: 100,
     awaitWriteFinish: {
       stabilityThreshold: 500,
       pollInterval: 100,

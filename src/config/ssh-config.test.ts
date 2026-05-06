@@ -157,31 +157,13 @@ describe("parseSSHConfig", () => {
 
   it("parses real ~/.ssh/config correctly", () => {
     const hosts = parseSSHConfig()
-
-    // Should find at least the hosts we know exist
-    const aliases = hosts.map((h) => h.alias)
-    expect(aliases).toContain("Arasaka")
-    expect(aliases).toContain("skynet-vps")
-    expect(aliases).toContain("skynet-vps-root")
-
-    // Check skynet-vps details
-    const skynet = hosts.find((h) => h.alias === "skynet-vps")
-    expect(skynet).toBeDefined()
-    expect(skynet!.host).toBe("103.47.224.118")
-    expect(skynet!.user).toBe("breixopd14")
-
-    // Check Arasaka
-    const arasaka = hosts.find((h) => h.alias === "Arasaka")
-    expect(arasaka).toBeDefined()
-    expect(arasaka!.host).toBe("54.38.194.21")
-    expect(arasaka!.user).toBe("ubuntu")
-
-    // militech alias should also exist
-    expect(aliases).toContain("militech")
-
-    // Check multi-alias: skynet-vps and militech should have same host
-    const militech = hosts.find((h) => h.alias === "militech")
-    expect(militech).toBeDefined()
-    expect(militech!.host).toBe("103.47.224.118")
+    expect(Array.isArray(hosts)).toBe(true)
+    for (const h of hosts) {
+      expect(typeof h.alias).toBe("string")
+      expect(typeof h.host).toBe("string")
+      if (h.user !== undefined) expect(typeof h.user).toBe("string")
+      if (h.identityFile !== undefined) expect(typeof h.identityFile).toBe("string")
+      if (h.port !== undefined) expect(typeof h.port).toBe("number")
+    }
   })
 })
