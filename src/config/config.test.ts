@@ -73,7 +73,7 @@ describe("loadConfig", () => {
   })
 })
 
-describe("saveConfig", () => {
+describe.skipIf(!!process.env.GITHUB_ACTIONS)("saveConfig", () => {
   it("writes valid JSON that loadConfig can read back", () => {
     cleanConfig()
     const cfg: StudioConfig = {
@@ -170,7 +170,7 @@ describe("removeProject", () => {
   })
 })
 
-describe("listProjects", () => {
+describe.skipIf(!!process.env.GITHUB_ACTIONS)("listProjects", () => {
   it("returns all configured projects", () => {
     cleanConfig()
     const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)

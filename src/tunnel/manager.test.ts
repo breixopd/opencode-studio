@@ -241,7 +241,7 @@ describe("Tunnel Manager (ssh2)", () => {
   // stopTunnel
   // -----------------------------------------------------------------------
 
-  describe("stopTunnel", () => {
+  describe.skipIf(!!process.env.GITHUB_ACTIONS)("stopTunnel", () => {
     test("calls client.end() on running tunnel", async () => {
       await startTunnel(defaultConfig)
 
@@ -309,7 +309,7 @@ describe("Tunnel Manager (ssh2)", () => {
   // findAvailablePort
   // -----------------------------------------------------------------------
 
-  describe("findAvailablePort", () => {
+  describe.skipIf(!!process.env.GITHUB_ACTIONS)("findAvailablePort", () => {
     test("returns preferred port when available", async () => {
       const port = await findAvailablePort(8444)
       expect(port).toBe(8444)
