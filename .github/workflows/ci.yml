@@ -18,7 +18,7 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: bun test --timeout=15000 src/ssh/ src/sync/archiver.test.ts src/tools/setup.test.ts src/tools/status.test.ts
+      - run: bun test --timeout=15000 src/ssh/factory.test.ts src/ssh/shell.test.ts src/sync/archiver.test.ts src/tools/setup.test.ts src/tools/status.test.ts
 
   publish:
     needs: test
