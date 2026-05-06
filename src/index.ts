@@ -4,6 +4,7 @@ import { studio_tunnel_status, studio_tunnel_restart } from "./tools/tunnel"
 import { studio_add_project, studio_remove_project } from "./tools/config"
 import { studio_status, studio_list_projects } from "./tools/status"
 import { studio_setup } from "./tools/setup"
+import { createConfigHook, createChatMessageHook, createEventHook } from "./hooks"
 
 export const OpenCodeStudio: Plugin = async () => {
   return {
@@ -18,6 +19,9 @@ export const OpenCodeStudio: Plugin = async () => {
       studio_list_projects,
       studio_setup,
     },
+    config: createConfigHook(),
+    "chat.message": createChatMessageHook(),
+    event: createEventHook(),
   }
 }
 
