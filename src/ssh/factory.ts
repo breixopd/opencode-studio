@@ -1,4 +1,5 @@
 import { Client } from "ssh2"
+import { readFileSync } from "fs"
 import type { SSHSessionConfig, SSHSession } from "./types"
 
 export interface SSHClientFactory {
@@ -32,7 +33,7 @@ export class RealSSHClientFactory implements SSHClientFactory {
         host: config.host,
         port: config.port || 22,
         username: config.user,
-        privateKey: config.identityFile,
+        privateKey: readFileSync(config.identityFile, "utf-8"),
         readyTimeout: 10000,
         keepaliveInterval: 30000,
       })

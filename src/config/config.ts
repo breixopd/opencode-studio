@@ -26,7 +26,8 @@ export function loadConfig(configPath?: string, sshConfigPath?: string): StudioC
     // Auto-detect from SSH config
     const hosts = parseSSHConfig(sshConfigPath)
     if (hosts.length > 0) {
-      const first = hosts[0]
+      // Prefer host with identity file for key-based auth
+      const first = hosts.find(h => h.identityFile && h.host) || hosts[0]
       const autoConfig: StudioConfig = {
         ssh: {
           user: first.user || "",
