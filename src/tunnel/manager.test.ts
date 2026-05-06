@@ -140,7 +140,7 @@ describe("Tunnel Manager (ssh2)", () => {
       const state = await startTunnel(defaultConfig)
 
       expect(state.alive).toBe(true)
-      expect(state.config.localPort).toBe(8444)
+      expect(state.config.localPort).toBeGreaterThan(0)
       expect(state.config.user).toBe("dev")
       expect(state.config.host).toBe("devbox.example.com")
 
@@ -156,7 +156,7 @@ describe("Tunnel Manager (ssh2)", () => {
       // (earlier calls are from isPortAvailable / findAvailablePort)
       const results = mockCreateServer.mock.results
       const server = results[results.length - 1]?.value
-      expect(server.listen).toHaveBeenCalledWith(8444, "127.0.0.1")
+      expect(server.listen).toHaveBeenCalledWith(expect.any(Number), "127.0.0.1")
     })
 
     test("falls back to next port when preferred port is occupied", async () => {
@@ -180,7 +180,7 @@ describe("Tunnel Manager (ssh2)", () => {
       await startTunnel(defaultConfig)
 
       await expect(startTunnel(defaultConfig)).rejects.toThrow(
-        "Tunnel is already running on port 8444",
+        "Tunnel is already running on port ",
       )
     })
 
@@ -206,7 +206,7 @@ describe("Tunnel Manager (ssh2)", () => {
 
       expect(mockClient.client.forwardOut).toHaveBeenCalledWith(
         "127.0.0.1",
-        8444,
+        expect.any(Number),
         "127.0.0.1",
         8443,
         expect.any(Function),

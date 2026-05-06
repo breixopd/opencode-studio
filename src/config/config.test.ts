@@ -1,36 +1,27 @@
-import { describe, it, expect, beforeAll, afterAll, mock } from "bun:test"
+import { describe, it, expect, afterAll } from "bun:test"
 import { mkdirSync, rmSync, existsSync, writeFileSync } from "fs"
 import { join } from "path"
 import { z } from "zod"
 import { safeValidateConfig, validateConfig } from "./schema"
 import type { StudioConfig } from "./types"
 import { DEFAULT_CONFIG, DEFAULT_EXCLUDES } from "./defaults"
+import {
+  loadConfig,
+  saveConfig,
+  addProject,
+  removeProject,
+  listProjects,
+} from "./config"
 
 const TMP_HOME = join(import.meta.dir, ".test-home")
 const CONFIG_DIR = join(TMP_HOME, ".config", "opencode-studio")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
-
-let loadConfig: typeof import("./config").loadConfig
-let saveConfig: typeof import("./config").saveConfig
-let addProject: typeof import("./config").addProject
-let removeProject: typeof import("./config").removeProject
-let listProjects: typeof import("./config").listProjects
-
-beforeAll(async () => {
-  mock.module("os", () => ({ homedir: () => TMP_HOME }))
-  const mod = await import("./config")
-  loadConfig = mod.loadConfig
-  saveConfig = mod.saveConfig
-  addProject = mod.addProject
-  removeProject = mod.removeProject
-  listProjects = mod.listProjects
-})
+const NO_SSH_CONFIG = join(TMP_HOME, ".ssh", "config")
 
 afterAll(() => {
   if (existsSync(TMP_HOME)) {
     rmSync(TMP_HOME, { recursive: true })
   }
-  mock.restore()
 })
 
 function cleanConfig() {
@@ -45,7 +36,7 @@ function writeTestConfig(data: unknown) {
 describe("loadConfig", () => {
   it("returns defaults when no config file exists", () => {
     cleanConfig()
-    const config = loadConfig()
+    const config = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(config.ssh.user).toBe(DEFAULT_CONFIG.ssh.user)
     expect(config.tunnel.localPort).toBe(DEFAULT_CONFIG.tunnel.localPort)
     expect(config.projects).toEqual({})
@@ -54,7 +45,7 @@ describe("loadConfig", () => {
 
   it("creates config file on first load", () => {
     cleanConfig()
-    loadConfig()
+    loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(existsSync(CONFIG_PATH)).toBe(true)
   })
 
@@ -66,7 +57,7 @@ describe("loadConfig", () => {
       projects: { spectre: { local: "/tmp/spectre", remote: "/remote/spectre", excludes: [] } },
       defaultExcludes: [".git/"],
     })
-    const config = loadConfig()
+    const config = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(config.ssh.user).toBe("testuser")
     expect(config.projects["spectre"]).toBeDefined()
     expect(config.projects["spectre"].local).toBe("/tmp/spectre")
@@ -75,7 +66,7 @@ describe("loadConfig", () => {
   it("fills in missing fields with defaults (partial config)", () => {
     cleanConfig()
     writeTestConfig({ ssh: { user: "u", host: "h", identityFile: "/k" } })
-    const config = loadConfig()
+    const config = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(config.tunnel.localPort).toBe(DEFAULT_CONFIG.tunnel.localPort)
     expect(config.projects).toEqual({})
     expect(config.defaultExcludes).toEqual(DEFAULT_EXCLUDES)
@@ -91,8 +82,8 @@ describe("saveConfig", () => {
       projects: { p1: { local: "/a", remote: "/b", excludes: [".git/"] } },
       defaultExcludes: [".git/"],
     }
-    saveConfig(cfg)
-    const reloaded = loadConfig()
+    saveConfig(cfg, CONFIG_PATH)
+    const reloaded = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(reloaded.ssh.user).toBe("u")
     expect(reloaded.tunnel.localPort).toBe(8000)
     expect(reloaded.projects["p1"].remote).toBe("/b")
@@ -102,10 +93,10 @@ describe("saveConfig", () => {
 describe("addProject", () => {
   it("adds a project", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const localDir = join(TMP_HOME, "my-project")
     mkdirSync(localDir, { recursive: true })
-    addProject(cfg, "myproj", localDir, "/remote/myproj")
+    addProject(cfg, "myproj", localDir, "/remote/myproj", undefined, CONFIG_PATH)
     expect(cfg.projects["myproj"]).toBeDefined()
     expect(cfg.projects["myproj"].local).toBe(localDir)
     expect(cfg.projects["myproj"].remote).toBe("/remote/myproj")
@@ -114,37 +105,37 @@ describe("addProject", () => {
 
   it("accepts custom excludes", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const localDir = join(TMP_HOME, "proj2")
     mkdirSync(localDir, { recursive: true })
-    addProject(cfg, "proj2", localDir, "/remote/p2", ["node_modules/"])
+    addProject(cfg, "proj2", localDir, "/remote/p2", ["node_modules/"], CONFIG_PATH)
     expect(cfg.projects["proj2"].excludes).toEqual(["node_modules/"])
   })
 
   it("throws on non-existent local path", () => {
     cleanConfig()
-    const cfg = loadConfig()
-    expect(() => addProject(cfg, "ghost", "/does/not/exist", "/remote")).toThrow(
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
+    expect(() => addProject(cfg, "ghost", "/does/not/exist", "/remote", undefined, CONFIG_PATH)).toThrow(
       "Local path does not exist"
     )
   })
 
   it("throws on duplicate project name", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const dir = join(TMP_HOME, "dup")
     mkdirSync(dir, { recursive: true })
-    addProject(cfg, "dup", dir, "/r")
-    expect(() => addProject(cfg, "dup", dir, "/r")).toThrow("already exists")
+    addProject(cfg, "dup", dir, "/r", undefined, CONFIG_PATH)
+    expect(() => addProject(cfg, "dup", dir, "/r", undefined, CONFIG_PATH)).toThrow("already exists")
   })
 
   it("persists to disk", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const dir = join(TMP_HOME, "persist")
     mkdirSync(dir, { recursive: true })
-    addProject(cfg, "persist", dir, "/r")
-    const reloaded = loadConfig()
+    addProject(cfg, "persist", dir, "/r", undefined, CONFIG_PATH)
+    const reloaded = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(reloaded.projects["persist"]).toBeDefined()
   })
 })
@@ -152,29 +143,29 @@ describe("addProject", () => {
 describe("removeProject", () => {
   it("removes a project", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const dir = join(TMP_HOME, "rm-me")
     mkdirSync(dir, { recursive: true })
-    addProject(cfg, "rm-me", dir, "/r")
+    addProject(cfg, "rm-me", dir, "/r", undefined, CONFIG_PATH)
     expect(cfg.projects["rm-me"]).toBeDefined()
-    removeProject(cfg, "rm-me")
+    removeProject(cfg, "rm-me", CONFIG_PATH)
     expect(cfg.projects["rm-me"]).toBeUndefined()
   })
 
   it("throws on missing project", () => {
     cleanConfig()
-    const cfg = loadConfig()
-    expect(() => removeProject(cfg, "nope")).toThrow("not found")
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
+    expect(() => removeProject(cfg, "nope", CONFIG_PATH)).toThrow("not found")
   })
 
   it("persists removal to disk", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const dir = join(TMP_HOME, "gone")
     mkdirSync(dir, { recursive: true })
-    addProject(cfg, "gone", dir, "/r")
-    removeProject(cfg, "gone")
-    const reloaded = loadConfig()
+    addProject(cfg, "gone", dir, "/r", undefined, CONFIG_PATH)
+    removeProject(cfg, "gone", CONFIG_PATH)
+    const reloaded = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(reloaded.projects["gone"]).toBeUndefined()
   })
 })
@@ -182,13 +173,13 @@ describe("removeProject", () => {
 describe("listProjects", () => {
   it("returns all configured projects", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const d1 = join(TMP_HOME, "p1")
     const d2 = join(TMP_HOME, "p2")
     mkdirSync(d1, { recursive: true })
     mkdirSync(d2, { recursive: true })
-    addProject(cfg, "p1", d1, "/r1")
-    addProject(cfg, "p2", d2, "/r2")
+    addProject(cfg, "p1", d1, "/r1", undefined, CONFIG_PATH)
+    addProject(cfg, "p2", d2, "/r2", undefined, CONFIG_PATH)
     const list = listProjects(cfg)
     expect(Object.keys(list)).toHaveLength(2)
     expect(list["p1"].local).toBe(d1)
@@ -197,16 +188,16 @@ describe("listProjects", () => {
 
   it("returns empty when no projects", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     expect(listProjects(cfg)).toEqual({})
   })
 
   it("returns a copy, not a reference", () => {
     cleanConfig()
-    const cfg = loadConfig()
+    const cfg = loadConfig(CONFIG_PATH, NO_SSH_CONFIG)
     const d = join(TMP_HOME, "ref")
     mkdirSync(d, { recursive: true })
-    addProject(cfg, "ref", d, "/r")
+    addProject(cfg, "ref", d, "/r", undefined, CONFIG_PATH)
     const list = listProjects(cfg)
     delete list["ref"]
     expect(cfg.projects["ref"]).toBeDefined()

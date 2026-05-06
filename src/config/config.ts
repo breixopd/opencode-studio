@@ -1,5 +1,5 @@
 import { homedir } from "os"
-import { join } from "path"
+import { join, dirname } from "path"
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs"
 import type { StudioConfig, ProjectMapping } from "./types"
 import { DEFAULT_CONFIG, DEFAULT_EXCLUDES } from "./defaults"
@@ -16,12 +16,15 @@ export function getConfigDir(): string {
   return CONFIG_DIR
 }
 
-export function loadConfig(): StudioConfig {
-  if (!existsSync(CONFIG_PATH)) {
-    mkdirSync(CONFIG_DIR, { recursive: true })
+export function loadConfig(configPath?: string, sshConfigPath?: string): StudioConfig {
+  const resolvedPath = configPath || CONFIG_PATH
+  const resolvedDir = dirname(resolvedPath)
+
+  if (!existsSync(resolvedPath)) {
+    mkdirSync(resolvedDir, { recursive: true })
 
     // Auto-detect from SSH config
-    const hosts = parseSSHConfig()
+    const hosts = parseSSHConfig(sshConfigPath)
     if (hosts.length > 0) {
       const first = hosts[0]
       const autoConfig: StudioConfig = {
@@ -37,16 +40,16 @@ export function loadConfig(): StudioConfig {
         projects: {},
         defaultExcludes: DEFAULT_EXCLUDES,
       }
-      writeFileSync(CONFIG_PATH, JSON.stringify(autoConfig, null, 2))
+      writeFileSync(resolvedPath, JSON.stringify(autoConfig, null, 2))
       return { ...autoConfig, projects: { ...autoConfig.projects } }
     }
 
     // No SSH config detected, return empty defaults
-    writeFileSync(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2))
+    writeFileSync(resolvedPath, JSON.stringify(DEFAULT_CONFIG, null, 2))
     return { ...DEFAULT_CONFIG, projects: { ...DEFAULT_CONFIG.projects } }
   }
 
-  const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"))
+  const raw = JSON.parse(readFileSync(resolvedPath, "utf-8"))
   return {
     ssh: { ...DEFAULT_CONFIG.ssh, ...(raw.ssh || {}) },
     tunnel: { ...DEFAULT_CONFIG.tunnel, ...(raw.tunnel || {}) },
@@ -55,9 +58,11 @@ export function loadConfig(): StudioConfig {
   }
 }
 
-export function saveConfig(config: StudioConfig): void {
-  mkdirSync(CONFIG_DIR, { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
+export function saveConfig(config: StudioConfig, configPath?: string): void {
+  const resolvedPath = configPath || CONFIG_PATH
+  const resolvedDir = dirname(resolvedPath)
+  mkdirSync(resolvedDir, { recursive: true })
+  writeFileSync(resolvedPath, JSON.stringify(config, null, 2))
 }
 
 export function addProject(
@@ -65,7 +70,8 @@ export function addProject(
   name: string,
   local: string,
   remote: string,
-  excludes?: string[]
+  excludes?: string[],
+  configPath?: string,
 ): StudioConfig {
   if (!existsSync(local)) {
     throw new Error(`Local path does not exist: ${local}`)
@@ -78,16 +84,16 @@ export function addProject(
     remote,
     excludes: excludes || [...config.defaultExcludes],
   }
-  saveConfig(config)
+  saveConfig(config, configPath)
   return config
 }
 
-export function removeProject(config: StudioConfig, name: string): StudioConfig {
+export function removeProject(config: StudioConfig, name: string, configPath?: string): StudioConfig {
   if (!config.projects[name]) {
     throw new Error(`Project '${name}' not found`)
   }
   delete config.projects[name]
-  saveConfig(config)
+  saveConfig(config, configPath)
   return config
 }
 
