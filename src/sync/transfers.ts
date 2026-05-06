@@ -3,6 +3,20 @@ import { join, relative, sep } from "path"
 import type { SSHSession } from "../ssh/types"
 import { execCommand } from "../ssh/manager"
 
+function countFiles(localPath: string, excludes: string[]): number {
+  let count = 0
+  function walk(dir: string) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (excludes.some((e) => entry.name === e.replace(/\/$/, ""))) continue
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else count++
+    }
+  }
+  walk(localPath)
+  return count
+}
+
 function walkDirectory(
   dir: string,
   localPath: string,
@@ -43,8 +57,14 @@ export async function bulkSync(
 ): Promise<void> {
   await execCommand(session, `mkdir -p ${remotePath}`)
 
+  const totalFiles = countFiles(localPath, excludes)
+  console.log(`[studio-sync] Starting bulk sync: ${totalFiles} file(s) from ${localPath}`)
+
   const toUpload = walkDirectory(localPath, localPath, excludes)
-  if (toUpload.length === 0) return
+  if (toUpload.length === 0) {
+    console.log(`[studio-sync] Bulk sync complete: no files to upload`)
+    return
+  }
 
   const sftp = await new Promise<any>((resolve, reject) => {
     session.client.sftp((err, sftp) => {
@@ -53,7 +73,10 @@ export async function bulkSync(
     })
   })
 
+  const startTime = Date.now()
   let failed = 0
+  let uploaded = 0
+
   for (const file of toUpload) {
     const localFile = join(localPath, file)
     const remoteFile = join(remotePath, file).replace(/\\/g, "/")
@@ -70,10 +93,14 @@ export async function bulkSync(
       })
 
       await execCommand(session, `mv ${remoteFile}.tmp ${remoteFile}`)
+      uploaded++
     } catch {
       failed++
     }
   }
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+  console.log(`[studio-sync] Bulk sync done: ${uploaded} uploaded, ${failed} failed, ${elapsed}s`)
 
   if (failed > 0) {
     throw new Error(`${failed} of ${toUpload.length} files failed to sync`)

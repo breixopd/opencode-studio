@@ -108,13 +108,13 @@ describe("studio_sync_start", () => {
     expect(mockBulkSync).toHaveBeenCalledTimes(1)
   })
 
-  it("returns error when bulk sync fails", async () => {
+  it("returns actionable error when bulk sync fails", async () => {
     mockBulkSync.mockRejectedValueOnce(new Error("SSH connection refused"))
 
     const result = await studio_sync_start.execute({ project: "myapp" }, ctx)
 
-    expect(result).toContain("Error during bulk sync")
-    expect(result).toContain("SSH connection refused")
+    expect(result).toContain("Cannot connect to remote host")
+    expect(result).toContain("VPS is running")
   })
 })
 
