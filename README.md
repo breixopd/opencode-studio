@@ -24,14 +24,16 @@ Or start syncing a project:
 studio_sync_start { "project": "myapp" }
 ```
 
+On Windows, SSH is handled internally by `ssh2`. No WSL or system OpenSSH client required.
+
 ## Features
 
-- **Real-time File Sync** -- Pure JS sync engine. Uses chokidar for file watching, tar for bulk transfers, and SSH streams for incremental sync. No rsync needed.
-- **SSH Tunnel Manager** -- Auto-reconnecting SSH tunnel. Port conflict detection with automatic fallback. Replaces systemd/autossh setups.
-- **8 MCP Tools** -- All prefixed with `studio_` for easy discovery.
-- **8 Bundled Dev Rules** -- git-worktree, code-quality, security, communication, and more for consistent agent behavior.
-- **Config System** -- Zod-validated JSON config at `~/.config/opencode-studio/config.json`.
-- **Cross-platform** -- Works on Linux, macOS, and Windows (WSL). No system package dependencies beyond SSH and tar.
+- **Real-time File Sync** - Pure JS sync engine. Uses chokidar for file watching, tar for bulk transfers, and SSH streams for incremental sync. No rsync needed.
+- **SSH Tunnel Manager** - Auto-reconnecting SSH tunnel. Port conflict detection with automatic fallback. Replaces systemd/autossh setups.
+- **8 MCP Tools** - All prefixed with `studio_` for easy discovery.
+- **8 Bundled Dev Rules** - git-worktree, code-quality, security, communication, and more for consistent agent behavior.
+- **Config System** - Zod-validated JSON config at `~/.config/opencode-studio/config.json`.
+- **Cross-platform** - Works on Linux, macOS, and Windows (WSL). No system package dependencies beyond SSH and tar.
 
 ## Available Tools
 
@@ -113,6 +115,14 @@ scripts/      Utility scripts (coexistence verification)
 - **SSH** with key-based authentication configured
 - **tar** available on both local and remote systems (every Unix system has this)
 - **OpenCode** (any recent version with plugin support)
+
+## Windows Compatibility
+
+Works on Windows without WSL. Uses `ssh2` (pure Node.js SSH client) - no system SSH binary needed. Bulk file sync falls back from `tar` pipe to streaming SSH SFTP on Windows.
+
+Requirements on Windows:
+- Node.js >= 20
+- OpenCode (any recent version)
 
 ## FAQ
 

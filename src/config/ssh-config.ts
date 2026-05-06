@@ -53,7 +53,7 @@ export function parseSSHConfig(configPath?: string): SSHHost[] {
           current.user = value
           break
         case "identityfile":
-          current.identityFile = value.replace(/^~\//, homedir() + "/")
+          current.identityFile = value.replace(/^~/, homedir())
           break
         case "port":
           current.port = parseInt(value, 10)
