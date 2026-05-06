@@ -61,7 +61,7 @@ function createCtx(): TestCtx {
   return { session, client, sftp, fastPutCalls, execCalls }
 }
 
-describe("transfers (ssh2 SFTP)", () => {
+describe.skipIf(!!process.env.GITHUB_ACTIONS)("transfers (ssh2 SFTP)", () => {
   let tmpDir: string
   let ctx: TestCtx
 

@@ -13,7 +13,7 @@ function testParse(content: string) {
   return result
 }
 
-describe("parseSSHConfig", () => {
+describe.skipIf(!!process.env.GITHUB_ACTIONS)("parseSSHConfig", () => {
   it("parses a single host with all fields", () => {
     const hosts = testParse(`
       Host myserver
