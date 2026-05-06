@@ -39,7 +39,7 @@ describe("studio_setup", () => {
     savedConfig = null
   })
 
-  it("returns detected hosts when no config exists and SSH hosts are found", async () => {
+  it("returns multiple hosts when SSH hosts are found and no host specified", async () => {
     mockHosts = [
       { alias: "myserver", host: "myserver.example.com", user: "admin", identityFile: "/home/user/.ssh/id_rsa" },
       { alias: "devbox", host: "192.168.1.100", user: "dev" },
@@ -48,15 +48,12 @@ describe("studio_setup", () => {
     const result = await studio_setup.execute({}, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("detected")
-    expect(parsed.detected_host.alias).toBe("myserver")
-    expect(parsed.config.host).toBe("myserver.example.com")
-    expect(parsed.config.user).toBe("admin")
+    expect(parsed.status).toBe("multiple_hosts")
     expect(parsed.all_hosts).toHaveLength(2)
-    expect(mockSaveConfig).toHaveBeenCalledTimes(1)
+    expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
-  it("returns 'already configured' when config exists with a host", async () => {
+  it("returns all hosts even when config exists", async () => {
     mockLoadConfig.mockReturnValueOnce({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
@@ -64,15 +61,20 @@ describe("studio_setup", () => {
       defaultExcludes: [".git/"],
     })
 
+    mockHosts = [
+      { alias: "myserver", host: "myserver.example.com", user: "admin", identityFile: "/home/user/.ssh/id_rsa" },
+      { alias: "devbox", host: "192.168.1.100", user: "dev" },
+    ]
+
     const result = await studio_setup.execute({}, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("configured")
-    expect(parsed.config.host).toBe("existing-host")
+    expect(parsed.status).toBe("multiple_hosts")
+    expect(parsed.all_hosts).toHaveLength(2)
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
-  it("re-detects with force:true even when config exists", async () => {
+  it("re-detects with force:true", async () => {
     mockLoadConfig.mockReturnValueOnce({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
