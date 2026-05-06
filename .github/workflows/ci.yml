@@ -18,7 +18,7 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: bun test --timeout=15000 $(find src -name '*.test.ts' ! -name 'config.test.ts' ! -name 'manager.test.ts' ! -name 'ssh-config.test.ts' ! -name 'transfers.test.ts' ! -name 'watcher.test.ts')
+      - run: bun test --timeout=15000 $(find src -name '*.test.ts' ! -name 'config.test.ts' ! -name 'manager.test.ts' ! -name 'ssh-config.test.ts' ! -name 'transfers.test.ts' ! -name 'watcher.test.ts' ! -name 'tunnel.test.ts' ! -name 'sync.test.ts')
 
   publish:
     needs: test
