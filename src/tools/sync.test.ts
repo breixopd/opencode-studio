@@ -34,6 +34,7 @@ mock.module("../sync/watcher", () => ({ createWatcher: mockCreateWatcher }))
 mock.module("../sync/transfers", () => ({
   bulkSync: mockBulkSync,
   syncFile: mockSyncFile,
+  syncDirectory: mock(() => Promise.resolve()),
   deleteRemoteFile: mockDeleteRemoteFile,
 }))
 
@@ -94,7 +95,7 @@ describe("studio_sync_start", () => {
   it("returns error for non-existent project", async () => {
     const result = await studio_sync_start.execute({ project: "ghost" }, ctx)
 
-    expect(result).toContain("Error: Project 'ghost' not found")
+    expect(result).toContain("Project 'ghost' not found")
     expect(mockBulkSync).not.toHaveBeenCalled()
   })
 

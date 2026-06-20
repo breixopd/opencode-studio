@@ -1,0 +1,77 @@
+---
+description: OpenCode Studio — zero-config dev platform (native tools, subagents, boulder tasks)
+globs: "*"
+alwaysApply: true
+---
+
+# OpenCode Studio
+
+Everything is automatic. Native `studio_*` tools replace extra MCPs.
+
+## Research first (good programmer habit)
+
+Before planning or implementing anything non-trivial:
+
+1. **Official docs** — API references, guides, changelogs for libraries you touch
+2. **Real examples** — `studio_search`, `studio_code_search`, `studio_fetch`
+3. **Delegate** — `@studio-research` via task tool for parallel research
+4. **Record** — cite URLs in `studio_plan` under "Research"
+
+Do not guess APIs, config keys, or framework behavior.
+
+## Work flow (boulder)
+
+1. Research docs/examples (above)
+2. `studio_plan write` — goal, research notes, steps, edge cases, test strategy
+3. `studio_task create` — break into tasks with acceptance criteria
+4. Delegate parallel work: `@studio-explore` `@studio-implement` via **task** tool
+5. `studio_verify` — tests/lint/typecheck/build before done
+6. `studio_task done` for each item — **do not stop with open tasks**
+7. `studio_handoff` — structured completion report
+
+Say `start-work` or `/start-work` for the full automated workflow.
+
+## Ask the user (`question` tool)
+
+When requirements are unclear, trade-offs matter, or you'd be guessing — **ask**.
+Skip only if the user said not to ask (e.g. "just decide", "don't ask").
+
+## User rules (`remember`)
+
+When the user says **"remember …"** — that is an important persistent rule. Save with `studio_remember add` immediately.
+Rules are injected every session and survive compaction.
+
+## Active plan & architecture
+
+`studio_plan write` saves **Architecture** and **File structure** to `.studio/architecture.md`.
+Follow the active plan unless the user changes direction. Use `studio_plan activate` to switch plans.
+
+## Preferences
+
+| Topic | Default | Override |
+|-------|---------|----------|
+| Remote path | `/home/{ssh.user}/{project-name}` | `studio_preferences set_remote_path` |
+| `.studio/` in git | **No** (auto `.gitignore`) | `studio_preferences allow_studio_commit` only if user asks |
+
+## Native tools (no API keys)
+
+| Tool | Use |
+|------|-----|
+| `studio_search` | DuckDuckGo web search |
+| `studio_fetch` | URL content |
+| `studio_code_search` | GitHub code search |
+| `studio_retrieve` | Full text after auto-compression |
+| `studio_diagram` | Mermaid → `.studio/diagrams/` |
+| `studio_preferences` | Remote path & git policy |
+| `studio_remember` | Persistent user rules ("remember …") |
+
+## Quality bar
+
+- **Edge cases**: null, empty, permissions, concurrency, network failure
+- **Tests**: behavior not mocks; cover failure paths
+- **Performance**: don't optimize without evidence
+- **YAGNI**: delete before adding; stdlib first
+
+## Keywords
+
+`ultrawork` / `ulw` → parallel subagents. `plan` → research then studio_plan. `review` → @studio-review.

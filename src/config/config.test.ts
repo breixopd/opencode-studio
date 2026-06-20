@@ -220,10 +220,10 @@ describe("schema validation", () => {
     }
   })
 
-  it("rejects missing ssh.host", () => {
+  it("accepts empty ssh host before setup", () => {
     const bad = { ...validConfig, ssh: { ...validConfig.ssh, host: "" } }
     const result = safeValidateConfig(bad)
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it("rejects missing identityFile", () => {
@@ -247,19 +247,19 @@ describe("schema validation", () => {
     expect(result.success).toBe(false)
   })
 
-  it("rejects empty tunnel host", () => {
+  it("accepts empty tunnel host before setup", () => {
     const bad = { ...validConfig, tunnel: { ...validConfig.tunnel, host: "" } }
     const result = safeValidateConfig(bad)
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it("throws on invalid config with validateConfig", () => {
     expect(() => validateConfig({})).toThrow(z.ZodError)
   })
 
-  it("accepts config with optional SSH fields", () => {
+  it("accepts config with optional SSH port", () => {
     const withOptional: StudioConfig = {
-      ssh: { user: "u", host: "h", identityFile: "/k", port: 22, strictHostChecking: true },
+      ssh: { user: "u", host: "h", identityFile: "/k", port: 22 },
       tunnel: { localPort: 8443, remotePort: 8443, host: "h" },
       projects: {},
       defaultExcludes: [],

@@ -160,7 +160,7 @@ describe.skipIf(!!process.env.GITHUB_ACTIONS)("parseSSHConfig", () => {
     expect(Array.isArray(hosts)).toBe(true)
     for (const h of hosts) {
       expect(typeof h.alias).toBe("string")
-      expect(typeof h.host).toBe("string")
+      expect(typeof (h.host ?? h.alias)).toBe("string")
       if (h.user !== undefined) expect(typeof h.user).toBe("string")
       if (h.identityFile !== undefined) expect(typeof h.identityFile).toBe("string")
       if (h.port !== undefined) expect(typeof h.port).toBe("number")

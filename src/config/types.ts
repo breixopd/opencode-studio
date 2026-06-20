@@ -1,7 +1,9 @@
-export interface ProjectMapping {
+export type ProjectMapping = {
   local: string
   remote: string
   excludes: string[]
+  /** When true, `.studio/` is not auto-added to .gitignore */
+  commitStudio?: boolean
 }
 
 export interface TunnelConfig {
@@ -15,7 +17,6 @@ export interface SSHConfig {
   host: string
   identityFile: string
   port?: number
-  strictHostChecking?: boolean
 }
 
 export interface StudioConfig {

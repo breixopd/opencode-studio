@@ -4,16 +4,26 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs"
 import type { StudioConfig, ProjectMapping } from "./types"
 import { DEFAULT_CONFIG, DEFAULT_EXCLUDES } from "./defaults"
 import { parseSSHConfig } from "./ssh-config"
+import { safeValidateConfig } from "./schema"
 
 const CONFIG_DIR = join(homedir(), ".config", "opencode-studio")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
 
-export function getConfigPath(): string {
-  return CONFIG_PATH
+function mergeRawConfig(raw: Record<string, unknown>): StudioConfig {
+  return {
+    ssh: { ...DEFAULT_CONFIG.ssh, ...((raw.ssh as object) || {}) },
+    tunnel: { ...DEFAULT_CONFIG.tunnel, ...((raw.tunnel as object) || {}) },
+    projects: (raw.projects as StudioConfig["projects"]) || {},
+    defaultExcludes: (raw.defaultExcludes as string[]) || DEFAULT_EXCLUDES,
+  }
 }
 
-export function getConfigDir(): string {
-  return CONFIG_DIR
+function validateOrThrow(config: StudioConfig, context: string): StudioConfig {
+  const result = safeValidateConfig(config)
+  if (!result.success) {
+    throw new Error(`Invalid studio config (${context}): ${result.error.message}`)
+  }
+  return result.data
 }
 
 export function loadConfig(configPath?: string, sshConfigPath?: string): StudioConfig {
@@ -23,47 +33,47 @@ export function loadConfig(configPath?: string, sshConfigPath?: string): StudioC
   if (!existsSync(resolvedPath)) {
     mkdirSync(resolvedDir, { recursive: true })
 
-    // Auto-detect from SSH config
     const hosts = parseSSHConfig(sshConfigPath)
     if (hosts.length > 0) {
-      // Prefer host with identity file for key-based auth
-      const first = hosts.find(h => h.identityFile && h.host) || hosts[0]
-      const autoConfig: StudioConfig = {
-        ssh: {
-          user: first.user || "",
-          host: first.host || first.alias,
-          identityFile: first.identityFile || "",
+      const first = hosts.find((h) => h.identityFile && h.host) || hosts[0]
+      const autoConfig = validateOrThrow(
+        {
+          ssh: {
+            user: first.user || "",
+            host: first.host || first.alias,
+            identityFile: first.identityFile || "",
+            port: first.port,
+          },
+          tunnel: {
+            ...DEFAULT_CONFIG.tunnel,
+            host: first.host || first.alias,
+          },
+          projects: {},
+          defaultExcludes: DEFAULT_EXCLUDES,
         },
-        tunnel: {
-          ...DEFAULT_CONFIG.tunnel,
-          host: first.host || first.alias,
-        },
-        projects: {},
-        defaultExcludes: DEFAULT_EXCLUDES,
-      }
+        "auto-detect",
+      )
       writeFileSync(resolvedPath, JSON.stringify(autoConfig, null, 2))
       return { ...autoConfig, projects: { ...autoConfig.projects } }
     }
 
-    // No SSH config detected, return empty defaults
-    writeFileSync(resolvedPath, JSON.stringify(DEFAULT_CONFIG, null, 2))
-    return { ...DEFAULT_CONFIG, projects: { ...DEFAULT_CONFIG.projects } }
+    const defaults = validateOrThrow(DEFAULT_CONFIG, "defaults")
+    writeFileSync(resolvedPath, JSON.stringify(defaults, null, 2))
+    return { ...defaults, projects: { ...defaults.projects } }
   }
 
   const raw = JSON.parse(readFileSync(resolvedPath, "utf-8"))
-  return {
-    ssh: { ...DEFAULT_CONFIG.ssh, ...(raw.ssh || {}) },
-    tunnel: { ...DEFAULT_CONFIG.tunnel, ...(raw.tunnel || {}) },
-    projects: raw.projects || {},
-    defaultExcludes: raw.defaultExcludes || DEFAULT_CONFIG.defaultExcludes,
-  }
+  const merged = mergeRawConfig(raw)
+  const validated = validateOrThrow(merged, resolvedPath)
+  return { ...validated, projects: { ...validated.projects } }
 }
 
 export function saveConfig(config: StudioConfig, configPath?: string): void {
+  const validated = validateOrThrow(config, "save")
   const resolvedPath = configPath || CONFIG_PATH
   const resolvedDir = dirname(resolvedPath)
   mkdirSync(resolvedDir, { recursive: true })
-  writeFileSync(resolvedPath, JSON.stringify(config, null, 2))
+  writeFileSync(resolvedPath, JSON.stringify(validated, null, 2))
 }
 
 export function addProject(
@@ -96,6 +106,30 @@ export function removeProject(config: StudioConfig, name: string, configPath?: s
   delete config.projects[name]
   saveConfig(config, configPath)
   return config
+}
+
+export function updateProject(
+  config: StudioConfig,
+  name: string,
+  patch: Partial<Pick<ProjectMapping, "remote" | "excludes" | "commitStudio">>,
+  configPath?: string,
+): StudioConfig {
+  const project = config.projects[name]
+  if (!project) {
+    throw new Error(`Project '${name}' not found`)
+  }
+  config.projects[name] = { ...project, ...patch }
+  saveConfig(config, configPath)
+  return config
+}
+
+export function findProjectNameForLocal(config: StudioConfig, local: string): string | null {
+  for (const [name, proj] of Object.entries(config.projects)) {
+    if (local === proj.local || local.startsWith(proj.local + "/")) {
+      return name
+    }
+  }
+  return null
 }
 
 export function listProjects(config: StudioConfig): Record<string, ProjectMapping> {

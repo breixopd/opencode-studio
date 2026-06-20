@@ -1,3 +1,7 @@
-export { createConfigHook } from "./first-run"
 export { createChatMessageHook } from "./rule-reminders"
 export { createEventHook } from "./session-start"
+export { createDisciplineSystemHook } from "./discipline"
+export { createOrchestrationHook } from "./orchestration"
+export { createConfigInjectHook } from "./config-inject"
+export { createCompressOutputHook } from "./compress-output"
+export { createCompactionHook } from "./compaction"

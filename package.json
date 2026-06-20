@@ -1,7 +1,7 @@
 {
   "name": "opencode-studio",
-  "version": "1.0.1",
-  "description": "OpenCode plugin for remote development — sync, tunnel, and dev workflow tools",
+  "version": "2.0.0",
+  "description": "OpenCode dev platform — zero-config remote sync, subagents, and keyless search",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -12,10 +12,11 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "rules"],
+  "files": ["dist", "rules", "agents"],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --external ssh2 --external tar-stream",
+    "build": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --external ssh2",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "dev": "bun build src/index.ts --outdir dist --target node --external @opencode-ai/plugin --watch",
     "prepublishOnly": "bun run build"
   },
@@ -28,12 +29,11 @@
     "@types/ssh2": "^1.15.5",
     "typescript": "^5.9.0"
   },
-  "keywords": ["opencode", "opencode-plugin", "remote-development", "ssh", "sync", "studio"],
+  "keywords": ["opencode", "opencode-plugin", "remote-development", "ssh", "sync", "studio", "subagents", "zero-config"],
   "license": "MIT",
   "dependencies": {
     "chokidar": "^5.0.0",
     "ssh2": "^1.17.0",
-    "tar-stream": "^3.2.0",
     "zod": "^4.4.3"
   }
 }

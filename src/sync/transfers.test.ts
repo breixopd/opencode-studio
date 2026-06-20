@@ -88,22 +88,22 @@ describe.skipIf(!!process.env.GITHUB_ACTIONS)("transfers (ssh2 SFTP)", () => {
 
       const mvCalls = ctx.execCalls.filter((c) => c.startsWith("mv"))
       expect(mvCalls).toEqual([
-        "mv /remote/proj/a.txt.tmp /remote/proj/a.txt",
-        "mv /remote/proj/b.txt.tmp /remote/proj/b.txt",
+        "mv '/remote/proj/a.txt.tmp' '/remote/proj/a.txt'",
+        "mv '/remote/proj/b.txt.tmp' '/remote/proj/b.txt'",
       ])
     })
 
     test("creates remote root directory", async () => {
       writeFileSync(join(tmpDir, "f.txt"), "data")
       await bulkSync(ctx.session, tmpDir, "/remote/proj", [])
-      expect(ctx.execCalls).toContain("mkdir -p /remote/proj")
+      expect(ctx.execCalls).toContain("mkdir -p '/remote/proj'")
     })
 
     test("creates subdirectories for nested files", async () => {
       mkdirSync(join(tmpDir, "sub"), { recursive: true })
       writeFileSync(join(tmpDir, "sub", "nested.txt"), "nested")
       await bulkSync(ctx.session, tmpDir, "/remote/proj", [])
-      expect(ctx.execCalls).toContain("mkdir -p /remote/proj/sub")
+      expect(ctx.execCalls).toContain("mkdir -p '/remote/proj/sub'")
     })
 
     test("skips excluded directories", async () => {
@@ -156,7 +156,7 @@ describe.skipIf(!!process.env.GITHUB_ACTIONS)("transfers (ssh2 SFTP)", () => {
         { local: localFile, remote: "/remote/path/file.txt.tmp" },
       ])
       expect(ctx.execCalls).toContain(
-        "mv /remote/path/file.txt.tmp /remote/path/file.txt",
+        "mv '/remote/path/file.txt.tmp' '/remote/path/file.txt'",
       )
     })
 
@@ -164,7 +164,7 @@ describe.skipIf(!!process.env.GITHUB_ACTIONS)("transfers (ssh2 SFTP)", () => {
       const localFile = join(tmpDir, "test.txt")
       writeFileSync(localFile, "data")
       await syncFile(ctx.session, localFile, "/remote/dir/file.txt")
-      expect(ctx.execCalls).toContain("mkdir -p /remote/dir")
+      expect(ctx.execCalls).toContain("mkdir -p '/remote/dir'")
     })
 
     test("throws when local file does not exist", async () => {
@@ -195,9 +195,14 @@ describe.skipIf(!!process.env.GITHUB_ACTIONS)("transfers (ssh2 SFTP)", () => {
   })
 
   describe("deleteRemoteFile", () => {
-    test("runs rm -f on remote", async () => {
+    test("runs rm -f on remote file", async () => {
       await deleteRemoteFile(ctx.session, "/remote/file.txt")
-      expect(ctx.execCalls).toContain("rm -f /remote/file.txt")
+      expect(ctx.execCalls).toContain("rm -f '/remote/file.txt'")
+    })
+
+    test("runs rm -rf on remote directory", async () => {
+      await deleteRemoteFile(ctx.session, "/remote/dir", true)
+      expect(ctx.execCalls).toContain("rm -rf '/remote/dir'")
     })
 
     test("resolves on success", async () => {

@@ -73,13 +73,13 @@ describe("SSHConfigSchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it("rejects empty user", () => {
+  it("accepts empty user for uninitialized config", () => {
     const result = SSHConfigSchema.safeParse({
       user: "",
       host: "remote.example.com",
       identityFile: "/home/dev/.ssh/id_ed25519",
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it("accepts optional port within valid range", () => {
@@ -112,12 +112,12 @@ describe("SSHConfigSchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it("accepts optional strictHostChecking", () => {
+  it("accepts optional port", () => {
     const result = SSHConfigSchema.safeParse({
       user: "dev",
       host: "remote.example.com",
       identityFile: "/home/dev/.ssh/id_ed25519",
-      strictHostChecking: false,
+      port: 2222,
     })
     expect(result.success).toBe(true)
   })
@@ -160,13 +160,13 @@ describe("TunnelConfigSchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it("rejects empty host", () => {
+  it("accepts empty host before setup", () => {
     const result = TunnelConfigSchema.safeParse({
       localPort: 8443,
       remotePort: 8443,
       host: "",
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it("rejects non-integer port values", () => {
@@ -257,7 +257,7 @@ describe("safeValidateConfig", () => {
 
   it("reports specific field errors", () => {
     const result = safeValidateConfig({
-      ssh: { user: "", host: "", identityFile: "" },
+      ssh: { user: "u", host: "h", identityFile: "/k", port: 99999 },
       tunnel: { localPort: 8443, remotePort: 8443, host: "h" },
       projects: {},
       defaultExcludes: [],
@@ -265,9 +265,7 @@ describe("safeValidateConfig", () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.path.join("."))
-      expect(messages).toContain("ssh.user")
-      expect(messages).toContain("ssh.host")
-      expect(messages).toContain("ssh.identityFile")
+      expect(messages).toContain("ssh.port")
     }
   })
 })

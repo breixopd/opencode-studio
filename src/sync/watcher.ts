@@ -1,5 +1,6 @@
 import chokidar, { type FSWatcher } from "chokidar"
 import type { SyncEvent, SyncEventType, BatchEvents } from "./events"
+import { isExcluded } from "./excludes"
 
 const DEFAULT_DEBOUNCE_MS = 2000
 
@@ -21,8 +22,7 @@ export function createWatcher(options: WatcherOptions): FSWatcher {
   } = options
 
   const watcher = chokidar.watch(projectPath, {
-    ignored: (path: string) =>
-      excludes.some((ex) => path.split(/[/\\]/).includes(ex)),
+    ignored: (path: string) => isExcluded(path, projectPath, excludes),
     persistent: true,
     ignoreInitial: true,
     followSymlinks: false,

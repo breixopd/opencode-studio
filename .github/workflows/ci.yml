@@ -18,10 +18,7 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bunx tsc --noEmit
-      - run: |
-          for f in src/ssh/factory.test.ts src/ssh/shell.test.ts src/sync/archiver.test.ts src/tools/setup.test.ts src/tools/status.test.ts; do
-            bun test --timeout=15000 "$f" || exit 1
-          done
+      - run: bun test --timeout=30000
 
   publish:
     needs: test

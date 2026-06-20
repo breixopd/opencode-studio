@@ -1,9 +1,8 @@
 import type { StudioConfig } from "./types"
-import { homedir } from "os"
-import { join } from "path"
 
 export const DEFAULT_EXCLUDES = [
   ".git/",
+  ".studio/",
   "node_modules/",
   "__pycache__/",
   "*.pyc",

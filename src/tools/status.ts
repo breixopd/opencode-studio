@@ -1,14 +1,18 @@
 import { tool } from "@opencode-ai/plugin"
-import { loadConfig, listProjects } from "../config/config"
+import { existsSync } from "fs"
+import { ensureStudioReady } from "../core/auto"
+import { loadConfig } from "../config/config"
+import { parseSSHConfig } from "../config/ssh-config"
 import { isTunnelAlive, getTunnelState } from "../tunnel/manager"
+import { getActiveSyncProjects } from "../sync/active"
 
 export const studio_status = tool({
-  description:
-    "Show overall OpenCode Studio status: tunnel health, configured projects, and active syncs.",
+  description: "Show OpenCode Studio status: tunnel, SSH, projects, active syncs.",
   args: {},
   async execute() {
-    const config = loadConfig()
-    const projects = listProjects(config)
+    const config = ensureStudioReady()
+    const projects = config.projects
+    const activeSyncs = getActiveSyncProjects()
 
     const tunnelAlive = isTunnelAlive()
     const tunnelState = getTunnelState()
@@ -17,22 +21,21 @@ export const studio_status = tool({
       name,
       local: mapping.local,
       remote: mapping.remote,
-      excludes: mapping.excludes,
+      syncing: activeSyncs.includes(name),
     }))
 
     return JSON.stringify(
       {
         tunnel: tunnelAlive
-          ? {
-              status: "running",
-              port: tunnelState?.config.localPort,
-              host: tunnelState?.config.host,
-            }
+          ? { status: "running", port: tunnelState?.config.localPort, host: tunnelState?.config.host }
           : { status: "stopped" },
         ssh: {
           host: config.ssh.host,
           user: config.ssh.user,
+          port: config.ssh.port,
+          configured: Boolean(config.ssh.host && config.ssh.user && config.ssh.identityFile),
         },
+        activeSyncs,
         projects: projectList,
         projectCount: projectList.length,
       },
@@ -43,23 +46,23 @@ export const studio_status = tool({
 })
 
 export const studio_list_projects = tool({
-  description:
-    "List all configured remote development projects with their local/remote paths.",
+  description: "List configured remote projects (auto-detected from git repos).",
   args: {},
   async execute() {
-    const config = loadConfig()
-    const projects = listProjects(config)
-    const names = Object.keys(projects)
+    const config = ensureStudioReady()
+    const activeSyncs = getActiveSyncProjects()
+    const names = Object.keys(config.projects)
 
     if (names.length === 0) {
-      return "No projects configured. Use studio_add_project to add one."
+      return "No projects yet — open a git repo and studio will map it automatically."
     }
 
     const lines = names.map((name) => {
-      const p = projects[name]
-      return `  ${name}: ${p.local} → ${config.ssh.host}:${p.remote}`
+      const p = config.projects[name]
+      const syncTag = activeSyncs.includes(name) ? " [syncing]" : ""
+      return `  ${name}${syncTag}: ${p.local} → ${config.ssh.host}:${p.remote}`
     })
 
-    return `Configured projects (${names.length}):\n${lines.join("\n")}`
+    return `Projects (${names.length}):\n${lines.join("\n")}`
   },
 })

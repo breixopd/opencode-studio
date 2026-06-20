@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from "fs"
+import { existsSync } from "fs"
 import type { SSHSession, SSHSessionConfig } from "./types"
 import { sshFactory } from "./factory"
 

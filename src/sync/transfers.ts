@@ -2,42 +2,15 @@ import { existsSync, readdirSync } from "fs"
 import { join, relative, sep } from "path"
 import type { SSHSession } from "../ssh/types"
 import { execCommand } from "../ssh/manager"
+import { shellQuote } from "../ssh/quote"
+import { isRelativePathExcluded } from "./excludes"
 
-function countFiles(localPath: string, excludes: string[]): number {
-  let count = 0
-  function walk(dir: string) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (excludes.some((e) => entry.name === e.replace(/\/$/, ""))) continue
-      const full = join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
-      else count++
-    }
-  }
-  walk(localPath)
-  return count
-}
-
-function walkDirectory(
-  dir: string,
-  localPath: string,
-  excludes: string[],
-): string[] {
+function walkDirectory(dir: string, localPath: string, excludes: string[]): string[] {
   const files: string[] = []
-  const entries = readdirSync(dir, { withFileTypes: true })
-
-  for (const entry of entries) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const fullPath = join(dir, entry.name)
-    const relPath = relative(localPath, fullPath)
-
-    const isExcluded = excludes.some((e) => {
-      const pattern = e.replace(/\/$/, "")
-      return (
-        relPath === pattern ||
-        relPath.startsWith(pattern + sep) ||
-        entry.name === pattern
-      )
-    })
-    if (isExcluded) continue
+    const relPath = relative(localPath, fullPath).replace(/\\/g, "/")
+    if (isRelativePathExcluded(relPath, excludes)) continue
 
     if (entry.isDirectory()) {
       files.push(...walkDirectory(fullPath, localPath, excludes))
@@ -45,7 +18,6 @@ function walkDirectory(
       files.push(relPath)
     }
   }
-
   return files
 }
 
@@ -55,12 +27,11 @@ export async function bulkSync(
   remotePath: string,
   excludes: string[],
 ): Promise<void> {
-  await execCommand(session, `mkdir -p ${remotePath}`)
-
-  const totalFiles = countFiles(localPath, excludes)
-  console.log(`[studio-sync] Starting bulk sync: ${totalFiles} file(s) from ${localPath}`)
+  await execCommand(session, `mkdir -p ${shellQuote(remotePath)}`)
 
   const toUpload = walkDirectory(localPath, localPath, excludes)
+  console.log(`[studio-sync] Starting bulk sync: ${toUpload.length} file(s) from ${localPath}`)
+
   if (toUpload.length === 0) {
     console.log(`[studio-sync] Bulk sync complete: no files to upload`)
     return
@@ -83,7 +54,7 @@ export async function bulkSync(
     const remoteDir = remoteFile.split("/").slice(0, -1).join("/")
 
     try {
-      await execCommand(session, `mkdir -p ${remoteDir}`)
+      await execCommand(session, `mkdir -p ${shellQuote(remoteDir)}`)
 
       await new Promise<void>((resolve, reject) => {
         sftp.fastPut(localFile, `${remoteFile}.tmp`, (err: Error | null) => {
@@ -92,7 +63,10 @@ export async function bulkSync(
         })
       })
 
-      await execCommand(session, `mv ${remoteFile}.tmp ${remoteFile}`)
+      await execCommand(
+        session,
+        `mv ${shellQuote(`${remoteFile}.tmp`)} ${shellQuote(remoteFile)}`,
+      )
       uploaded++
     } catch {
       failed++
@@ -117,7 +91,7 @@ export async function syncFile(
   }
 
   const remoteDir = remotePath.split("/").slice(0, -1).join("/") || "/"
-  await execCommand(session, `mkdir -p ${remoteDir}`)
+  await execCommand(session, `mkdir -p ${shellQuote(remoteDir)}`)
 
   return new Promise((resolve, reject) => {
     session.client.sftp((err, sftp) => {
@@ -126,7 +100,10 @@ export async function syncFile(
       sftp.fastPut(localPath, `${remotePath}.tmp`, (err) => {
         if (err) return reject(err)
 
-        execCommand(session, `mv ${remotePath}.tmp ${remotePath}`)
+        execCommand(
+          session,
+          `mv ${shellQuote(`${remotePath}.tmp`)} ${shellQuote(remotePath)}`,
+        )
           .then(() => resolve())
           .catch(reject)
       })
@@ -134,9 +111,18 @@ export async function syncFile(
   })
 }
 
-export async function deleteRemoteFile(
+export async function syncDirectory(
   session: SSHSession,
   remotePath: string,
 ): Promise<void> {
-  await execCommand(session, `rm -f ${remotePath}`)
+  await execCommand(session, `mkdir -p ${shellQuote(remotePath)}`)
+}
+
+export async function deleteRemoteFile(
+  session: SSHSession,
+  remotePath: string,
+  isDirectory = false,
+): Promise<void> {
+  const flag = isDirectory ? "-rf" : "-f"
+  await execCommand(session, `rm ${flag} ${shellQuote(remotePath)}`)
 }

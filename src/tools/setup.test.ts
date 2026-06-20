@@ -53,7 +53,7 @@ describe("studio_setup", () => {
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
-  it("returns all hosts even when config exists", async () => {
+  it("returns already_configured when config exists without force", async () => {
     mockLoadConfig.mockReturnValueOnce({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
@@ -69,8 +69,7 @@ describe("studio_setup", () => {
     const result = await studio_setup.execute({}, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("multiple_hosts")
-    expect(parsed.all_hosts).toHaveLength(2)
+    expect(parsed.status).toBe("already_configured")
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 

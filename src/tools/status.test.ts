@@ -22,6 +22,10 @@ mock.module("../config/config", () => ({
   removeProject: mock(() => {}),
 }))
 
+mock.module("../core/auto", () => ({
+  ensureStudioReady: mockLoadConfig,
+}))
+
 mock.module("../tunnel/manager", () => ({
   isTunnelAlive: mockIsTunnelAlive,
   getTunnelState: mockGetTunnelState,
@@ -102,11 +106,10 @@ describe("studio_status", () => {
     expect(parsed.projects).toEqual([])
   })
 
-  it("calls loadConfig and listProjects", async () => {
+  it("calls ensureStudioReady and tunnel checks", async () => {
     await studio_status.execute({} as any, ctx)
 
-    expect(mockLoadConfig).toHaveBeenCalledTimes(1)
-    expect(mockListProjects).toHaveBeenCalledTimes(1)
+    expect(mockLoadConfig).toHaveBeenCalled()
   })
 
   it("calls isTunnelAlive and getTunnelState", async () => {
@@ -146,7 +149,7 @@ describe("studio_list_projects", () => {
 
     const result = await studio_list_projects.execute({} as any, ctx)
 
-    expect(result).toContain("Configured projects (2):")
+    expect(result).toContain("Projects (2):")
     expect(result).toContain("myapp")
     expect(result).toContain("/home/dev/myapp")
     expect(result).toContain("remote.example.com:/opt/app/myapp")
@@ -156,7 +159,7 @@ describe("studio_list_projects", () => {
   it("returns message when no projects configured", async () => {
     const result = await studio_list_projects.execute({} as any, ctx)
 
-    expect(result).toBe("No projects configured. Use studio_add_project to add one.")
+    expect(result).toContain("No projects yet")
   })
 
   it("returns single project correctly", async () => {
@@ -174,7 +177,7 @@ describe("studio_list_projects", () => {
 
     const result = await studio_list_projects.execute({} as any, ctx)
 
-    expect(result).toContain("Configured projects (1):")
+    expect(result).toContain("Projects (1):")
     expect(result).toContain("solo")
     expect(result).toContain("remote.example.com:/opt/solo")
   })

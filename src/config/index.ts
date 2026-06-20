@@ -15,6 +15,4 @@ export {
   addProject,
   removeProject,
   listProjects,
-  getConfigPath,
-  getConfigDir,
 } from "./config"
