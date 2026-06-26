@@ -8,6 +8,7 @@ import {
 } from "../core/model-registry"
 import { setPendingCatalogNotice } from "../core/project-profile"
 import { findTool } from "../core/tool-catalog"
+import { fanOutInstruction } from "../core/fan-out"
 
 // ——— Agent metadata — single source of truth for all studio subagents ————————————————
 
@@ -180,7 +181,7 @@ export function createConfigInjectHook() {
       "start-work": {
         description: "Full SDLC workflow with smart parallel fan-out",
         template:
-          "SDLC for {{args}}:\n1) studio_brief show\n2) Concurrent fan-out — invoke @studio-explore + @studio-security + @studio-architect IN ONE MESSAGE (for non-trivial goals) so they run in parallel. The agents explore codebase, identify security risks, and validate architecture concurrently.\n3) Synthesize agent findings\n4) studio_spec (generate requirements + acceptance)\n5) studio_plan\n6) studio_task\n7) @studio-implement\n8) @studio-review\n9) studio_verify (only=snapshot first)\n10) studio_handoff",
+          `SDLC for {{args}}:\n1) studio_brief show\n2) ${fanOutInstruction("{{args}}", 4)}\n3) Synthesize agent findings\n4) studio_spec (generate requirements + acceptance)\n5) studio_plan\n6) studio_task\n7) @studio-implement\n8) @studio-review\n9) studio_verify (only=snapshot first)\n10) studio_handoff`,
       },
     }
     for (const [name, def] of Object.entries(commands)) {
