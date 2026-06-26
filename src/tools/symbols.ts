@@ -9,7 +9,7 @@ import {
 
 export const studio_symbols: ToolDefinition = tool({
   description:
-    "AST symbol index via tree-sitter (30+ languages). Cached in .studio/code-index.db.",
+    "AST symbol index via tree-sitter (30+ languages). Cached in .studio/studio.db.",
   args: {
     action: tool.schema
       .enum(["search", "file", "outline", "stats", "rebuild"])
@@ -41,7 +41,7 @@ export const studio_symbols: ToolDefinition = tool({
           chunkCount: index.chunkCount,
           edgeCount: index.edgeCount,
           importCount: index.importCount,
-          cache: ".studio/code-index.db",
+          cache: ".studio/studio.db",
         },
         null,
         2,

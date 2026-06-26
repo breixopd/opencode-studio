@@ -15,7 +15,7 @@ import { isRelativePathExcluded } from "../sync/excludes"
 import { analyzeWithTreeSitter, formatFileOutline, isAstSupported, extensionOf } from "./code-ast"
 import type { AstSymbol } from "./code-ast"
 import { EXT_TO_WASM } from "./tree-sitter-parser"
-import { openStudioDb, queryOne, runQuery, type FileRow } from "./studio-db"
+import { openStudioDb, queryAll, queryOne, runQuery, type FileRow } from "./studio-db"
 
 /**
  * Code file extensions — derived from tree-sitter's EXT_TO_WASM (the single
@@ -135,13 +135,13 @@ interface StaleSet {
 
 function findStale(db: Database, discovered: DiscoveredFile[]): StaleSet {
   const known = new Map<string, { id: number; mtime_ms: number; size: number; sha: string }>()
-  const rows = db.query("SELECT id, path, mtime_ns, size_bytes, sha256 FROM files").all() as Array<{
+  const rows = queryAll<{
     id: number
     path: string
     mtime_ns: number
     size_bytes: number
     sha256: string
-  }>
+  }>(db, "SELECT id, path, mtime_ns, size_bytes, sha256 FROM files")
   for (const r of rows)
     known.set(r.path, { id: r.id, mtime_ms: r.mtime_ns, size: r.size_bytes, sha: r.sha256 })
 
@@ -161,7 +161,7 @@ function findStale(db: Database, discovered: DiscoveredFile[]): StaleSet {
       try {
         const content = readFileSync(f.abs, "utf-8")
         if (fileHash(content) === cached.sha) {
-          db.run("UPDATE files SET mtime_ns = ? WHERE id = ?", [
+          runQuery(db, "UPDATE files SET mtime_ns = ? WHERE id = ?", [
             Math.floor(f.mtimeMs),
             cached.id,
           ])
@@ -335,10 +335,10 @@ function replaceFileData(
   const symbolIds: number[] = []
 
   db.transaction(() => {
-    db.run("DELETE FROM chunks WHERE file_id = ?", [fileId])
-    db.run("DELETE FROM symbols WHERE file_id = ?", [fileId])
-    db.run("DELETE FROM edges WHERE file_id = ?", [fileId])
-    db.run("DELETE FROM imports WHERE file_id = ?", [fileId])
+    runQuery(db, "DELETE FROM chunks WHERE file_id = ?", [fileId])
+    runQuery(db, "DELETE FROM symbols WHERE file_id = ?", [fileId])
+    runQuery(db, "DELETE FROM edges WHERE file_id = ?", [fileId])
+    runQuery(db, "DELETE FROM imports WHERE file_id = ?", [fileId])
 
     for (let i = 0; i < parsed.symbols.length; i++) {
       const s = parsed.symbols[i]
@@ -460,7 +460,7 @@ export async function indexFile(db: Database, _root: string, f: DiscoveredFile):
 }
 
 export function deleteFile(db: Database, rel: string): void {
-  db.run("DELETE FROM files WHERE path = ?", [rel])
+  runQuery(db, "DELETE FROM files WHERE path = ?", [rel])
 }
 
 export function resolveEdges(db: Database): void {
