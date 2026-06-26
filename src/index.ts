@@ -33,6 +33,8 @@ import { studio_git } from "./tools/git"
 import { studio_spec } from "./tools/spec"
 import { studio_refactor } from "./tools/refactor"
 import { studio_deps } from "./tools/deps"
+import { studio_constitution } from "./tools/constitution"
+import { studio_ci } from "./tools/ci"
 import { createEventHook } from "./hooks/session-start"
 import { createDisciplineSystemHook } from "./hooks/discipline"
 import { createConfigInjectHook } from "./hooks/config-inject"
@@ -84,6 +86,8 @@ export const OpenCodeStudio: Plugin = async () => {
       studio_spec,
       studio_refactor,
       studio_deps,
+      studio_constitution,
+      studio_ci,
     },
     config: createConfigInjectHook(),
     "chat.message": createChatMessageHook(),

@@ -160,14 +160,12 @@ Run \`studio_report\` and paste JSON when debugging.`,
 ✅ LSP diagnostics — real-time type/lint errors captured and injected into context
 ✅ Smart maintenance — file.edited → incremental reindex, session.idle → prune/checkpoint
 ✅ Multi-language project detection — 21+ ecosystems auto-detected with verify commands + conventions
+✅ Parallel fan-out — concurrent @studio-explore + @studio-security + @studio-architect via /start-work
+✅ Git worktree isolation — real git worktrees for parallel implement agents (studio_branch worktree_create/merge/remove)
+✅ Always-on PR/CI watcher — polls GitHub Actions on 30s interval (studio_ci)
+✅ Constitution generator — coding standards from project analysis (studio_constitution)
 
-**Future (not yet built):**
-- Parallel fan-out — concurrent @studio-explore + @studio-security + @studio-architect
-- Git worktree isolation — real worktrees for parallel implement agents
-- Always-on PR/CI watcher — polls GitHub Actions on interval
-- Constitution generator — one-shot emits coding standards from project analysis
-
-Read \`ROADMAP.md\` for full detail.`,
+All advertised features are implemented. Read \`ROADMAP.md\` for full detail.`,
 }
 
 export function helpText(topic?: string): string {

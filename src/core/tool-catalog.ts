@@ -59,7 +59,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_task", category: "SDLC", phase: 7, description: "Task board: list, create, start, done, block tasks with acceptance criteria", whenToUse: "to track atomic work units with acceptance criteria" },
   { name: "studio_verify", category: "SDLC", phase: 10, description: "Run test/lint/typecheck/build (auto-detects language). Snapshot/rollback for self-healing", whenToUse: "before handoff — or only=snapshot before implement" },
   { name: "studio_handoff", category: "SDLC", phase: 11, description: "Structured handoff summary. Gated by verify pass + tasks done", whenToUse: "to end a session or hand off to next agent" },
-  { name: "studio_branch", category: "SDLC", phase: 7, description: "Context-folding sub-goal branches (open/fold/list)", whenToUse: "for parallel sub-goal tracking, not git branches" },
+  { name: "studio_branch", category: "SDLC", phase: 7, description: "Context folding + git worktree isolation (open/fold/list/worktree_create/merge/remove)", whenToUse: "for sub-goal tracking or parallel agent isolation via real git worktrees" },
 
   // ——— Deps ————————————————
   { name: "studio_deps", category: "Code", phase: 6, description: "Dependency scanning: list, audit (OSV.dev keyless), outdated (npm/crates/PyPI)", whenToUse: "for security audit or update checking" },
@@ -94,6 +94,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_doctor", category: "Health", phase: null, description: "Health check: config, SSH, tunnel, sync, ripgrep, code index, models", whenToUse: "when something seems broken" },
   { name: "studio_report", category: "Health", phase: null, description: "One-shot JSON smoke-test bundle", whenToUse: "for debugging or diagnostics" },
   { name: "studio_help", category: "Health", phase: null, description: "Topic-based help for all studio features", whenToUse: "when you need to know what's available" },
+
+  // ——— Standards & CI ————————————————
+  { name: "studio_constitution", category: "Code", phase: 3, description: "Generate coding standards from project analysis — linters, formatters, ecosystem rules", whenToUse: "to create a project constitution that's auto-injected into session context" },
+  { name: "studio_ci", category: "Health", phase: null, description: "GitHub Actions CI watcher — check status, start/stop background monitoring (30s)", whenToUse: "to check if CI is passing or monitor it in background" },
 ]
 
 // ——— Derived data (auto-generated, never edit by hand) ————————————————

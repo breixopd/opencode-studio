@@ -8,6 +8,8 @@ import { diagnosticsContextBlock } from "../core/diagnostics"
 import { resumeCard } from "../core/resume-card"
 import { costPreviewBlock } from "../core/cost-preview"
 import { grindContextBlock } from "../core/self-heal"
+import { constitutionContextBlock } from "../core/constitution"
+import { getCISummary } from "../core/ci-watcher"
 
 /**
  * System prompt ordering for prompt-cache stability:
@@ -60,6 +62,14 @@ export function createDisciplineSystemHook() {
     // Pre-flight cost preview — estimated cost for remaining work.
     const costPreview = costPreviewBlock(process.cwd())
     if (costPreview) pushIfNotPresent(output.system, costPreview)
+
+    // Project constitution — coding standards auto-injected if present.
+    const constitution = constitutionContextBlock(process.cwd())
+    if (constitution) pushIfNotPresent(output.system, constitution)
+
+    // CI status — failing workflows injected if CI watcher is active.
+    const ci = getCISummary()
+    if (ci) pushIfNotPresent(output.system, ci)
 
     const catalogNotice = getPendingCatalogNotice()
     if (catalogNotice) {
