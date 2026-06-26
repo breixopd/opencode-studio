@@ -1,7 +1,7 @@
 import type { Event } from "@opencode-ai/sdk"
 import { applyFallbackForAgent, isRateLimitError } from "../core/model-fallback"
 import { getLatestConfig, refreshModelRouting, STUDIO_AGENT_NAMES } from "../core/model-routing"
-import { parseModelRef } from "../core/model-refs"
+import { parseModelRef } from "../core/model-registry"
 
 function isStudioAgent(name: string): boolean {
   return (STUDIO_AGENT_NAMES as readonly string[]).includes(name)

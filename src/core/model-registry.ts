@@ -7,7 +7,6 @@ import {
   resetZenCatalogCache,
   type ModelTier,
 } from "./model-catalog"
-import { parseModelRef } from "./model-refs"
 
 const REGISTRY_PATH = join(homedir(), ".config", "opencode-studio", "models.json")
 
@@ -203,4 +202,15 @@ export function registrySummary(): string {
     lines.push(`  ${provider}: ${Object.keys(data.models).length} models`)
   }
   return lines.join("\n")
+}
+export const ZEN_PROVIDER = "opencode"
+
+export function parseModelRef(ref: string): { provider: string; modelId: string } {
+  const slash = ref.indexOf("/")
+  if (slash === -1) return { provider: ZEN_PROVIDER, modelId: ref }
+  return { provider: ref.slice(0, slash), modelId: ref.slice(slash + 1) }
+}
+
+export function formatModelRef(provider: string, modelId: string): string {
+  return `${provider}/${modelId}`
 }

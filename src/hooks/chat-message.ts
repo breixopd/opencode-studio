@@ -1,4 +1,4 @@
-import { setSessionMainModel } from "../core/session-model"
+import { setSessionMainModel } from "../core/model-routing"
 import { refreshModelRouting } from "../core/model-routing"
 import { addRule } from "../core/workspace"
 import { addGlobalRule } from "../core/project-profile"

@@ -1,4 +1,4 @@
-import { openTasksCompactionBlock, studioContextBlocks } from "../core/studio-context"
+import { openTasksCompactionBlock, studioContextBlocks } from "../core/workspace-context"
 import { compactionContinuePrompt } from "./compaction-continue"
 
 export function createCompactionHook() {

@@ -1,5 +1,0 @@
-export { bulkSync, syncFile, syncDirectory, deleteRemoteFile } from "./transfers"
-export { createWatcher } from "./watcher"
-export { isExcluded, isRelativePathExcluded } from "./excludes"
-export type { WatcherOptions } from "./watcher"
-export type { SyncEventType, SyncEvent, BatchEvents } from "./events"

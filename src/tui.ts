@@ -14,8 +14,14 @@
  */
 import type { TuiPlugin, TuiPluginApi, TuiRouteDefinition } from "@opencode-ai/plugin/tui"
 
-/** ASCII brand mark — compact, fits the home_logo slot. */
-const BRAND_ASCII = " █ █▀█ ▀█▀ █▀█ █▀▀ █▀▀ \n █ █▀█  █  █▀█ ▀▀█ █▀▀ \n ▀ ▀ ▀  ▀  ▀ ▀ ▀▀▀ ▀▀▀ "
+/** ASCII art — a studio desk with monitors, fits the home_logo slot. */
+const BRAND_ASCII = [
+  "  ┌─[]──[]──[]─┐  ",
+  " ─┘ STUDIO   └──  ",
+  "  ╔═══════════╗   ",
+  "  ║ ▓▓▓ ▓▓▓ ▓ ║   ",
+  "  ╚═══════════╝   ",
+].join("\n")
 
 export const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const { ui, command, event, kv, state } = api

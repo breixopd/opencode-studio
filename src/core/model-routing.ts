@@ -8,8 +8,7 @@ import {
   isFreeZenModel,
 } from "./model-catalog"
 import { getActivePlan } from "./workspace"
-import { getLastMainModel } from "./session-model"
-import { formatModelRef, parseModelRef, ZEN_PROVIDER } from "./model-refs"
+import { formatModelRef, parseModelRef, ZEN_PROVIDER } from "./model-registry"
 import { isModelExhausted, clearExhaustedModels } from "./model-fallback"
 import { pickTierModelFromRegistry } from "./model-registry"
 import {
@@ -20,7 +19,7 @@ import {
   tierForAgent,
 } from "./agent-tiers"
 
-export { ZEN_PROVIDER, parseModelRef, formatModelRef } from "./model-refs"
+export { ZEN_PROVIDER, parseModelRef, formatModelRef } from "./model-registry"
 export { STUDIO_AGENT_NAMES } from "./agent-tiers"
 
 function providerEnabled(config: Config, provider: string): boolean {
@@ -249,4 +248,28 @@ export function describeRoutingForProvider(config: Config): string {
 export function isLikelyFreeModel(modelRef: string): boolean {
   const { provider, modelId } = parseModelRef(modelRef)
   return provider === ZEN_PROVIDER && isFreeZenModel(modelId)
+}
+/** Tracks the model the user picked in the OpenCode UI (per session + last known). */
+
+const bySession = new Map<string, string>()
+let lastMainModel: string | undefined
+
+export function setSessionMainModel(sessionID: string, providerID: string, modelID: string): void {
+  const ref = `${providerID}/${modelID}`
+  bySession.set(sessionID, ref)
+  lastMainModel = ref
+}
+
+export function getSessionMainModel(sessionID?: string): string | undefined {
+  if (sessionID && bySession.has(sessionID)) return bySession.get(sessionID)
+  return lastMainModel
+}
+
+export function getLastMainModel(): string | undefined {
+  return lastMainModel
+}
+
+export function resetSessionModels(): void {
+  bySession.clear()
+  lastMainModel = undefined
 }

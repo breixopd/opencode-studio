@@ -4,7 +4,7 @@ import { collectStudioRuntime } from "../core/studio-runtime"
 import { isTunnelAlive, getTunnelState } from "../tunnel/manager"
 import { getActiveSyncProjects } from "../sync/active"
 import { describeRoutingForProvider, getLastRoutedModels } from "../core/model-routing"
-import { getLastMainModel } from "../core/session-model"
+import { getLastMainModel } from "../core/model-routing"
 import { listExhaustedModels } from "../core/model-fallback"
 import { getModelMode } from "../core/project-profile"
 import {

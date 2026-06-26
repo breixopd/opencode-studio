@@ -1,5 +1,5 @@
 import { STUDIO_DISCIPLINE } from "../core/discipline"
-import { openTasksSystemBlock } from "../core/studio-context"
+import { openTasksSystemBlock } from "../core/workspace-context"
 import { studioStableContext, studioDynamicContext } from "../core/workspace"
 import { branchSwitchNotice } from "../core/branch-context"
 import { getPendingCatalogNotice } from "../core/project-profile"

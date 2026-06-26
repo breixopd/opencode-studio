@@ -1,6 +1,6 @@
 /** Web search — DuckDuckGo (keyless default) + optional Tavily. */
-import { BROWSER_HEADERS } from "./web-headers"
-import { stripHtml } from "./html"
+import { BROWSER_HEADERS } from "./web-fetch"
+import { stripHtml } from "./web-extract"
 import { safeFetch } from "./web-fetch"
 import { extractFromHtml, formatForLlm } from "./web-extract"
 

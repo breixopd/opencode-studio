@@ -9,7 +9,7 @@
  */
 import { readFileSync } from "fs"
 import { join } from "path"
-import { analyzeWithTreeSitter, formatFileOutline, isAstSupported } from "./code-ast"
+import { analyzeWithTreeSitter, formatFileOutline, isAstSupported } from "./tree-sitter-parser"
 import type { SymbolKind } from "./code-types"
 import {
   findHotspots,

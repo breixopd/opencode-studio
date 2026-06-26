@@ -1,4 +1,3 @@
-import { stripHtml } from "./html"
 import type { FetchFormat } from "./web-fetch"
 
 // linkedom's parseHTML returns a document shaped like a DOM Document, but the
@@ -137,4 +136,12 @@ export function extractJsonLd(html: string): unknown[] {
     }
   }
   return out
+}
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
