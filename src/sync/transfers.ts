@@ -70,6 +70,7 @@ export async function bulkSync(
       )
       uploaded++
     } catch {
+      /* individual file failed — continue with the rest */
       failed++
     }
   }

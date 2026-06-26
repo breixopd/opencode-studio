@@ -66,6 +66,7 @@ function findTestForTask(taskTitle: string, cwd: string): boolean {
     try {
       entries = readdirSync(abs)
     } catch {
+    /* directory unreadable — skip */
       continue
     }
     for (const name of entries) {

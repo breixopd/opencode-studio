@@ -82,6 +82,7 @@ function walkFiles(dir: string, root: string, out: string[]): void {
   try {
     entries = readdirSync(dir)
   } catch {
+    /* directory unreadable (permissions/removed) — skip */
     return
   }
   for (const name of entries) {
@@ -92,6 +93,7 @@ function walkFiles(dir: string, root: string, out: string[]): void {
     try {
       st = statSync(abs)
     } catch {
+    /* file vanished between readdir and stat — skip */
       continue
     }
     if (st.isDirectory()) walkFiles(abs, root, out)
@@ -168,6 +170,7 @@ function findStale(db: Database, discovered: DiscoveredFile[]): StaleSet {
           modified.push(f)
         }
       } catch {
+      /* can't read file to compare hash — treat as modified */
         modified.push(f)
       }
     }
@@ -433,6 +436,7 @@ export async function indexFile(db: Database, _root: string, f: DiscoveredFile):
   let content: string
   try {
     content = readFileSync(f.abs, "utf-8")
+    /* file no longer exists — skip indexing */
   } catch {
     return
   }

@@ -19,6 +19,7 @@ function hasRipgrep(): boolean {
     execFileSync("rg", ["--version"], { stdio: "ignore" })
     rgCache = true
   } catch {
+    /* ripgrep not installed — fall back to JS grep */
     rgCache = false
   }
   return rgCache

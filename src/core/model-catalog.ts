@@ -27,6 +27,7 @@ export async function fetchZenModelIds(): Promise<string[]> {
     zenCatalogCache = { ids, fetchedAt: Date.now() }
     return ids
   } catch {
+    /* network/registry unreachable — fall back to cached ids */
     return zenCatalogCache?.ids ?? []
   }
 }

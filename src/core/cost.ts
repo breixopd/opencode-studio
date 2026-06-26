@@ -229,6 +229,7 @@ function currentBranchSafe(): string | null {
   try {
     return currentBranch() ?? null
   } catch {
+    /* not a git repo — branch unknown */
     return null
   }
 }
@@ -240,5 +241,6 @@ function activeTaskIdSafe(): string | null {
     return inProgress?.id ?? getActivePlanId()
   } catch {
     return null
+    /* workspace not ready — no active task */
   }
 }

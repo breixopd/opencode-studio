@@ -281,6 +281,7 @@ function pyprojectHasSection(root: string, section: string): boolean {
     const content = readFileSync(join(root, "pyproject.toml"), "utf-8")
     return content.includes(`[${section}]`)
   } catch {
+    /* no pyproject.toml — not a Python project */
     return false
   }
 }

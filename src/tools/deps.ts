@@ -61,6 +61,13 @@ interface Dep {
   source: string
 }
 
+interface OutdatedDep {
+  name: string
+  current: string
+  latest: string
+  source: string
+}
+
 function detectDeps(root: string): Dep[] {
   const deps: Dep[] = []
 
@@ -244,6 +251,74 @@ async function auditDeps(root: string): Promise<string> {
   }
 }
 
+/** Query the npm registry (keyless) for the latest version of each dep. */
+async function checkNpmOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
+  const out: OutdatedDep[] = []
+  for (const dep of deps.slice(0, 50)) {
+    const cleanName = dep.name.startsWith("@") ? encodeURIComponent(dep.name) : dep.name
+    try {
+      const res = await fetch(`https://registry.npmjs.org/${cleanName}/latest`, {
+        signal: AbortSignal.timeout(5_000),
+        headers: { Accept: "application/json" },
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { version: string }
+        const latest = data.version
+        const current = dep.version.replace(/[\^~>=<]/g, "").split(" ")[0]
+        if (latest !== current && current && current !== "latest") {
+          out.push({ name: dep.name, current, latest, source: "npm" })
+        }
+      }
+    } catch {
+      /* registry unreachable — skip this package */
+    }
+  }
+  return out
+}
+
+/** Query crates.io (keyless, requires User-Agent header) for max stable version. */
+async function checkCratesOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
+  const out: OutdatedDep[] = []
+  for (const dep of deps.slice(0, 30)) {
+    try {
+      const res = await fetch(`https://crates.io/api/v1/crates/${dep.name}`, {
+        signal: AbortSignal.timeout(5_000),
+        headers: { "User-Agent": "opencode-studio", Accept: "application/json" },
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { crate: { max_stable_version: string } }
+        const latest = data.crate.max_stable_version
+        const current = dep.version.replace(/[\^~>=<]/g, "").split(" ")[0]
+        if (latest !== current) out.push({ name: dep.name, current, latest, source: "crates.io" })
+      }
+    } catch {
+      /* registry unreachable — skip */
+    }
+  }
+  return out
+}
+
+/** Query PyPI (keyless) for the latest version of each dep. */
+async function checkPyPIOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
+  const out: OutdatedDep[] = []
+  for (const dep of deps.slice(0, 30)) {
+    try {
+      const res = await fetch(`https://pypi.org/pypi/${dep.name}/json`, {
+        signal: AbortSignal.timeout(5_000),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { info: { version: string } }
+        const latest = data.info.version
+        const current = dep.version.replace(/[<>=!~^]/g, "").split(" ")[0]
+        if (latest !== current) out.push({ name: dep.name, current, latest, source: "pypi" })
+      }
+    } catch {
+      /* registry unreachable — skip */
+    }
+  }
+  return out
+}
+
 /**
  * Check for outdated dependencies by querying package registry APIs.
  * Supports npm (keyless), crates.io (keyless), and PyPI (keyless).
@@ -252,95 +327,23 @@ async function checkOutdated(root: string): Promise<string> {
   const deps = detectDeps(root)
   if (!deps.length) return "No dependencies found to check."
 
-  const outdated: Array<{ name: string; current: string; latest: string; source: string }> = []
-  const npmDeps = deps.filter((d) => d.source.startsWith("npm"))
-  const cargoDeps = deps.filter((d) => d.source === "crates.io")
-  const pypiDeps = deps.filter((d) => d.source === "pypi")
-
-  // npm registry (keyless) — batch up to 20 at a time to avoid rate limits.
-  if (npmDeps.length) {
-    for (const dep of npmDeps.slice(0, 50)) {
-      const cleanName = dep.name.startsWith("@") ? encodeURIComponent(dep.name) : dep.name
-      try {
-        const res = await fetch(`https://registry.npmjs.org/${cleanName}/latest`, {
-          signal: AbortSignal.timeout(5_000),
-          headers: { Accept: "application/json" },
-        })
-        if (res.ok) {
-          const data = (await res.json()) as { version: string }
-          const latest = data.version
-          const current = dep.version.replace(/[\^~>=<]/g, "").split(" ")[0]
-          if (latest !== current && current && current !== "latest") {
-            outdated.push({ name: dep.name, current, latest, source: "npm" })
-          }
-        }
-      } catch {
-        /* registry unreachable — skip this package */
-      }
-    }
-  }
-
-  // crates.io (keyless, requires User-Agent header)
-  if (cargoDeps.length) {
-    for (const dep of cargoDeps.slice(0, 30)) {
-      try {
-        const res = await fetch(`https://crates.io/api/v1/crates/${dep.name}`, {
-          signal: AbortSignal.timeout(5_000),
-          headers: { "User-Agent": "opencode-studio", Accept: "application/json" },
-        })
-        if (res.ok) {
-          const data = (await res.json()) as { crate: { max_stable_version: string } }
-          const latest = data.crate.max_stable_version
-          const current = dep.version.replace(/[\^~>=<]/g, "").split(" ")[0]
-          if (latest !== current) {
-            outdated.push({ name: dep.name, current, latest, source: "crates.io" })
-          }
-        }
-      } catch {
-        /* skip */
-      }
-    }
-  }
-
-  // PyPI (keyless)
-  if (pypiDeps.length) {
-    for (const dep of pypiDeps.slice(0, 30)) {
-      try {
-        const res = await fetch(`https://pypi.org/pypi/${dep.name}/json`, {
-          signal: AbortSignal.timeout(5_000),
-        })
-        if (res.ok) {
-          const data = (await res.json()) as { info: { version: string } }
-          const latest = data.info.version
-          const current = dep.version.replace(/[<>=!~^]/g, "").split(" ")[0]
-          if (latest !== current) {
-            outdated.push({ name: dep.name, current, latest, source: "pypi" })
-          }
-        }
-      } catch {
-        /* skip */
-      }
-    }
-  }
-
-  if (!outdated.length) {
-    return `✓ All ${deps.length} dependencies are up to date.`
-  }
-
-  const lines = [
-    `# Outdated dependencies (${outdated.length} of ${deps.length})`,
-    "",
+  const outdated: OutdatedDep[] = [
+    ...(await checkNpmOutdated(deps.filter((d) => d.source.startsWith("npm")))),
+    ...(await checkCratesOutdated(deps.filter((d) => d.source === "crates.io"))),
+    ...(await checkPyPIOutdated(deps.filter((d) => d.source === "pypi"))),
   ]
-  const bySource = new Map<string, typeof outdated>()
+
+  if (!outdated.length) return `✓ All ${deps.length} dependencies are up to date.`
+
+  const lines = [`# Outdated dependencies (${outdated.length} of ${deps.length})`, ""]
+  const bySource = new Map<string, OutdatedDep[]>()
   for (const o of outdated) {
     if (!bySource.has(o.source)) bySource.set(o.source, [])
     bySource.get(o.source)!.push(o)
   }
   for (const [source, items] of bySource) {
     lines.push(`## ${source}`)
-    for (const o of items) {
-      lines.push(`- ${o.name}: ${o.current} → ${o.latest}`)
-    }
+    for (const o of items) lines.push(`- ${o.name}: ${o.current} → ${o.latest}`)
     lines.push("")
   }
   lines.push("Update with your package manager, then studio_verify.")

@@ -16,22 +16,11 @@ export interface StructuredSpec {
   risks: string[]
 }
 
-/**
- * Generate a structured spec from a feature goal description.
- * This is a heuristic generator — the agent should review and refine.
- *
- * The spec is intentionally lightweight (not a full PRD): it ensures the agent
- * works against concrete requirements with acceptance criteria rather than
- * vibing its way through implementation.
- */
-function generateSpec(goal: string, ecosystem: string): StructuredSpec {
+/** Detect common feature patterns in the goal and produce concrete requirements. */
+function extractRequirements(goal: string, ecosystem: string): string[] {
   const goalLower = goal.toLowerCase()
-
-  // ——— Requirements extraction ————————————————
-
   const requirements: string[] = []
 
-  // Detect common feature patterns.
   if (goalLower.match(/api|endpoint|route/)) {
     requirements.push("Define input schema with validation (types + runtime checks)")
     requirements.push("Return structured error responses with consistent format")
@@ -60,22 +49,21 @@ function generateSpec(goal: string, ecosystem: string): StructuredSpec {
     requirements.push("Backpressure: handle slow consumers gracefully")
   }
 
-  // Always include these.
-  if (!requirements.length) {
-    requirements.push(`Implement: ${goal}`)
-  }
+  if (!requirements.length) requirements.push(`Implement: ${goal}`)
   requirements.push("Write tests before implementation (TDD)")
   requirements.push("Follow existing project conventions (see studio profile)")
+  return requirements
+}
 
-  // ——— Acceptance criteria ————————————————
-
+/** Generate acceptance criteria, extended by detected feature patterns. */
+function extractAcceptance(goal: string): string[] {
+  const goalLower = goal.toLowerCase()
   const acceptanceCriteria: string[] = [
     "All tests pass (studio_verify)",
     "No new type errors (LSP diagnostics clean)",
     "Code follows existing style (formatter check passes)",
     "Edge cases covered: empty input, boundary values, error paths",
   ]
-
   if (goalLower.match(/api|endpoint/)) {
     acceptanceCriteria.push("Returns correct response for valid input")
     acceptanceCriteria.push("Returns 4xx for invalid input with helpful error messages")
@@ -85,75 +73,72 @@ function generateSpec(goal: string, ecosystem: string): StructuredSpec {
     acceptanceCriteria.push("Renders without console errors")
     acceptanceCriteria.push("Keyboard navigation works")
   }
+  return acceptanceCriteria
+}
 
-  // ——— Architecture notes ————————————————
-
-  const architectureNotes: string[] = []
+/** Ecosystem-specific architecture notes. */
+function extractArchitectureNotes(ecosystem: string): string[] {
+  const notes: string[] = []
   if (ecosystem === "Rust") {
-    architectureNotes.push("Consider ownership/borrowing implications early")
-    architectureNotes.push("Use thiserror for error types, anyhow for app-level")
+    notes.push("Consider ownership/borrowing implications early")
+    notes.push("Use thiserror for error types, anyhow for app-level")
   }
   if (ecosystem === "Python") {
-    architectureNotes.push("Use type hints, prefer pathlib over os.path")
-    architectureNotes.push("Structure as a package, not flat scripts")
+    notes.push("Use type hints, prefer pathlib over os.path")
+    notes.push("Structure as a package, not flat scripts")
   }
   if (ecosystem === "Go") {
-    architectureNotes.push("Keep interfaces small, accept interfaces return structs")
-    architectureNotes.push("Use context for cancellation/timeout")
+    notes.push("Keep interfaces small, accept interfaces return structs")
+    notes.push("Use context for cancellation/timeout")
   }
   if (ecosystem === "Bun" || ecosystem === "Node") {
-    architectureNotes.push("Use async/await, avoid callback patterns")
-    architectureNotes.push("Keep modules focused — one responsibility per file")
+    notes.push("Use async/await, avoid callback patterns")
+    notes.push("Keep modules focused — one responsibility per file")
   }
+  return notes
+}
 
-  // ——— Task breakdown ————————————————
-
+/** Generate a TDD-flavored task breakdown. */
+function extractTaskBreakdown(goal: string): Array<{ title: string; acceptance: string[] }> {
+  const goalLower = goal.toLowerCase()
   const taskBreakdown: Array<{ title: string; acceptance: string[] }> = [
-    {
-      title: `Write tests for: ${goal}`,
-      acceptance: ["Test file exists and covers happy path + 2 edge cases"],
-    },
-    {
-      title: `Implement core logic for: ${goal}`,
-      acceptance: ["All tests pass", "No type errors"],
-    },
-    {
-      title: `Add error handling for: ${goal}`,
-      acceptance: ["Error states tested", "Errors are user-friendly"],
-    },
-    {
-      title: `Integrate with existing codebase`,
-      acceptance: ["No regressions in existing tests", "Follows project conventions"],
-    },
+    { title: `Write tests for: ${goal}`, acceptance: ["Test file exists and covers happy path + 2 edge cases"] },
+    { title: `Implement core logic for: ${goal}`, acceptance: ["All tests pass", "No type errors"] },
+    { title: `Add error handling for: ${goal}`, acceptance: ["Error states tested", "Errors are user-friendly"] },
+    { title: `Integrate with existing codebase`, acceptance: ["No regressions in existing tests", "Follows project conventions"] },
   ]
-
   if (goalLower.match(/api|endpoint/)) {
-    taskBreakdown.splice(1, 0, {
-      title: "Define API schema/types",
-      acceptance: ["Input/output types defined", "Validation in place"],
-    })
+    taskBreakdown.splice(1, 0, { title: "Define API schema/types", acceptance: ["Input/output types defined", "Validation in place"] })
   }
+  return taskBreakdown
+}
 
-  // ——— Risks ————————————————
-
+/** Generate risks keyed off sensitive keywords in the goal. */
+function extractRisks(goal: string): string[] {
+  const goalLower = goal.toLowerCase()
   const risks: string[] = []
-  if (goalLower.match(/migration|schema/)) {
-    risks.push("Migration may fail on existing data — test against realistic data")
-  }
-  if (goalLower.match(/auth|security/)) {
-    risks.push("Security-sensitive — get @studio-security review before handoff")
-  }
-  if (goalLower.match(/performance|cache|optimize/)) {
-    risks.push("Optimization may introduce regressions — benchmark before/after")
-  }
+  if (goalLower.match(/migration|schema/)) risks.push("Migration may fail on existing data — test against realistic data")
+  if (goalLower.match(/auth|security/)) risks.push("Security-sensitive — get @studio-security review before handoff")
+  if (goalLower.match(/performance|cache|optimize/)) risks.push("Optimization may introduce regressions — benchmark before/after")
+  return risks
+}
 
+/**
+ * Generate a structured spec from a feature goal description.
+ * This is a heuristic generator — the agent should review and refine.
+ *
+ * The spec is intentionally lightweight (not a full PRD): it ensures the agent
+ * works against concrete requirements with acceptance criteria rather than
+ * vibing its way through implementation.
+ */
+function generateSpec(goal: string, ecosystem: string): StructuredSpec {
   return {
     goal,
-    requirements,
-    acceptanceCriteria,
-    architectureNotes: architectureNotes.join("\n"),
-    taskBreakdown,
-    risks,
+    requirements: extractRequirements(goal, ecosystem),
+    acceptanceCriteria: extractAcceptance(goal),
+    architectureNotes: extractArchitectureNotes(ecosystem).join("\n"),
+    taskBreakdown: extractTaskBreakdown(goal),
+    risks: extractRisks(goal),
   }
 }
 

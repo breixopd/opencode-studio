@@ -31,6 +31,7 @@ export function rewriteGithubBlobUrl(url: string): string {
     if (!owner || !repo) return url
     return `https://raw.githubusercontent.com/${owner}/${repo}/${rest.join("/")}`
   } catch {
+    /* not a valid URL — leave unchanged */
     return url
   }
 }
@@ -39,6 +40,7 @@ export async function assertUrlSafe(url: string): Promise<void> {
   let parsed: URL
   try {
     parsed = new URL(url)
+    /* URL parse failed — rethrow with clearer message */
   } catch {
     throw new Error(`Invalid URL: ${url}`)
   }

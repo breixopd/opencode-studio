@@ -91,6 +91,7 @@ export const studio_verify: ToolDefinition = tool({
         const parent = execSync("git rev-parse HEAD~1", { cwd, encoding: "utf-8", timeout: 5_000 }).trim()
         return await rollbackToSnapshot(cwd, { commitHash: parent, branch: "", createdAt: "", taskId: null })
       } catch {
+      /* no parent commit (shallow repo / initial commit) */
         return "Rollback failed — cannot find parent commit. Use studio_git action=restore to revert specific files."
       }
     }

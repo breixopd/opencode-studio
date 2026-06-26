@@ -45,6 +45,7 @@ export function projectRoot(cwd = process.cwd()): string {
       try {
         return realpathSync(dir)
       } catch {
+      /* realpath failed (broken symlink/perm) — use unresolved path */
         return dir
       }
     }

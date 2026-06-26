@@ -22,6 +22,7 @@ function sameOrigin(a: string, b: string): boolean {
     const ub = new URL(b)
     return ua.origin === ub.origin
   } catch {
+    /* malformed URL — treat as not same-origin */
     return false
   }
 }

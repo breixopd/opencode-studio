@@ -155,6 +155,7 @@ async function loadLanguage(ext: string): Promise<unknown | null> {
     langCache.set(wasmName, lang)
     return lang
   } catch {
+    /* tree-sitter grammar unavailable — language unsupported */
     return null
   }
 }

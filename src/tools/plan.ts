@@ -37,6 +37,7 @@ export const studio_plan: ToolDefinition = tool({
       try {
         return readPlanMarkdown(args.name)
       } catch {
+      /* plan file does not exist */
         return `Plan not found: ${args.name}`
       }
     }

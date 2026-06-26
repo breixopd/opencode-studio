@@ -124,6 +124,7 @@ export async function scrapeSearchResults(
         out.push({ ...r, content: res.body.slice(0, maxChars) })
       }
     } catch {
+      /* enrichment best-effort — keep the unenriched result */
       out.push(r)
     }
   }
