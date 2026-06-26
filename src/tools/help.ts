@@ -161,7 +161,13 @@ Run \`studio_report\` and paste JSON when debugging.`,
 ✅ Smart maintenance — file.edited → incremental reindex, session.idle → prune/checkpoint
 ✅ Multi-language project detection — 21+ ecosystems auto-detected with verify commands + conventions
 
-**No future items remaining.** All advertised features are implemented.`,
+**Future (not yet built):**
+- Parallel fan-out — concurrent @studio-explore + @studio-security + @studio-architect
+- Git worktree isolation — real worktrees for parallel implement agents
+- Always-on PR/CI watcher — polls GitHub Actions on interval
+- Constitution generator — one-shot emits coding standards from project analysis
+
+Read \`ROADMAP.md\` for full detail.`,
 }
 
 export function helpText(topic?: string): string {

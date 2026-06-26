@@ -34,7 +34,7 @@ Private beta for ~1 month before public release. No feature ships without tests.
 - [x] Web stack: DuckDuckGo + Tavily + readability + crawl
 - [x] `studio_help`, `studio_doctor`, `studio_report`, `studio_models`
 - [x] ChunkHound fully removed
-- [x] Plugin bundle 1.77MB (tree-sitter + chokidar + web-extract trio lazy-loaded)
+- [x] Plugin bundle 1.81MB (tree-sitter + chokidar + web-extract trio lazy-loaded)
 
 ---
 

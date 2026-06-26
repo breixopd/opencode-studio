@@ -1,17 +1,10 @@
 {
   "name": "opencode-studio",
   "version": "2.0.0",
-  "description": "OpenCode dev platform — zero-config remote sync, subagents, and keyless search",
+  "description": "The only opencode plugin you need — code intelligence, git management, cost ledger, spec-driven dev, multi-language verify, remote sync, and 40+ tools",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "files": ["dist", "rules"],
   "scripts": {
     "prebuild": "mkdir -p dist && cp src/core/studio-db-schema.sql dist/",
@@ -32,7 +25,7 @@
     "@types/turndown": "^5.0.6",
     "typescript": "^6.0.3"
   },
-  "keywords": ["opencode", "opencode-plugin", "remote-development", "ssh", "sync", "studio", "subagents", "zero-config"],
+  "keywords": ["opencode", "opencode-plugin", "code-intelligence", "remote-development", "ssh", "sync", "studio", "subagents", "zero-config", "sqlite", "tree-sitter", "cost-ledger", "git"],
   "license": "MIT",
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
