@@ -25,5 +25,5 @@ This skill teaches the AI how to use opencode-studio for remote development work
 ## Notes
 
 - Sync is real-time with 2-second debounce
-- Tar-based bulk sync on first start (no rsync needed)
+- SFTP bulk sync on first start (no rsync needed)
 - Cross-platform: works on Linux, macOS, Windows

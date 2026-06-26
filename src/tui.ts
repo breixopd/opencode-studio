@@ -36,17 +36,25 @@ interface StudioStats {
   diagnostics: number
 }
 
+// Memoize readStats with a 5s TTL — it's called from 3 render sites per redraw.
+let statsCache: { data: StudioStats; at: number } | null = null
+const STATS_TTL_MS = 5000
+
 function readStats(): StudioStats {
+  if (statsCache && Date.now() - statsCache.at < STATS_TTL_MS) return statsCache.data
+
   try {
     const { openStudioDb, queryAll, queryOne } = require("../core/studio-db")
     const db = openStudioDb(process.cwd())
 
+    // Combined query: task open + done in one, diag count in one
+    const tasks = queryOne<{ open: number; done: number }>(
+      db, "SELECT SUM(CASE WHEN status IN ('pending','in_progress') THEN 1 ELSE 0 END) AS open, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done FROM tasks",
+    )
     const totalCost = queryOne<{ t: number }>(db, "SELECT COALESCE(SUM(cost_usd), 0) AS t FROM cost_events")?.t ?? 0
     const byModel = queryAll<{ model_id: string; cost: number }>(
       db, "SELECT model_id, COALESCE(SUM(cost_usd), 0) AS cost FROM cost_events GROUP BY model_id ORDER BY cost DESC LIMIT 5",
     )
-    const taskOpen = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM tasks WHERE status IN ('pending','in_progress')")?.c ?? 0
-    const taskDone = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM tasks WHERE status = 'done'")?.c ?? 0
     const verifyRow = queryOne<{ passed: number }>(db, "SELECT passed FROM verify_state WHERE id = 1")
     const verify = verifyRow ? (verifyRow.passed === 1 ? "✓" : "✗") : "—"
     const planRow = queryOne<{ title: string }>(db, "SELECT title FROM plans WHERE active = 1 LIMIT 1")
@@ -55,16 +63,18 @@ function readStats(): StudioStats {
     let branch = "—"
     try { branch = require("../core/branch-context").currentBranch() ?? "main" } catch { /* not git */ }
 
-    return {
+    const result: StudioStats = {
       cost: `$${totalCost.toFixed(4)}`,
       costByModel: byModel.map((m) => ({ model: m.model_id, cost: m.cost })),
-      tasksOpen: taskOpen,
-      tasksDone: taskDone,
+      tasksOpen: tasks?.open ?? 0,
+      tasksDone: tasks?.done ?? 0,
       verify,
       branch,
       planTitle: planRow?.title ?? null,
       diagnostics: diagCount,
     }
+    statsCache = { data: result, at: Date.now() }
+    return result
   } catch {
     return { cost: "$0", costByModel: [], tasksOpen: 0, tasksDone: 0, verify: "—", branch: "—", planTitle: null, diagnostics: 0 }
   }

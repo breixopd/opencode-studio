@@ -59,6 +59,7 @@ export async function createWatcher(options: WatcherOptions): Promise<FSWatcher>
 
     if (timer) clearTimeout(timer)
     timer = setTimeout(flush, debounceMs)
+    timer.unref?.()
   }
 
   watcher.on("add", (path) => enqueue("add", path as string))
@@ -70,6 +71,13 @@ export async function createWatcher(options: WatcherOptions): Promise<FSWatcher>
   watcher.on("error", (err) => {
     log.error(`Watcher[${projectName}] error: ${(err as Error).message}`)
   })
+
+  // Clear debounce timer on close to prevent post-close flush
+  const originalClose = watcher.close.bind(watcher)
+  watcher.close = () => {
+    if (timer) clearTimeout(timer)
+    return originalClose()
+  }
 
   return watcher
 }

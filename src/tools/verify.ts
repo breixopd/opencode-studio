@@ -1,7 +1,7 @@
 import { spawn } from "child_process"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure, recordVerifySuccess, getVerifyRetryHint } from "../core/workspace"
-import { MAX_VERIFY_GRIND } from "../hooks/compaction-continue"
+import { MAX_VERIFY_GRIND } from "../core/workspace"
 import { detectTooling, type VerifyCommands } from "../core/project-detect"
 import { snapshotHead, rollbackToSnapshot, checkGrindHealth } from "../core/self-heal"
 

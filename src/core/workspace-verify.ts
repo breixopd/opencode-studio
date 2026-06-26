@@ -7,6 +7,9 @@ import {
 } from "./workspace-base"
 import { getActivePlan, exportPlanMarkdown } from "./workspace-plans"
 
+/** Maximum verify retry attempts before suggesting auto-rollback. */
+export const MAX_VERIFY_GRIND = 3
+
 export function recordVerifyFailure(command: string, output: string): StudioPlan | null {
   ensureMigrated()
   const d = db()

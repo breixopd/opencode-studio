@@ -1,6 +1,7 @@
 import { incompleteTasks, getVerifyState } from "../core/workspace"
+import { MAX_VERIFY_GRIND } from "../core/workspace-verify"
 
-export const MAX_VERIFY_GRIND = 3
+export { MAX_VERIFY_GRIND }
 
 export function compactionContinuePrompt(): string | null {
   const open = incompleteTasks()

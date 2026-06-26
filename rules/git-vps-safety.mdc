@@ -10,9 +10,8 @@ alwaysApply: true
 
 The following files contain remote host configurations and MUST NEVER be staged, committed, or pushed:
 
-- `opencode-studio.json`
+- `config.json`
 - `~/.config/opencode-studio/config.json`
-- Any file matching `.studio-*` or `studio-*.json`
 
 ## Agent Instructions
 

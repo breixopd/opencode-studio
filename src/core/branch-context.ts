@@ -1,12 +1,3 @@
-/**
- * Branch-aware context.
- *
- * Tags cached symbols, chunks, and other studio state with the active git branch.
- * On branch switch, the agent's view of the codebase adjusts automatically —
- * no more mixing main and feature work.
- *
- * Scope keys: `root:branch`. Stored in `meta` table alongside other studio state.
- */
 import { execSync } from "child_process"
 import { openStudioDb, queryOne, runQuery } from "./studio-db"
 
@@ -46,19 +37,18 @@ export function branchScopeKey(root = process.cwd()): string {
 
 /**
  * Check if the branch has changed since the last recorded scope.
+ * Invalidates the cache to detect real git checkouts.
  * Returns the previous branch name if a switch happened, or null if no switch.
  */
 export function detectBranchSwitch(root = process.cwd()): string | null {
-  // Always invalidate the cache before checking — detectBranchSwitch is
-  // explicitly looking for a *change*, so it must read fresh.
   invalidateBranchCache(root)
+  const now = currentBranch(root)
   const db = openStudioDb(root)
   const row = queryOne<{ value: string }>(
     db,
     "SELECT value FROM meta WHERE key = 'active_branch'",
   )
   const previous = row?.value ?? null
-  const now = currentBranch(root)
   if (previous === now) return null
   runQuery(
     db,
@@ -68,11 +58,21 @@ export function detectBranchSwitch(root = process.cwd()): string | null {
   return previous
 }
 
+// Throttle branch switch detection — only check every 10s to avoid
+// spawning git rev-parse on every chat turn via the discipline hook.
+let lastBranchCheck = 0
+const BRANCH_CHECK_INTERVAL_MS = 10_000
+
 /** Inject a notice into discipline output when the agent should be aware of a switch. */
 export function branchSwitchNotice(root = process.cwd()): string | null {
+  // Throttle: skip if checked recently (the 10s branch cache covers us).
+  const now = Date.now()
+  if (now - lastBranchCheck < BRANCH_CHECK_INTERVAL_MS) return null
+  lastBranchCheck = now
+
   const previous = detectBranchSwitch(root)
   if (previous === null) return null
-  const now = currentBranch(root)
-  if (previous === "detached" || now === "detached") return null
-  return `[studio branch] switched ${previous} → ${now}. Re-scoping: rebuild code index if needed.`
+  const current = currentBranch(root)
+  if (previous === "detached" || current === "detached") return null
+  return `[studio branch] switched ${previous} → ${current}. Re-scoping: rebuild code index if needed.`
 }

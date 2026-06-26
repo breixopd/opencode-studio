@@ -9,7 +9,7 @@ alwaysApply: true
 Before working on any project, research and save context.
 
 - Before starting work: research project structure, patterns, configs
-- Save findings to PROJECT_CONVENTIONS.md in the project root
+- Save findings to .studio/CONSTITUTION.md (use studio_constitution generate) in the project root
 - Keep conventions up to date as the project evolves
 - Always re-read conventions before starting new work sessions
 - Check existing patterns before creating new files

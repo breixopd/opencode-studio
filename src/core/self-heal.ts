@@ -9,7 +9,7 @@
  */
 import { spawn } from "child_process"
 import { getVerifyRetryHint } from "./workspace"
-import { MAX_VERIFY_GRIND } from "../hooks/compaction-continue"
+import { MAX_VERIFY_GRIND } from "../core/workspace"
 import * as log from "./logger"
 
 const MAX_GRIND = MAX_VERIFY_GRIND

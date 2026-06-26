@@ -71,6 +71,7 @@ export {
   getVerifyState,
   getVerifyRetryHint,
   canHandoff,
+  MAX_VERIFY_GRIND,
 } from "./workspace-verify"
 
 export {

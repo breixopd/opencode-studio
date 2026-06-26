@@ -7,6 +7,10 @@ export function studioRoot(cwd = process.cwd()): string {
   return join(cwd, ".studio")
 }
 
+// Memoize ensureStudioDirs — it's called ~13x per chat turn via ensureMigrated()
+// but only needs to run once per process (dirs don't disappear mid-session).
+const ensuredPaths = new Set<string>()
+
 function applyGitignorePolicy(cwd: string): void {
   const config = loadConfig()
   const name = Object.entries(config.projects).find(
@@ -17,10 +21,13 @@ function applyGitignorePolicy(cwd: string): void {
 }
 
 export function ensureStudioDirs(cwd = process.cwd()): string {
+  if (ensuredPaths.has(cwd)) return studioRoot(cwd)
+
   const root = studioRoot(cwd)
   const cache = join(root, "cache")
   if (!existsSync(cache)) mkdirSync(cache, { recursive: true })
   applyGitignorePolicy(cwd)
+  ensuredPaths.add(cwd)
   return root
 }
 

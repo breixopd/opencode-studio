@@ -8,11 +8,11 @@
   "files": ["dist", "rules"],
   "scripts": {
     "prebuild": "mkdir -p dist && cp src/core/studio-db-schema.sql dist/",
-    "build": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms",
+    "build": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --external chokidar --external linkedom --external turndown --external @mozilla/readability",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "predev": "mkdir -p dist && cp src/core/studio-db-schema.sql dist/",
-    "dev": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --watch",
+    "dev": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --external chokidar --external linkedom --external turndown --external @mozilla/readability --watch",
     "prepublishOnly": "bun run build"
   },
   "peerDependencies": {

@@ -8,7 +8,7 @@ alwaysApply: true
 
 Never stage or commit agent-related files to repositories.
 
-- Never `git add` files from: .sisyphus/, evidence/, drafts/, notepads/
+- Never `git add` files from: .studio/, evidence/, drafts/, notepads/
 - Never `git add` AGENTS.md, CLAUDE.md, or any agent context files
 - Do NOT add these to .gitignore (that leaves traces) — simply never stage them
 - Zero traces of agent tooling in repositories

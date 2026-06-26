@@ -217,7 +217,11 @@ function startHeartbeat(): void {
       }
     }
   }, 15_000)
+  heartbeatTimer.unref?.()
+
+  // Also unref the restart timer when it's set (in the close handler)
 }
+
 
 // ---------------------------------------------------------------------------
 // Stop

@@ -120,8 +120,8 @@ export function createEventHook() {
       if (props?.sessionID) clearSessionDeduper(props.sessionID)
     }
 
-    // Sync studio rules to AGENTS.md so OpenCode's built-in context sees them.
-    if (input.event.type === "session.created" || input.event.type === "message.updated") {
+    // Sync studio rules to AGENTS.md on session creation only (not every message).
+    if (input.event.type === "session.created") {
       try {
         const synced = syncRulesToAgentsMd(process.cwd())
         if (synced) log.info("Rules synced to AGENTS.md")
