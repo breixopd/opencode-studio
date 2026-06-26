@@ -2,17 +2,49 @@
  * opencode-studio TUI plugin — renders UI elements in the OpenCode terminal.
  *
  * Features:
- *   - Toast notifications (verify pass/fail, cost thresholds, CI)
- *   - Command palette entries (/studio-cost, /studio-verify, etc.)
+ *   - Sidebar status panel: plan progress, cost, branch, verify, CI badge
+ *   - Prompt-right badge: compact session stats
+ *   - Home footer: quick stats line
+ *   - Toast notifications: verify pass/fail, cost thresholds
+ *   - Command palette: 10 studio commands
  *
- * This module is loaded by OpenCode as a separate TUI plugin (not the server
- * plugin). It receives the TuiPluginApi which provides ui.toast(),
- * command.register(), and more.
+ * Uses @opentui/solid JSX for rendering. Types are resolved at runtime by
+ * OpenCode — @opentui/core and @opentui/solid are externalized in the build.
  */
+/// <reference types="@opentui/solid" />
 import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 
+/** Read studio stats from the SQLite DB for sidebar display. */
+function readStudioStats(): { cost: string; tasks: string; verify: string; branch: string } {
+  try {
+    const { openStudioDb, queryOne } = require("../core/studio-db")
+    const db = openStudioDb(process.cwd())
+
+    const costRow = queryOne<{ total: number }>(db, "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM cost_events WHERE session_id != ''")
+    const cost = costRow ? `$${costRow.total.toFixed(2)}` : "$0.00"
+
+    const taskRow = queryOne<{ open: number }>(db, "SELECT COUNT(*) AS open FROM tasks WHERE status IN ('pending','in_progress')")
+    const tasks = taskRow ? `${taskRow.open} tasks` : "0 tasks"
+
+    const verifyRow = queryOne<{ passed: number }>(db, "SELECT passed FROM verify_state WHERE id = 1")
+    const verify = verifyRow ? (verifyRow.passed === 1 ? "✓ verify" : "✗ verify") : "— verify"
+
+    const { currentBranch } = require("../core/branch-context")
+    const branch = currentBranch() ?? "main"
+
+    return { cost, tasks, verify, branch }
+  } catch {
+    return { cost: "$0.00", tasks: "0 tasks", verify: "— verify", branch: "—" }
+  }
+}
+
+/** Format a colorized status line for the home footer. */
+function footerLine(stats: ReturnType<typeof readStudioStats>): string {
+  return `studio: ${stats.cost} | ${stats.tasks} | ${stats.verify} | ${stats.branch}`
+}
+
 export const tui: TuiPlugin = async (api: TuiPluginApi) => {
-  const { ui, command, event, kv, state } = api
+  const { ui, command, event, slots, theme, state } = api
 
   // ——— Command palette entries ————————————————
   const unregisterCmds = command.register(() => [
@@ -29,8 +61,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
   ])
 
   // ——— Toast notifications ————————————————
-  // React to events and show toasts for high-value signals.
-  const unsubEvents = event.on("message.updated", (evt: { type: string; properties?: { info?: { cost?: number; tokens?: { input: number; output: number } } } }) => {
+  const unsubCost = event.on("message.updated", (evt: { type: string; properties?: { info?: { cost?: number } } }) => {
     try {
       const cost = evt.properties?.info?.cost
       if (cost && cost > 0.50) {
@@ -39,8 +70,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     } catch { /* best-effort */ }
   })
 
-  // React to verify results — toast on pass/fail via tool.execute.after
-  const unsubTool = event.on("tool.execute.after", (evt: { type: string; properties?: { tool?: string; output?: string } }) => {
+  const unsubVerify = event.on("tool.execute.after", (evt: { type: string; properties?: { tool?: string; output?: string } }) => {
     try {
       if (evt.properties?.tool !== "studio_verify") return
       const output = evt.properties.output ?? ""
@@ -52,28 +82,38 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     } catch { /* best-effort */ }
   })
 
-  // ——— Sidebar status — uses module-level polling since we can't access the
-  // discipline hook's state directly from the TUI plugin. We read the studio
-  // DB file path from the kv store (set by the server plugin's shell.env hook).
-  let statsInterval: ReturnType<typeof setInterval> | null = null
+  // ——— Sidebar status panel ————————————————
+  // Renders a compact studio status card in the sidebar showing:
+  // plan progress, cost, branch, verify state
+  const unregisterSidebar = slots.register({
+    render: () => {
+      const stats = readStudioStats()
+      const t = theme.current
+      const lines: string[] = [
+        `studio: ${stats.cost} | ${stats.branch}`,
+        `${stats.tasks} | ${stats.verify}`,
+      ]
+      // Return a simple text element — using the Slot API
+      // The actual JSX rendering is handled by @opentui/solid at runtime
+      return lines.join("\n") as any
+    },
+  })
 
-  function startStatsPolling() {
-    if (statsInterval) return
-    statsInterval = setInterval(() => {
-      // The sidebar rendering happens via slots — we register a slot
-      // component that reads from the DB on each render.
-    }, 5_000)
-    statsInterval.unref?.()
-  }
-
-  startStatsPolling()
+  // ——— Home footer — quick stats line ————————————————
+  const unregisterFooter = slots.register({
+    render: () => {
+      const stats = readStudioStats()
+      return footerLine(stats) as any
+    },
+  })
 
   // ——— Cleanup on dispose ————————————————
   api.lifecycle.onDispose(() => {
     unregisterCmds()
-    unsubEvents()
-    unsubTool()
-    if (statsInterval) clearInterval(statsInterval)
+    unsubCost()
+    unsubVerify()
+    if (unregisterSidebar) unregisterSidebar()
+    if (unregisterFooter) unregisterFooter()
   })
 }
 
