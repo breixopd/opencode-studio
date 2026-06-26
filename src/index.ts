@@ -44,6 +44,7 @@ import { createChatParamsHook } from "./hooks/chat-params"
 import { createCompactionContinueHook } from "./hooks/compaction-continue"
 import { createToolGuardsHook } from "./hooks/tool-guards"
 import { createChatMessageHook } from "./hooks/chat-message"
+import { createShellEnvHook } from "./hooks/shell-env"
 
 export const OpenCodeStudio: Plugin = async () => {
   return {
@@ -93,6 +94,7 @@ export const OpenCodeStudio: Plugin = async () => {
     "chat.message": createChatMessageHook(),
     "experimental.chat.system.transform": createDisciplineSystemHook(),
     "chat.params": createChatParamsHook(),
+    "shell.env": createShellEnvHook(),
     "tool.execute.before": createToolGuardsHook(),
     "tool.execute.after": createCompressOutputHook(),
     "experimental.session.compacting": createCompactionHook(),

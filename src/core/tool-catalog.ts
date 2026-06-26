@@ -66,7 +66,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
 
   // ——— Memory ————————————————
   { name: "studio_brief", category: "Memory", phase: null, description: "Project identity/stack/conventions persisted in ~/.config/opencode-studio/", whenToUse: "to set or review project context" },
-  { name: "studio_remember", category: "Memory", phase: null, description: "Persist project/global rules. Auto-captured from 'don't X' in chat", whenToUse: "when user says 'remember...' or corrects behavior" },
+  { name: "studio_remember", category: "Memory", phase: null, description: "Persist rules + agent-driven auto-memory. scope=project/global. action=memory saves learnings to topic files", whenToUse: "when the agent learns something worth remembering — saves to topic files loaded on demand" },
   { name: "studio_memory", category: "Memory", phase: null, description: "Search plans, handoffs, folded branches", whenToUse: "to find prior decisions or context" },
   { name: "studio_context", category: "Memory", phase: null, description: "Pin/unpin context blocks that survive compaction", whenToUse: "to keep critical info across compaction" },
   { name: "studio_retrieve", category: "Memory", phase: null, description: "Fetch full output previously compressed by compress hook", whenToUse: "when you see 'studio_retrieve id=...' in compressed output" },

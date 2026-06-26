@@ -9,6 +9,7 @@ import { captureDiagnostics, clearDiagnosticsForFiles, pruneStaleDiagnostics, ty
 import { detectTooling } from "../core/project-detect"
 import { handleFileEdited, handleSessionIdle } from "./maintenance-impl"
 import * as log from "../core/logger"
+import { syncRulesToAgentsMd } from "../core/agents-md-sync"
 
 const handleFallback = createModelFallbackEventHandler()
 
@@ -115,6 +116,33 @@ export function createEventHook() {
     if (input.event.type === "session.deleted") {
       const props = input.event.properties as { sessionID?: string } | undefined
       if (props?.sessionID) clearSessionDeduper(props.sessionID)
+    }
+
+    // Sync studio rules to AGENTS.md so OpenCode's built-in context sees them.
+    if (input.event.type === "session.created" || input.event.type === "message.updated") {
+      try {
+        const synced = syncRulesToAgentsMd(process.cwd())
+        if (synced) log.info("Rules synced to AGENTS.md")
+      } catch {
+        /* best-effort sync */
+      }
+    }
+
+    // Sync OpenCode's todo system with studio tasks.
+    if (input.event.type === "todo.updated") {
+      try {
+        const props = input.event.properties as {
+          todo?: { content?: string; status?: string }
+        } | undefined
+        const todo = props?.todo
+        // OpenCode todo → studio task sync is a future enhancement.
+        // For now we observe but don't auto-create tasks.
+        if (todo?.content) {
+          log.debug(`OpenCode todo updated: ${todo.content} (${todo.status})`)
+        }
+      } catch {
+        /* best-effort todo sync */
+      }
     }
 
     if (input.event.type !== "session.created") return

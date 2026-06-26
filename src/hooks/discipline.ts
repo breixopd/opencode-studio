@@ -10,6 +10,8 @@ import { costPreviewBlock } from "../core/cost-preview"
 import { grindContextBlock } from "../core/self-heal"
 import { constitutionContextBlock } from "../core/constitution"
 import { getCISummary } from "../core/ci-watcher"
+import { memoryContextBlock } from "../core/auto-memory"
+import { getRecurringCorrectionNotices } from "./chat-message"
 
 /**
  * System prompt ordering for prompt-cache stability:
@@ -40,6 +42,10 @@ export function createDisciplineSystemHook() {
     for (const block of studioStableContext()) {
       pushIfNotPresent(output.system, block)
     }
+
+    // Auto-memory index — agent-driven learnings (topic files loaded on demand).
+    const memory = memoryContextBlock()
+    if (memory) pushIfNotPresent(output.system, memory)
 
     // —— DYNAMIC SUFFIX ———————————————————————————————————
     // Plan, pinned context, verify state — changes per-turn.
@@ -85,6 +91,10 @@ export function createDisciplineSystemHook() {
     // Self-healing: grind count / auto-rollback recommendation.
     const grind = grindContextBlock(process.cwd())
     if (grind) pushIfNotPresent(output.system, grind)
+
+    // Recurring correction patterns — surface when user corrects the same thing ≥3x.
+    const patterns = getRecurringCorrectionNotices()
+    if (patterns) pushIfNotPresent(output.system, patterns)
 
     // Phase 6.1 — tunnel watchdog: inject notice when tunnel is degraded.
     if (isTunnelDegraded()) {

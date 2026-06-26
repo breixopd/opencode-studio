@@ -1,22 +1,23 @@
 import { setSessionMainModel } from "../core/session-model"
 import { refreshModelRouting } from "../core/model-routing"
 import { addRule } from "../core/workspace"
+import { addGlobalRule } from "../core/project-profile"
+import { recordCorrection, routeScope, getRecurringPatterns } from "../core/auto-memory"
 import * as log from "../core/logger"
 
 const MAIN_AGENTS = new Set(["build", "general", "plan"])
 
 /**
- * Correction patterns that indicate the user is telling the agent to NOT do something.
- * When detected, we extract a rule and write it to studio rules for future sessions.
+ * Self-improving rule capture + smart scope routing + pattern detection.
  *
- * Patterns (case-insensitive):
- *   "don't X"          → "Don't X"
- *   "never X"          → "Never X"
- *   "stop doing X"     → "Stop doing X"
- *   "no, don't X"      → "Don't X"
- *   "instead of X, do Y" → "Prefer Y over X"
+ * When the user says "don't X" / "never Y" / "always Z" in chat:
+ *   1. Extract the rule from the correction
+ *   2. Route it to the right scope (project vs global) based on content
+ *   3. Record the correction for pattern tracking
+ *   4. If the same correction recurs ≥3 times, surface a "make permanent" suggestion
+ *   5. Save to the appropriate store (SQLite rules or global user.json)
  */
-const CORRECTION_RE = /\b(?:don'?t|never|stop doing|no,\s*don'?t|always)\s+([a-z][a-z\s'-]{4,80})/gi
+const CORRECTION_RE = /\b(?:don'?t|never|stop doing|no,\s*don'?t|always|prefer|avoid)\s+([a-z][a-z\s'-]{4,80})/gi
 
 export function createChatMessageHook() {
   return async (
@@ -39,11 +40,9 @@ export function createChatMessageHook() {
       }
     }
 
-    // Self-improving rule capture (Tier S #5).
-    // Only inspect user messages (not assistant).
+    // Self-improving rule capture — only inspect user messages.
     if (!output.message || output.message.role !== "user") return
 
-    // Extract text from parts (more reliable than message.content).
     const text = output.parts
       ?.filter((p) => p.type === "text" && typeof p.text === "string")
       .map((p) => p.text!)
@@ -55,8 +54,24 @@ export function createChatMessageHook() {
     const rules = extractRules(text)
     for (const rule of rules) {
       try {
-        const updated = addRule(rule)
-        log.info(`Auto-captured rule: "${rule}" (${updated.length} rules total)`)
+        // Smart scope routing — project-specific vs global preference.
+        const scope = routeScope(rule)
+
+        // Record for pattern tracking (detects recurring corrections).
+        const pattern = recordCorrection(rule, scope)
+
+        if (scope === "global") {
+          addGlobalRule(rule)
+          log.info(`Auto-captured GLOBAL rule: "${rule}"`)
+        } else {
+          addRule(rule)
+          log.info(`Auto-captured PROJECT rule: "${rule}"`)
+        }
+
+        // If this correction recurs, log the suggestion.
+        if (pattern.isRecurring) {
+          log.info(`Recurring correction (${pattern.count}x): ${pattern.suggestion}`)
+        }
       } catch {
         /* rule already exists — deduped by UNIQUE constraint */
       }
@@ -72,10 +87,23 @@ function extractRules(text: string): string[] {
   while ((match = CORRECTION_RE.exec(text)) !== null) {
     const action = match[1].trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "")
     if (action.length < 5) continue
-    // Capitalize: "don't forget" → "Don't forget"
-    const prefix = match[0].split(/\s/)[0].replace(/no,?\s*/i, "")
-    rules.push(`${prefix.charAt(0).toUpperCase() + prefix.slice(1)} ${action}`)
-    if (rules.length >= 3) break // don't over-capture from a long message
+
+    // Determine the prefix word (don't, never, always, prefer, avoid)
+    const prefixWord = match[0].split(/\s/)[0].replace(/no,?\s*/i, "")
+    const capitalized = prefixWord.charAt(0).toUpperCase() + prefixWord.slice(1)
+    rules.push(`${capitalized} ${action}`)
+    if (rules.length >= 3) break /* don't over-capture from a long message */
   }
   return rules
+}
+
+/** Get recurring patterns for the discipline hook to surface. */
+export function getRecurringCorrectionNotices(): string | null {
+  const patterns = getRecurringPatterns()
+  if (!patterns || patterns.length === 0) return null
+  const lines = ["[studio patterns] Recurring user corrections detected:"]
+  for (const p of patterns) {
+    lines.push(`  ${p.count}x: "${p.rule.slice(0, 80)}" → already saved as ${p.scope} rule`)
+  }
+  return lines.join("\n")
 }
