@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { closeStudioDb } from "./studio-db"
-import { addRule } from "./workspace-rules"
+import { addRule } from "./workspace-base"
 import { syncRulesToAgentsMd } from "./agents-md-sync"
 
 describe("agents-md-sync", () => {

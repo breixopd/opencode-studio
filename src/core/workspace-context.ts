@@ -6,10 +6,10 @@ import {
   db, ensureMigrated,
 } from "./workspace-base"
 import { queryOne } from "./studio-db"
-import { listRules, formatRules } from "./workspace-rules"
+import { listRules, formatRules } from "./workspace-base"
 import { getActivePlan } from "./workspace-plans"
 import { listBranches, getActiveBranch } from "./workspace-branches"
-import { listPinnedContext } from "./workspace-pins"
+import { listPinnedContext } from "./workspace-base"
 
 const MAX_PLAN_CONTEXT_CHARS = 12_000
 

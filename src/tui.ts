@@ -2,26 +2,14 @@
  * opencode-studio TUI plugin — renders UI elements in the OpenCode terminal.
  *
  * Features:
- *   - Sidebar status panel (plan progress, cost, branch, verify, CI)
- *   - Toast notifications (verify pass/fail, cost thresholds, rule capture, CI)
+ *   - Toast notifications (verify pass/fail, cost thresholds, CI)
  *   - Command palette entries (/studio-cost, /studio-verify, etc.)
- *   - Confirm dialog before destructive actions (rollback)
- *   - ASCII brand mark on home screen
  *
  * This module is loaded by OpenCode as a separate TUI plugin (not the server
- * plugin). It receives the TuiPluginApi which provides ui.toast(), ui.Slot(),
+ * plugin). It receives the TuiPluginApi which provides ui.toast(),
  * command.register(), and more.
  */
-import type { TuiPlugin, TuiPluginApi, TuiRouteDefinition } from "@opencode-ai/plugin/tui"
-
-/** ASCII art — a studio desk with monitors, fits the home_logo slot. */
-const BRAND_ASCII = [
-  "  ┌─[]──[]──[]─┐  ",
-  " ─┘ STUDIO   └──  ",
-  "  ╔═══════════╗   ",
-  "  ║ ▓▓▓ ▓▓▓ ▓ ║   ",
-  "  ╚═══════════╝   ",
-].join("\n")
+import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 
 export const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const { ui, command, event, kv, state } = api

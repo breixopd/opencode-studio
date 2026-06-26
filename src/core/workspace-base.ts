@@ -5,7 +5,7 @@
  * ensureMigrated, loadWorkspace/saveWorkspace/resetWorkspaceCache.
  */
 import { randomUUID } from "crypto"
-import { openStudioDb, queryAll, queryOne } from "./studio-db"
+import { openStudioDb, queryAll, queryOne, runQuery } from "./studio-db"
 import { ensureStudioDirs } from "./studio-dir"
 import {
   emptyWorkspace,
@@ -271,3 +271,125 @@ export function resetWorkspaceCache(): void {
 // ——— Exported helpers for use by domain modules ————————————————
 
 export { now, genId, slugify, splitLines, joinLines, jsonParse, currentBranchSafe }
+/** Workspace rules — project-scoped user rules with dedup. */
+
+export interface MemoryHit {
+  kind: "rule" | "plan" | "handoff" | "branch"
+  id: string
+  title: string
+  snippet: string
+}
+
+export function searchMemory(query: string, limit = 12): MemoryHit[] {
+  ensureMigrated()
+  const d = db()
+  const q = `%${query.toLowerCase()}%`
+  const hits: MemoryHit[] = []
+
+  const rules = queryAll<{ rule: string }>(d, "SELECT rule FROM rules WHERE LOWER(rule) LIKE ? LIMIT ?", [q, limit])
+  for (const r of rules) hits.push({ kind: "rule", id: "rule", title: "User rule", snippet: r.rule })
+
+  const plans = queryAll<{ id: string; title: string; goal: string }>(
+    d, "SELECT id, title, goal FROM plans WHERE LOWER(title) LIKE ? OR LOWER(goal) LIKE ? LIMIT ?", [q, q, limit],
+  )
+  for (const p of plans) hits.push({ kind: "plan", id: p.id, title: p.title, snippet: p.goal.slice(0, 160) })
+
+  const handoffs = queryAll<{ id: string; summary: string }>(
+    d, "SELECT id, summary FROM handoffs WHERE LOWER(summary) LIKE ? LIMIT ?", [q, limit],
+  )
+  for (const h of handoffs) hits.push({ kind: "handoff", id: h.id, title: h.summary.slice(0, 60), snippet: h.summary.slice(0, 160) })
+
+  const branches = queryAll<{ id: string; title: string; summary: string }>(
+    d, "SELECT id, title, summary FROM branches WHERE status = 'folded' AND (LOWER(title) LIKE ? OR LOWER(summary) LIKE ?) LIMIT ?", [q, q, limit],
+  )
+  for (const b of branches) hits.push({ kind: "branch", id: b.id, title: b.title, snippet: b.summary?.slice(0, 160) ?? "" })
+
+  return hits.slice(0, limit)
+}
+
+// ——— Rules ————————————————————————————————
+
+export function listRules(): string[] {
+  ensureMigrated()
+  return queryAll<{ rule: string }>(db(), "SELECT rule FROM rules ORDER BY id").map((r) => r.rule)
+}
+
+export function addRule(rule: string): string[] {
+  ensureMigrated()
+  const trimmed = rule.trim()
+  if (!trimmed) throw new Error("Rule must not be empty")
+  runQuery(db(), "INSERT OR IGNORE INTO rules (rule, created_at) VALUES (?, ?)", [trimmed, now()])
+  return listRules()
+}
+
+export function removeRule(rule: string): string[] {
+  ensureMigrated()
+  runQuery(db(), "DELETE FROM rules WHERE rule = ?", [rule.trim()])
+  return listRules()
+}
+
+export function formatRules(rules: string[]): string {
+  return rules.map((r) => `- ${r}`).join("\n")
+}
+
+// ——— Pinned context ————————————————————————————————
+
+const MAX_PINNED_BLOCKS = 50
+const MAX_PIN_BLOCK_CHARS = 8000
+
+export function listPinnedContext(): string[] {
+  ensureMigrated()
+  return queryAll<{ block: string }>(db(), "SELECT block FROM pinned_context ORDER BY id").map((r) => r.block)
+}
+
+export function pinContext(block: string): string[] {
+  ensureMigrated()
+  const trimmed = block.trim().slice(0, MAX_PIN_BLOCK_CHARS)
+  if (!trimmed) throw new Error("Context block must not be empty")
+  const d = db()
+  d.transaction(() => {
+    const count = (queryOne<{ c: number }>(d, "SELECT COUNT(*) AS c FROM pinned_context") ?? { c: 0 }).c
+    if (count >= MAX_PINNED_BLOCKS) runQuery(d, "DELETE FROM pinned_context WHERE id = (SELECT MIN(id) FROM pinned_context)")
+    runQuery(d, "INSERT INTO pinned_context (block, pinned_at) VALUES (?, ?)", [trimmed, now()])
+  })()
+  return listPinnedContext()
+}
+
+export function unpinContext(index: number): string[] {
+  ensureMigrated()
+  if (index < 0) throw new Error(`Invalid pin index: ${index}`)
+  const rows = queryAll<{ id: number }>(db(), "SELECT id FROM pinned_context ORDER BY id")
+  if (index >= rows.length) throw new Error(`Invalid pin index: ${index}`)
+  runQuery(db(), "DELETE FROM pinned_context WHERE id = ?", [rows[index].id])
+  return listPinnedContext()
+}
+
+export function clearPinnedContext(): void {
+  ensureMigrated()
+  runQuery(db(), "DELETE FROM pinned_context")
+}
+
+// ——— Handoffs ————————————————————————————————
+
+export function saveHandoff(input: Omit<StudioHandoff, "id" | "createdAt">): StudioHandoff {
+  ensureMigrated()
+  const d = db()
+  const ts = now()
+  const ws = loadWorkspace()
+  const handoffId = genId()
+  runQuery(
+    d,
+    `INSERT INTO handoffs (id, summary, files_changed, tests_run, risks, next_steps, plan_id, branch, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [handoffId, input.summary, joinLines(input.filesChanged ?? []), input.testsRun ?? null,
+     input.risks ?? null, input.nextSteps ?? null, input.planId ?? ws.activePlanId ?? null,
+     currentBranchSafe(), ts],
+  )
+  return { id: handoffId, createdAt: ts, ...input, planId: input.planId ?? ws.activePlanId }
+}
+
+export function listHandoffs(): StudioHandoff[] {
+  ensureMigrated()
+  return queryAll<HandoffRow>(db(), "SELECT * FROM handoffs ORDER BY created_at DESC").map(handoffFromRow)
+}
+

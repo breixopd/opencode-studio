@@ -56,14 +56,14 @@ export {
 export {
   saveHandoff,
   listHandoffs,
-} from "./workspace-handoffs"
+} from "./workspace-base"
 
 export {
   listRules,
   addRule,
   removeRule,
   formatRules,
-} from "./workspace-rules"
+} from "./workspace-base"
 
 export {
   recordVerifyFailure,
@@ -78,12 +78,12 @@ export {
   pinContext,
   unpinContext,
   clearPinnedContext,
-} from "./workspace-pins"
+} from "./workspace-base"
 
 export {
   searchMemory,
   type MemoryHit,
-} from "./workspace-memory"
+} from "./workspace-base"
 
 export {
   rememberRulesText,
