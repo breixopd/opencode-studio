@@ -143,27 +143,72 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     } catch { /* best-effort */ }
   }))
 
-  // ——— Message updated → cost threshold + rule capture toasts ————————————————
-  cleanups.push(event.on("message.updated", (evt: { type: string; properties: { info?: { cost?: number } } }) => {
+  // ——— Subagent lifecycle tracking ————————————————
+  // Track which messages have already been "completed" so we only toast once.
+  const completedMessages = new Set<string>()
+  // Track active agents per session for accurate "started" detection.
+  const activeAgents = new Map<string, string>()
+
+  cleanups.push(event.on("message.updated", (evt: { type: string; properties: { info?: { role?: string; agent?: string; sessionID?: string; id?: string; time?: { created?: number; completed?: number }; cost?: number; tokens?: { input: number; output: number }; finish?: string; error?: { message?: string }; modelID?: string; providerID?: string } } }) => {
     try {
       const info = evt.properties?.info
       if (!info) return
 
+      // ——— Subagent started: UserMessage with agent field ————————————————
+      if (info.role === "user" && info.agent && info.agent.startsWith("studio-")) {
+        const agentName = info.agent.replace("studio-", "@studio-")
+        activeAgents.set(info.sessionID ?? "", info.agent)
+        ui.toast({ variant: "info", title: "Subagent Started", message: `${agentName} is working…`, duration: 2500 })
+        return
+      }
+
+      // ——— Subagent completed: AssistantMessage with time.completed ————————————————
+      if (info.role === "assistant" && info.time?.completed && info.id) {
+        if (completedMessages.has(info.id)) return // already toasted
+        completedMessages.add(info.id)
+
+        // Determine which agent this was based on session tracking
+        const sessionID = info.sessionID ?? ""
+        const agentName = activeAgents.get(sessionID) ?? "agent"
+        const display = agentName.startsWith("studio-") ? `@${agentName}` : agentName
+        activeAgents.delete(sessionID)
+
+        // Build completion message with cost + tokens
+        const cost = info.cost ? ` $${info.cost.toFixed(4)}` : ""
+        const tokens = info.tokens ? ` (${info.tokens.input + info.tokens.output} tokens)` : ""
+        const finish = info.finish ? ` — ${info.finish}` : ""
+
+        // Error completion
+        if (info.error) {
+          ui.toast({ variant: "error", title: `${display} Failed`, message: info.error.message?.slice(0, 120) ?? "Unknown error", duration: 5000 })
+        } else {
+          ui.toast({ variant: "success", title: `${display} Done`, message: `Completed${cost}${tokens}${finish}`, duration: 3000 })
+        }
+
+        // Cost threshold check (also on assistant messages)
+        if (info.cost && info.cost > 0.50) {
+          ui.toast({ variant: "warning", title: "Cost Alert", message: `Session cost exceeded $${info.cost.toFixed(2)}. Try studio_preferences set_model_mode free.`, duration: 5000 })
+        }
+
+        // Rule auto-capture detection (rules table count change)
+        try {
+          const { openStudioDb, queryOne } = require("../core/studio-db")
+          const db = openStudioDb(process.cwd())
+          const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM rules")?.c ?? 0
+          if (prev.ruleCount === 0) prev.ruleCount = count
+          if (count > prev.ruleCount) {
+            ui.toast({ variant: "info", title: "Rule Saved", message: `Auto-captured rule (now ${count} total).`, duration: 3000 })
+            prev.ruleCount = count
+          }
+        } catch { /* db not ready */ }
+
+        return
+      }
+
+      // ——— Cost threshold on non-completion messages too ————————————————
       if (info.cost && info.cost > 0.50) {
         ui.toast({ variant: "warning", title: "Cost Alert", message: `Session cost exceeded $${info.cost.toFixed(2)}. Try studio_preferences set_model_mode free.`, duration: 5000 })
       }
-
-      // Detect rule auto-capture via rules table count change
-      try {
-        const { openStudioDb, queryOne } = require("../core/studio-db")
-        const db = openStudioDb(process.cwd())
-        const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM rules")?.c ?? 0
-        if (prev.ruleCount === 0) prev.ruleCount = count
-        if (count > prev.ruleCount) {
-          ui.toast({ variant: "info", title: "Rule Saved", message: `Auto-captured rule (now ${count} total).`, duration: 3000 })
-          prev.ruleCount = count
-        }
-      } catch { /* db not ready */ }
     } catch { /* best-effort */ }
   }))
 
