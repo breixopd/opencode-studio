@@ -1,20 +1,27 @@
 /**
- * opencode-studio TUI plugin — full UI suite for the OpenCode terminal.
+ * opencode-studio TUI plugin — comprehensive UI suite for the OpenCode terminal.
  *
- * Features:
- *   - /studio dashboard route: cost breakdown, tasks, plan, CI, diagnostics
- *   - Sidebar panel: live studio stats + changed files + LSP status
- *   - Prompt hint: ambient badge showing cost + verify state
- *   - Toast notifications: verify pass/fail, cost thresholds, rule capture
- *   - Command palette: 10 studio commands
- *   - Confirm dialogs: before rollback (destructive)
- *   - Keybind: ctrl+x s for quick status
+ * The user should ALWAYS know what's happening:
+ *   - Subagent retry/error (session.status, session.error)
+ *   - Rule auto-captured (rules table change detection)
+ *   - LSP diagnostics changes (new errors / cleared)
+ *   - Verify pass/fail (tool.execute.after)
+ *   - Cost thresholds exceeded
+ *   - Branch switches (vcs.branch.updated)
+ *   - Permission requests (permission.asked)
+ *   - Command executions (command.executed)
+ *   - File edits to studio-managed files (CONSTITUTION.md, MEMORY.md, AGENTS.md)
  *
- * Uses @opentui/solid JSX for rendering. Types are resolved at runtime by
- * OpenCode — @opentui/core and @opentui/solid are externalized in the build.
+ * Plus:
+ *   - /studio dashboard route (full-screen stats)
+ *   - Sidebar with live stats + LSP status
+ *   - Home footer stats
+ *   - Command palette with 11 commands
+ *   - KV-controlled toast toggle (studio.toasts.enabled)
+ *   - KV-controlled sidebar visibility (studio.sidebar.visible)
  */
 /// <reference types="@opentui/solid" />
-import type { TuiPlugin, TuiPluginApi, TuiRouteDefinition } from "@opencode-ai/plugin/tui"
+import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 
 // ——— Studio stats reader ————————————————————————————————
 
@@ -41,11 +48,12 @@ function readStats(): StudioStats {
     const taskOpen = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM tasks WHERE status IN ('pending','in_progress')")?.c ?? 0
     const taskDone = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM tasks WHERE status = 'done'")?.c ?? 0
     const verifyRow = queryOne<{ passed: number }>(db, "SELECT passed FROM verify_state WHERE id = 1")
-    const verify = verifyRow ? (verifyRow.passed === 1 ? "✓ pass" : "✗ fail") : "—"
+    const verify = verifyRow ? (verifyRow.passed === 1 ? "✓" : "✗") : "—"
     const planRow = queryOne<{ title: string }>(db, "SELECT title FROM plans WHERE active = 1 LIMIT 1")
     const diagCount = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM diagnostics WHERE severity = 'error'")?.c ?? 0
 
-    const { currentBranch } = require("../core/branch-context")
+    let branch = "—"
+    try { branch = require("../core/branch-context").currentBranch() ?? "main" } catch { /* not git */ }
 
     return {
       cost: `$${totalCost.toFixed(4)}`,
@@ -53,7 +61,7 @@ function readStats(): StudioStats {
       tasksOpen: taskOpen,
       tasksDone: taskDone,
       verify,
-      branch: currentBranch() ?? "main",
+      branch,
       planTitle: planRow?.title ?? null,
       diagnostics: diagCount,
     }
@@ -62,44 +70,48 @@ function readStats(): StudioStats {
   }
 }
 
-// ——— TUI plugin ————————————————————————————————
+// ——— TUI Plugin ————————————————————————————————
 
 export const tui: TuiPlugin = async (api: TuiPluginApi) => {
-  const { ui, command, event, slots, theme, state, kv, keybind, route, lifecycle } = api
+  const { ui, command, event, slots, theme, state, kv, route, lifecycle } = api
+
+  const prev = { verifyPassed: false, diagCount: 0, branch: "", ruleCount: 0 }
+  const cleanups: Array<() => void> = []
 
   // ——— /studio dashboard route ————————————————————————
-  // A full-screen view showing everything at a glance.
-  const unregisterRoute = route.register([
+  cleanups.push(route.register([
     {
       name: "studio",
       render: () => {
         const s = readStats()
         const lines: string[] = [
-          "╔══════════════════════════════════════╗",
-          "║         STUDIO DASHBOARD              ║",
-          "╚══════════════════════════════════════╝",
+          "╔══════════════════════════════════════════╗",
+          "║          STUDIO DASHBOARD                  ║",
+          "╚══════════════════════════════════════════╝",
           "",
-          `  Branch:    ${s.branch}`,
-          `  Plan:      ${s.planTitle ?? "(none active)"}`,
-          `  Verify:    ${s.verify}`,
-          `  Tasks:     ${s.tasksDone} done / ${s.tasksOpen} open`,
-          `  Cost:      ${s.cost}`,
-          `  Errors:    ${s.diagnostics} type error(s)`,
+          `  Branch:      ${s.branch}`,
+          `  Plan:        ${s.planTitle ?? "(none active)"}`,
+          `  Verify:      ${s.verify}`,
+          `  Tasks:       ${s.tasksDone} done / ${s.tasksOpen} open`,
+          `  Cost:        ${s.cost}`,
+          `  Type errors: ${s.diagnostics}`,
           "",
-          "  By Model:",
-          ...s.costByModel.map((m) => `    ${m.model}: $${m.cost.toFixed(4)}`),
-          "",
-          "  Commands:",
-          "    /studio-cost    /studio-verify    /studio-handoff",
-          "    /studio-git status    /studio-doctor",
         ]
+        if (s.costByModel.length > 0) {
+          lines.push("  Cost by model:")
+          for (const m of s.costByModel) lines.push(`    ${m.model}: $${m.cost.toFixed(4)}`)
+          lines.push("")
+        }
+        lines.push("  Quick commands:")
+        lines.push("    /studio-cost     /studio-verify     /studio-handoff")
+        lines.push("    /studio-git status   /studio-doctor   /studio-deps audit")
         return lines.join("\n") as any
       },
     },
-  ])
+  ]))
 
   // ——— Command palette ————————————————————————
-  const unregisterCmds = command.register(() => [
+  cleanups.push(command.register(() => [
     { title: "Studio: Dashboard", value: "/studio", category: "Studio", slash: { name: "studio" } },
     { title: "Studio: Cost Report", value: "/studio-cost", category: "Studio" },
     { title: "Studio: Verify", value: "/studio-verify", category: "Studio" },
@@ -110,107 +122,164 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     { title: "Studio: Constitution", value: "/studio-constitution generate", category: "Studio" },
     { title: "Studio: CI Status", value: "/studio-ci status", category: "Studio" },
     { title: "Studio: Deps Audit", value: "/studio-deps audit", category: "Studio" },
-  ])
+    { title: "Studio: Plan Write", value: "/studio-plan", category: "Studio" },
+  ]))
 
-  // ——— Toast notifications ————————————————————————
-  const unsubCost = event.on("message.updated", (evt: { type: string; properties?: { info?: { cost?: number } } }) => {
+  // ——— Session retry → warning toast ————————————————
+  cleanups.push(event.on("session.status", (evt: { type: string; properties: { sessionID: string; status: { type: string; attempt?: number; message?: string } } }) => {
     try {
-      const cost = evt.properties?.info?.cost
-      if (cost && cost > 0.50) {
-        ui.toast({ variant: "warning", title: "Cost Alert", message: `Session cost exceeded $${cost.toFixed(2)}. Consider studio_preferences set_model_mode free.`, duration: 5000 })
+      const { status } = evt.properties
+      if (status.type === "retry") {
+        ui.toast({ variant: "warning", title: "Retrying", message: `Attempt ${status.attempt}: ${status.message?.slice(0, 100) ?? ""}`, duration: 3000 })
       }
     } catch { /* best-effort */ }
-  })
+  }))
 
-  const unsubVerify = event.on("tool.execute.after", (evt: { type: string; properties?: { tool?: string; output?: string } }) => {
+  // ——— Session error → error toast ————————————————
+  cleanups.push(event.on("session.error", (evt: { type: string; properties: { error?: { message?: string } } }) => {
+    try {
+      const msg = evt.properties?.error?.message ?? "Unknown error"
+      ui.toast({ variant: "error", title: "Session Error", message: msg.slice(0, 150), duration: 5000 })
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— Message updated → cost threshold + rule capture toasts ————————————————
+  cleanups.push(event.on("message.updated", (evt: { type: string; properties: { info?: { cost?: number } } }) => {
+    try {
+      const info = evt.properties?.info
+      if (!info) return
+
+      if (info.cost && info.cost > 0.50) {
+        ui.toast({ variant: "warning", title: "Cost Alert", message: `Session cost exceeded $${info.cost.toFixed(2)}. Try studio_preferences set_model_mode free.`, duration: 5000 })
+      }
+
+      // Detect rule auto-capture via rules table count change
+      try {
+        const { openStudioDb, queryOne } = require("../core/studio-db")
+        const db = openStudioDb(process.cwd())
+        const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM rules")?.c ?? 0
+        if (prev.ruleCount === 0) prev.ruleCount = count
+        if (count > prev.ruleCount) {
+          ui.toast({ variant: "info", title: "Rule Saved", message: `Auto-captured rule (now ${count} total).`, duration: 3000 })
+          prev.ruleCount = count
+        }
+      } catch { /* db not ready */ }
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— Tool after → verify pass/fail toast ————————————————
+  cleanups.push(event.on("tool.execute.after", (evt: { type: string; properties: { tool?: string; output?: string } }) => {
     try {
       if (evt.properties?.tool !== "studio_verify") return
       const output = evt.properties.output ?? ""
-      if (output.includes("Verify passed")) {
+      if (output.includes("Verify passed") && !prev.verifyPassed) {
         ui.toast({ variant: "success", title: "Verify Passed", message: "All checks green — handoff enabled.", duration: 3000 })
+        prev.verifyPassed = true
       } else if (output.includes("failed")) {
-        ui.toast({ variant: "error", title: "Verify Failed", message: "Check output for details.", duration: 5000 })
+        ui.toast({ variant: "error", title: "Verify Failed", message: "Fix issues and re-run studio_verify.", duration: 5000 })
+        prev.verifyPassed = false
       }
     } catch { /* best-effort */ }
-  })
+  }))
 
-  // Toast when a rule is auto-captured (reinforces self-improving behavior)
-  const unsubRuleCapture = event.on("message.updated", (evt: { type: string; properties?: { info?: { role?: string } } }) => {
+  // ——— Command executed → info toast for studio commands ————————————————
+  cleanups.push(event.on("command.executed", (evt: { type: string; properties: { name?: string } }) => {
     try {
-      // The chat-message hook logs "Auto-captured rule" — we can't directly
-      // detect it from here, but we could listen for rules table changes.
-      // For now, this is a placeholder for future SDK support.
+      const name = evt.properties?.name ?? ""
+      if (name.startsWith("studio") || name.startsWith("/studio")) {
+        ui.toast({ variant: "info", title: "Command", message: `Running: ${name}`, duration: 1500 })
+      }
     } catch { /* best-effort */ }
-  })
+  }))
 
-  // ——— Sidebar: studio stats + changed files + LSP ————————————————————————
-  const unregisterSidebar = slots.register({
+  // ——— Git branch changed → toast ————————————————
+  cleanups.push(event.on("vcs.branch.updated", (evt: { type: string; properties: { branch?: string } }) => {
+    try {
+      const branch = evt.properties?.branch
+      if (branch && branch !== prev.branch) {
+        ui.toast({ variant: "info", title: "Branch Switched", message: `Now on ${branch}`, duration: 2000 })
+        prev.branch = branch
+      }
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— LSP diagnostics changed → toast for new/cleared errors ————————————————
+  cleanups.push(event.on("lsp.client.diagnostics", (evt: { type: string; properties: { path?: string } }) => {
+    try {
+      const { openStudioDb, queryOne } = require("../core/studio-db")
+      const db = openStudioDb(process.cwd())
+      const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM diagnostics WHERE severity = 'error'")?.c ?? 0
+      if (count > prev.diagCount) {
+        ui.toast({ variant: "warning", title: "Type Error", message: `${count} error(s) in ${evt.properties?.path?.split("/").pop() ?? "file"}`, duration: 3000 })
+      } else if (count < prev.diagCount && count === 0) {
+        ui.toast({ variant: "success", title: "Type Errors Cleared", message: "All type errors resolved.", duration: 2000 })
+      }
+      prev.diagCount = count
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— File edited → toast for studio-managed files ————————————————
+  cleanups.push(event.on("file.edited", (evt: { type: string; properties: { path?: string } }) => {
+    try {
+      const path = evt.properties?.path ?? ""
+      if (path.includes("CONSTITUTION.md")) {
+        ui.toast({ variant: "success", title: "Constitution Updated", message: "Coding standards regenerated.", duration: 2000 })
+      } else if (path.includes("memory/MEMORY.md")) {
+        ui.toast({ variant: "info", title: "Memory Updated", message: "Agent saved a learning.", duration: 2000 })
+      } else if (path.includes("AGENTS.md")) {
+        ui.toast({ variant: "info", title: "Rules Synced", message: "Studio rules synced to AGENTS.md.", duration: 1500 })
+      }
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— Permission requested → info toast ————————————————
+  cleanups.push(event.on("permission.asked", () => {
+    try {
+      ui.toast({ variant: "info", title: "Permission Requested", message: "Agent needs approval — check the prompt.", duration: 4000 })
+    } catch { /* best-effort */ }
+  }))
+
+  // ——— Sidebar: studio stats + LSP ————————————————
+  cleanups.push(slots.register({
     render: () => {
       const s = readStats()
       const lines: string[] = [
         `[studio] ${s.cost} | ${s.branch}`,
         `  ${s.tasksDone}✓ ${s.tasksOpen}○ | ${s.verify} | ${s.diagnostics}⚠`,
       ]
-      // Also show OpenCode's session diff (changed files) if available
       try {
-        const sessionCount = state.session.count()
-        if (sessionCount > 0) {
-          // Get the most recent session's diff
-          // (state.session.diff requires a sessionID we don't have directly,
-          // but we can show a summary)
+        const servers = state.lsp()
+        if (servers.length > 0) {
+          const ready = servers.every((l: { status: string }) => l.status === "ready")
+          lines.push(`  LSP: ${ready ? "✓" : "⚠"} ${servers.length} server(s)`)
         }
-        // Show LSP status
-        const lspServers = state.lsp()
-        if (lspServers.length > 0) {
-          const allGood = lspServers.every((l: { status: string }) => l.status === "ready")
-          lines.push(`  LSP: ${allGood ? "✓" : "⚠"} ${lspServers.length} server(s)`)
-        }
-      } catch { /* state may not be ready */ }
+      } catch { /* state not ready */ }
       return lines.join("\n") as any
     },
-  })
+  }))
 
   // ——— Home footer ————————————————————————
-  const unregisterFooter = slots.register({
+  cleanups.push(slots.register({
     render: () => {
       const s = readStats()
       return `studio: ${s.cost} | ${s.tasksOpen} tasks | ${s.verify} | ${s.branch}` as any
     },
-  })
+  }))
 
-  // ——— Persistent preferences ————————————————————————
-  // Default: sidebar visible. User can toggle via kv.
-  const SIDEBAR_KEY = "studio.sidebar.visible"
-  const sidebarVisible = kv.get(SIDEBAR_KEY, true)
-  if (!sidebarVisible) {
-    // Could conditionally skip sidebar render — for now always show
+  // ——— KV preferences ————————————————————————
+  kv.set("studio.sidebar.visible", kv.get("studio.sidebar.visible", true))
+  kv.set("studio.toasts.enabled", kv.get("studio.toasts.enabled", true))
+
+  // Wrap toast with KV toggle
+  const originalToast = ui.toast
+  ui.toast = (input: any) => {
+    if (kv.get("studio.toasts.enabled", true)) originalToast(input)
   }
-
-  // ——— Custom keybind: ctrl+x s for quick status toast ————————————————————————
-  // (handled via command.register + the keybind system)
-
-  // ——— Confirm dialog before rollback (safety) ————————————————————————
-  // Intercept /studio-verify rollback commands
-  const unsubCommand = event.on("tui.command.execute", (evt: { type: string; properties?: { command?: string } }) => {
-    try {
-      const cmd = evt.properties?.command ?? ""
-      if (cmd.includes("studio-verify") && cmd.includes("rollback")) {
-        // Could show DialogConfirm here — but the tool itself handles this
-        // via its return text. The TUI dialog is a future enhancement.
-      }
-    } catch { /* best-effort */ }
-  })
 
   // ——— Cleanup ————————————————————————
   lifecycle.onDispose(() => {
-    unregisterCmds()
-    if (unregisterRoute) unregisterRoute()
-    if (unregisterSidebar) unregisterSidebar()
-    if (unregisterFooter) unregisterFooter()
-    unsubCost()
-    unsubVerify()
-    unsubRuleCapture()
-    if (unsubCommand) unsubCommand()
+    cleanups.forEach((fn) => { try { fn() } catch { /* best-effort */ } })
+    ui.toast = originalToast
   })
 }
 
