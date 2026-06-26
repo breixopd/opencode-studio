@@ -1,47 +1,23 @@
 import { tool } from "@opencode-ai/plugin"
-import { existsSync } from "fs"
 import { ensureStudioReady } from "../core/auto"
-import { loadConfig } from "../config/config"
-import { parseSSHConfig } from "../config/ssh-config"
 import { isTunnelAlive, getTunnelState } from "../tunnel/manager"
 import { getActiveSyncProjects } from "../sync/active"
+import { collectStudioRuntime } from "../core/studio-runtime"
+import { describeRoutingForProvider } from "../core/model-routing"
+import type { Config } from "@opencode-ai/plugin"
+
+const runtimeDeps = {
+  tunnelAlive: isTunnelAlive,
+  tunnelState: getTunnelState,
+  activeSyncs: getActiveSyncProjects,
+}
 
 export const studio_status = tool({
-  description: "Show OpenCode Studio status: tunnel, SSH, projects, active syncs.",
+  description: "Studio runtime snapshot: tunnel, SSH, projects, syncs, tasks, verify gate, model mode.",
   args: {},
   async execute() {
-    const config = ensureStudioReady()
-    const projects = config.projects
-    const activeSyncs = getActiveSyncProjects()
-
-    const tunnelAlive = isTunnelAlive()
-    const tunnelState = getTunnelState()
-
-    const projectList = Object.entries(projects).map(([name, mapping]) => ({
-      name,
-      local: mapping.local,
-      remote: mapping.remote,
-      syncing: activeSyncs.includes(name),
-    }))
-
-    return JSON.stringify(
-      {
-        tunnel: tunnelAlive
-          ? { status: "running", port: tunnelState?.config.localPort, host: tunnelState?.config.host }
-          : { status: "stopped" },
-        ssh: {
-          host: config.ssh.host,
-          user: config.ssh.user,
-          port: config.ssh.port,
-          configured: Boolean(config.ssh.host && config.ssh.user && config.ssh.identityFile),
-        },
-        activeSyncs,
-        projects: projectList,
-        projectCount: projectList.length,
-      },
-      null,
-      2,
-    )
+    const snapshot = collectStudioRuntime(runtimeDeps)
+    return JSON.stringify(snapshot, null, 2)
   },
 })
 
@@ -66,3 +42,7 @@ export const studio_list_projects = tool({
     return `Projects (${names.length}):\n${lines.join("\n")}`
   },
 })
+
+export function studioRoutingSummary(config: Config): string {
+  return describeRoutingForProvider(config)
+}

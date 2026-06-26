@@ -1,27 +1,38 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
+import type { Config } from "@opencode-ai/plugin"
+import { execFileSync } from "child_process"
 import { existsSync } from "fs"
 import { ensureStudioReady } from "../core/auto"
 import { parseSSHConfig } from "../config/ssh-config"
-import { incompleteTasks } from "../core/tasks"
 import { isTunnelAlive, getTunnelState } from "../tunnel/manager"
 import { getActiveSyncProjects } from "../sync/active"
+import { collectStudioRuntime } from "../core/studio-runtime"
+import { describeRoutingForProvider } from "../core/model-routing"
+import { loadModelRegistry } from "../core/model-registry"
+import { getPendingCatalogNotice } from "../core/project-profile"
 
 export const studio_doctor: ToolDefinition = tool({
-  description: "Health check: config, SSH, tunnel, sync, tasks, native tools.",
+  description: "Health check: config, SSH, tunnel, sync, code index, model routing.",
   args: {},
   async execute() {
     const checks: Array<{ name: string; ok: boolean; detail: string }> = []
 
+    let config
     try {
-      ensureStudioReady()
+      config = ensureStudioReady()
       checks.push({ name: "config", ok: true, detail: "Auto-configured" })
     } catch (err) {
       checks.push({ name: "config", ok: false, detail: (err as Error).message })
       return JSON.stringify({ healthy: false, checks }, null, 2)
     }
 
-    const config = ensureStudioReady()
-    const sshReady = Boolean(config.ssh.host && config.ssh.user && config.ssh.identityFile)
+    const runtime = collectStudioRuntime({
+      tunnelAlive: isTunnelAlive,
+      tunnelState: getTunnelState,
+      activeSyncs: getActiveSyncProjects,
+    })
+
+    const sshReady = runtime.ssh.configured
     checks.push({
       name: "ssh",
       ok: sshReady,
@@ -29,40 +40,108 @@ export const studio_doctor: ToolDefinition = tool({
     })
 
     if (sshReady) {
-      checks.push({ name: "ssh_key", ok: existsSync(config.ssh.identityFile), detail: config.ssh.identityFile })
+      checks.push({
+        name: "ssh_key",
+        ok: existsSync(config.ssh.identityFile),
+        detail: config.ssh.identityFile,
+      })
     }
 
-    checks.push({ name: "ssh_hosts", ok: parseSSHConfig().length > 0, detail: `${parseSSHConfig().length} hosts` })
+    const sshHosts = parseSSHConfig()
+    checks.push({
+      name: "ssh_hosts",
+      ok: sshHosts.length > 0,
+      detail: `${sshHosts.length} hosts`,
+    })
 
-    const tunnelUp = isTunnelAlive()
     checks.push({
       name: "tunnel",
-      ok: tunnelUp,
-      detail: tunnelUp ? `port ${getTunnelState()?.config.localPort}` : "auto-starts on session",
-    })
-
-    const projects = Object.keys(config.projects).length
-    checks.push({ name: "projects", ok: projects > 0, detail: `${projects} mapped` })
-
-    const syncs = getActiveSyncProjects()
-    checks.push({ name: "sync", ok: true, detail: syncs.length ? syncs.join(", ") : "auto on session" })
-
-    const open = incompleteTasks()
-    checks.push({ name: "tasks", ok: open.length === 0, detail: open.length ? `${open.length} open` : "boulder clear" })
-
-    checks.push({
-      name: "native_tools",
-      ok: true,
-      detail: "search, fetch, code_search, task, plan, verify, retrieve, handoff, diagram",
+      ok: runtime.tunnel.status === "running",
+      detail:
+        runtime.tunnel.status === "running"
+          ? `port ${runtime.tunnel.port}`
+          : "auto-starts on session",
     })
 
     checks.push({
-      name: "subagents",
-      ok: true,
-      detail: "explore, implement, review, research, remote, verify",
+      name: "projects",
+      ok: runtime.projectCount > 0,
+      detail: `${runtime.projectCount} mapped`,
     })
 
-    const healthy = checks.filter((c) => !["tunnel", "tasks"].includes(c.name) || c.ok).every((c) => c.ok)
-    return JSON.stringify({ healthy, checks }, null, 2)
+    checks.push({
+      name: "sync",
+      ok: true,
+      detail: runtime.activeSyncs.length ? runtime.activeSyncs.join(", ") : "auto on session",
+    })
+
+    checks.push({
+      name: "tasks",
+      ok: runtime.openTasks === 0,
+      detail: runtime.openTasks ? `${runtime.openTasks} open` : "all complete",
+    })
+
+    checks.push({
+      name: "verify_gate",
+      ok: runtime.verifyPassed === true,
+      detail:
+        runtime.verifyPassed === true
+          ? "passed"
+          : runtime.verifyPassed === false
+            ? "failed — fix and re-run studio_verify"
+            : "not run yet",
+    })
+
+    checks.push({
+      name: "model_routing",
+      ok: true,
+      detail: describeRoutingForProvider(config as Config),
+    })
+
+    let rgOk = false
+    try {
+      execFileSync("rg", ["--version"], { stdio: "ignore" })
+      rgOk = true
+    } catch {
+      /* rg optional */
+    }
+    checks.push({
+      name: "ripgrep",
+      ok: rgOk,
+      detail: rgOk ? "studio_grep ready" : "install rg for local code search",
+    })
+
+    // Real SQLite code-index health check (not just "is rg installed").
+    let indexStats: { fileCount: number; symbolCount: number; builtAt: string | null } | null = null
+    try {
+      const { getStats } = await import("../core/code-store")
+      indexStats = getStats(process.cwd())
+    } catch {
+      /* db not openable */
+    }
+    const indexOk = !!indexStats && indexStats.fileCount > 0
+    checks.push({
+      name: "code_index",
+      ok: indexOk,
+      detail: indexOk
+        ? `${indexStats!.fileCount} files, ${indexStats!.symbolCount} symbols (built ${indexStats!.builtAt ?? "?"})`
+        : rgOk
+          ? "rg ready; run studio_index to build AST index"
+          : "install rg; AST index still works for symbols",
+    })
+
+    const catalogNotice = getPendingCatalogNotice()
+    const registry = loadModelRegistry()
+    checks.push({
+      name: "model_catalog",
+      ok: !catalogNotice,
+      detail: catalogNotice ?? `zen=${registry.zen.ids.length} providers=${registry.providersFingerprint || "unsynced"}`,
+    })
+
+    const healthy = checks
+      .filter((c) => !["tunnel", "tasks", "verify_gate"].includes(c.name) || c.ok)
+      .every((c) => c.ok)
+
+    return JSON.stringify({ healthy, runtime, checks }, null, 2)
   },
 })

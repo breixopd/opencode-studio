@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { writeFileSync, unlinkSync, existsSync } from "fs"
+import { writeFileSync, unlinkSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 import { homedir } from "os"

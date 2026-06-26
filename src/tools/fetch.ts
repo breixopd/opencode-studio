@@ -1,31 +1,45 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
+import { safeFetch } from "../core/web-fetch"
+import { extractFromHtml, formatForLlm } from "../core/web-extract"
 
 export const studio_fetch: ToolDefinition = tool({
-  description: "Fetch URL content as plain text (no API key). Native alternative to webfetch MCP.",
+  description:
+    "Fetch URL with readability extraction (markdown/llm text). SSRF-safe, browser-like headers.",
   args: {
     url: tool.schema.string().url().describe("URL to fetch"),
+    format: tool.schema
+      .enum(["text", "markdown", "llm"])
+      .optional()
+      .describe("Output format (default llm)"),
+    only_main_content: tool.schema
+      .boolean()
+      .optional()
+      .describe("Strip nav/ads via readability (default true)"),
     max_chars: tool.schema.number().optional().describe("Max characters (default 12000)"),
   },
   async execute(args) {
     const max = args.max_chars ?? 12_000
+    const format = args.format ?? "llm"
     try {
-      const res = await fetch(args.url, {
-        headers: { "User-Agent": "opencode-studio/1.0" },
-        signal: AbortSignal.timeout(15_000),
+      const res = await safeFetch(args.url)
+      if (!res.status.toString().startsWith("2")) {
+        return `HTTP ${res.status} for ${args.url}`
+      }
+
+      if (res.contentType.includes("application/json")) {
+        const body = res.body.slice(0, max)
+        return body.length >= max ? `${body}\n\n[truncated]` : body
+      }
+
+      if (!res.contentType.includes("html")) {
+        const body = res.body.slice(0, max)
+        return body.length >= max ? `${body}\n\n[truncated]` : body
+      }
+
+      const page = await extractFromHtml(res.body, res.finalUrl, {
+        onlyMainContent: args.only_main_content !== false,
       })
-      if (!res.ok) return `HTTP ${res.status} for ${args.url}`
-      const html = await res.text()
-      const text = stripHtml(html).slice(0, max)
-      return text.length >= max ? `${text}\n\n[truncated]` : text
+      return formatForLlm(page, format, max)
     } catch (err) {
       return `Fetch failed: ${(err as Error).message}`
     }

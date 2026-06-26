@@ -1,6 +1,7 @@
 import { createServer, type Server, type Socket } from "net"
 import type { SSHSession } from "../ssh/types"
 import { sshFactory } from "../ssh/factory"
+import * as log from "../core/logger"
 
 export interface TunnelConfig {
   user: string
@@ -27,6 +28,11 @@ let lastHeartbeatValue = Date.now()
 let lastErrorValue: string | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let restartTimer: ReturnType<typeof setTimeout> | null = null
+
+// Phase 6.1 — exponential backoff watchdog with failure counter.
+let consecutiveFailures = 0
+const MAX_BACKOFF_MS = 5 * 60 * 1000 // 5 min cap
+const FAILURE_THRESHOLD = 3 // after 3 consecutive fails, inject discipline notice
 
 // ---------------------------------------------------------------------------
 // Port helpers
@@ -78,9 +84,7 @@ export async function startTunnel(config: TunnelConfig): Promise<TunnelState> {
 
   const port = await findAvailablePort(config.localPort)
   if (port !== config.localPort) {
-    console.warn(
-      `[studio-tunnel] Port ${config.localPort} occupied, using port ${port}`,
-    )
+    log.warn(`Tunnel: port ${config.localPort} occupied, using port ${port}`)
   }
 
   currentTunnelConfig = config
@@ -96,6 +100,7 @@ export async function startTunnel(config: TunnelConfig): Promise<TunnelState> {
   startTime = Date.now()
   lastHeartbeatValue = Date.now()
   lastErrorValue = null
+  consecutiveFailures = 0 // reset on successful start
 
   localServer = createServer((socket: Socket) => {
     if (!tunnelSession?.alive) {
@@ -131,21 +136,40 @@ export async function startTunnel(config: TunnelConfig): Promise<TunnelState> {
     tunnelSession.alive = false
     lastErrorValue = "SSH connection closed"
 
-    console.error("[studio-tunnel] SSH connection lost, auto-restart in 10s...")
+    consecutiveFailures++
+    const delay = Math.min(1000 * Math.pow(2, consecutiveFailures - 1), MAX_BACKOFF_MS)
+    log.error(
+      `Tunnel: SSH connection lost (failure #${consecutiveFailures}). Auto-restart in ${Math.round(delay / 1000)}s...`,
+    )
 
+    if (restartTimer) clearTimeout(restartTimer)
     restartTimer = setTimeout(() => {
       restartTimer = null
-      if (currentTunnelConfig && (!tunnelSession || !tunnelSession.alive)) {
-        startTunnel({ ...currentTunnelConfig, localPort: port }).catch((err) => {
-          console.error(`[studio-tunnel] Auto-restart failed:`, err.message)
+      if (!currentTunnelConfig) return
+      if (tunnelSession?.alive) return
+      startTunnel({ ...currentTunnelConfig, localPort: port })
+        .then(() => {
+          // Reset failure count on successful reconnect.
+          consecutiveFailures = 0
+          log.info("Tunnel: auto-restart succeeded.")
         })
-      }
-    }, 10_000)
+        .catch((err) => {
+          log.error(`Tunnel: auto-restart failed: ${err.message}`)
+          // Reschedule — the watchdog will try again with increased backoff.
+          // Re-trigger by simulating a close event:
+          consecutiveFailures++
+          const nextDelay = Math.min(1000 * Math.pow(2, consecutiveFailures - 1), MAX_BACKOFF_MS)
+          restartTimer = setTimeout(() => {
+            restartTimer = null
+            session.client.emit("close")
+          }, nextDelay)
+        })
+    }, delay)
   })
 
   session.client.on("error", (err: Error) => {
     lastErrorValue = err.message
-    console.error(`[studio-tunnel] SSH error:`, err.message)
+    log.error(`Tunnel: SSH error: ${err.message}`)
   })
 
   startHeartbeat()
@@ -168,6 +192,11 @@ function startHeartbeat(): void {
 
   heartbeatTimer = setInterval(() => {
     if (!tunnelSession?.alive) {
+      // Session is dead — if no reconnect is pending and we have config, trigger one.
+      if (!restartTimer && currentTunnelConfig) {
+        log.warn("Tunnel: heartbeat detected dead session — triggering reconnect.")
+        tunnelSession?.client.emit("close")
+      }
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer)
         heartbeatTimer = null
@@ -178,7 +207,10 @@ function startHeartbeat(): void {
     if (localServer?.listening) {
       lastHeartbeatValue = Date.now()
     } else {
+      // Local server stopped listening — mark dead and trigger reconnect.
       tunnelSession.alive = false
+      lastErrorValue = "Local forwarding server stopped"
+      tunnelSession.client.emit("close")
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer)
         heartbeatTimer = null
@@ -245,6 +277,16 @@ export function getTunnelState(): TunnelState | null {
     lastHeartbeat: lastHeartbeatValue,
     lastError: lastErrorValue,
   }
+}
+
+/** Returns consecutive failure count if tunnel is in a degraded state (Phase 6.1 watchdog). */
+export function getTunnelFailureCount(): number {
+  return consecutiveFailures
+}
+
+/** Returns true when consecutive failures exceed the threshold (for discipline injection). */
+export function isTunnelDegraded(): boolean {
+  return consecutiveFailures >= FAILURE_THRESHOLD
 }
 
 export function _resetTunnelState(): void {

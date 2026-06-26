@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach } from "bun:test"
 
 const mockLoadConfig = mock(() => ({
   ssh: { user: "dev", host: "remote.example.com", identityFile: "/tmp/key", port: 22 },

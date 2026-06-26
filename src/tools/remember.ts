@@ -1,40 +1,46 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
-import {
-  addRememberRule,
-  removeRememberRule,
-  loadRememberRules,
-  formatRememberRules,
-} from "../core/remember"
+import { addRule, removeRule, listRules, formatRules } from "../core/workspace"
+import { addGlobalRule, loadUserProfile } from "../core/project-profile"
 
 export const studio_remember: ToolDefinition = tool({
   description:
-    "Persist user rules the agent must follow. When the user says 'remember …', that is an important rule — save it here. Injected every session.",
+    "Persist rules. 'remember …' from user = important. scope=project (this repo) or global (all projects).",
   args: {
     action: tool.schema.enum(["add", "remove", "list", "show"]).describe("Remember action"),
-    rule: tool.schema
-      .string()
+    rule: tool.schema.string().optional().describe("Rule text"),
+    scope: tool.schema
+      .enum(["project", "global"])
       .optional()
-      .describe("Rule text for add/remove (e.g. 'always run tests before commit')"),
+      .describe("project = this repo (.studio); global = all sessions (default: project)"),
   },
   async execute(args) {
+    const scope = args.scope ?? "project"
+
     if (args.action === "list" || args.action === "show") {
-      const rules = loadRememberRules()
-      if (rules.length === 0) {
-        return "No remembered rules. When the user says 'remember …', add it with studio_remember add."
-      }
-      return formatRememberRules(rules)
+      const project = listRules()
+      const global = loadUserProfile().globalRules
+      const lines: string[] = []
+      if (global.length) lines.push("Global:\n" + global.map((r) => `- ${r}`).join("\n"))
+      if (project.length) lines.push("Project:\n" + formatRules(project))
+      return lines.length ? lines.join("\n\n") : "No rules. Use studio_remember add when user says remember."
     }
 
     if (!args.rule?.trim()) return "rule required for add/remove"
 
     if (args.action === "add") {
-      const rules = addRememberRule(args.rule)
-      return `Remembered (${rules.length} rule(s)):\n${formatRememberRules(rules)}`
+      if (scope === "global") {
+        const rules = addGlobalRule(args.rule)
+        return `Global rule saved (${rules.length}):\n` + rules.map((r) => `- ${r}`).join("\n")
+      }
+      const rules = addRule(args.rule)
+      return `Project rule saved (${rules.length}):\n${formatRules(rules)}`
     }
 
-    const rules = removeRememberRule(args.rule)
-    return rules.length
-      ? `Removed. Remaining:\n${formatRememberRules(rules)}`
-      : "Rule removed. No rules left."
+    if (scope === "global") {
+      return "remove for global rules: edit ~/.config/opencode-studio/user.json"
+    }
+
+    const rules = removeRule(args.rule)
+    return rules.length ? `Removed.\n${formatRules(rules)}` : "Rule removed."
   },
 })

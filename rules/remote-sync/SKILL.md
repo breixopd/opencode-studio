@@ -17,5 +17,5 @@ This skill guides the AI through using studio_* tools for remote file synchroniz
 ## Best Practices
 
 - Sync is ONE-WAY (local → remote). Remote changes are NOT synced back.
-- Excluded patterns: .git, node_modules, __pycache__, .env*, .chunkhound, .venv
+- Excluded patterns: .git, node_modules, __pycache__, .env*, .venv
 - Use studio_tunnel_status to check SSH connectivity before syncing

@@ -1,10 +1,9 @@
-import { describe, it, expect, afterEach, beforeAll } from "bun:test"
+import { describe, it, expect, afterEach } from "bun:test"
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { createWatcher } from "./watcher"
-import type { BatchEvents, SyncEvent } from "./events"
-import type { FSWatcher } from "chokidar"
+import type { BatchEvents } from "./events"
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -22,7 +21,6 @@ function deferred<T>(): Deferred<T> {
 }
 
 const TEST_DEBOUNCE = 100
-const WAIT_BUFFER = 200
 
 function makeTempDir(): string {
   return mkdtempSync(join(tmpdir(), "opencode-studio-test-"))
@@ -41,12 +39,12 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     }
   })
 
-  it("returns an FSWatcher and starts watching a directory", () => {
+  it("returns an FSWatcher and starts watching a directory", async () => {
     const dir = makeTempDir()
     dirs.push(dir)
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -64,7 +62,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     dirs.push(dir)
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -95,7 +93,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     writeFileSync(file, "initial")
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -122,7 +120,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     writeFileSync(file, "delete me")
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -146,7 +144,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     dirs.push(dir)
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -173,7 +171,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     mkdirSync(subdir)
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -201,7 +199,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
 
     let handlerCalled = false
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: ["node_modules"],
@@ -233,7 +231,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     dirs.push(dir)
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -266,7 +264,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     writeFileSync(file, "initial")
 
     const d = deferred<BatchEvents>()
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -294,7 +292,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     dirs.push(dir)
 
     let callCount = 0
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],
@@ -320,13 +318,13 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     watcher.close()
   }, 5000)
 
-  it("uses default 2s debounce when debounceMs is not specified", () => {
+  it("uses default 2s debounce when debounceMs is not specified", async () => {
     const dir = makeTempDir()
     dirs.push(dir)
 
     // We test the default by checking timing in a lightweight way:
     // The option defaults to 2000ms, and we check the type is correct
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test-default",
       projectPath: dir,
       excludes: [],
@@ -344,7 +342,7 @@ describe.skipIf(!!process.env.CI)("createWatcher", () => {
     const d = deferred<BatchEvents>()
     const start = Date.now()
 
-    const watcher = createWatcher({
+    const watcher = await createWatcher({
       projectName: "test",
       projectPath: dir,
       excludes: [],

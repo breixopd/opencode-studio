@@ -1,49 +1,40 @@
-/** Native DuckDuckGo search — no API key. ponytail: fetch + regex, no MCP dependency */
-export async function searchDuckDuckGo(
-  query: string,
-  maxResults = 8,
-): Promise<Array<{ title: string; url: string; snippet: string }>> {
-  const body = new URLSearchParams({ q: query })
-  const res = await fetch("https://html.duckduckgo.com/html/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": "opencode-studio/1.0",
-    },
-    body: body.toString(),
-  })
+import { tool, type ToolDefinition } from "@opencode-ai/plugin"
+import {
+  formatSearchResults,
+  scrapeSearchResults,
+  searchWeb,
+} from "../core/web-search"
 
-  if (!res.ok) {
-    throw new Error(`Search failed: HTTP ${res.status}`)
-  }
+export { searchDuckDuckGo } from "../core/web-search"
 
-  const html = await res.text()
-  const results: Array<{ title: string; url: string; snippet: string }> = []
+export const studio_search: ToolDefinition = tool({
+  description:
+    "Search the web. Default: DuckDuckGo (no API key). Optional: TAVILY_API_KEY. Use scrape:true to fetch top hits.",
+  args: {
+    query: tool.schema.string().describe("Search query"),
+    count: tool.schema.number().optional().describe("Max results (default 8)"),
+    scrape: tool.schema
+      .boolean()
+      .optional()
+      .describe("Fetch and extract top results (default false)"),
+    scrape_top: tool.schema
+      .number()
+      .optional()
+      .describe("How many top hits to scrape when scrape=true (default 3, max 5)"),
+  },
+  async execute(args) {
+    try {
+      const count = args.count ?? 8
+      const { backend, results } = await searchWeb(args.query, count)
+      if (!results.length) return `No results for: ${args.query}`
 
-  const linkRe =
-    /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g
+      const final = args.scrape
+        ? await scrapeSearchResults(results, args.scrape_top ?? 3)
+        : results
 
-  let match: RegExpExecArray | null
-  while ((match = linkRe.exec(html)) !== null && results.length < maxResults) {
-    const url = decodeDuckDuckGoUrl(match[1])
-    const title = stripHtml(match[2])
-    const snippet = stripHtml(match[3])
-    if (url && title) {
-      results.push({ title, url, snippet })
+      return formatSearchResults(final, backend)
+    } catch (err) {
+      return `Search failed: ${(err as Error).message}`
     }
-  }
-
-  return results
-}
-
-function decodeDuckDuckGoUrl(href: string): string {
-  if (href.startsWith("//duckduckgo.com/l/?")) {
-    const uddg = new URL(`https:${href}`).searchParams.get("uddg")
-    if (uddg) return decodeURIComponent(uddg)
-  }
-  return href
-}
-
-export function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
-}
+  },
+})

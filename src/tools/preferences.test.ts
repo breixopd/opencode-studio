@@ -72,4 +72,12 @@ describe("studio_preferences", () => {
       { commitStudio: true },
     )
   })
+
+  it("sets model mode", async () => {
+    const result = await studio_preferences.execute(
+      { action: "set_model_mode", model_mode: "free" },
+      ctx,
+    )
+    expect(result).toContain("free")
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { stripHtml } from "./search"
+import { stripHtml } from "../core/html"
 
 // Test stripHtml via re-export or duplicate minimal test on searchDuckDuckGo with mock fetch
 describe("searchDuckDuckGo", () => {

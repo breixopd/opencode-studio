@@ -3,13 +3,15 @@ import { join, relative } from "path"
 import { loadConfig } from "../config/config"
 import { createSession, closeSession } from "../ssh/manager"
 import { createWatcher } from "../sync/watcher"
+import type { FSWatcher } from "chokidar"
 import { bulkSync, syncFile, syncDirectory, deleteRemoteFile } from "../sync/transfers"
 import type { SSHSession } from "../ssh/types"
 import { markSyncActive, clearSyncActive } from "../sync/active"
+import * as log from "../core/logger"
 
 export { getActiveSyncProjects } from "../sync/active"
 
-const activeWatchers = new Map<string, ReturnType<typeof createWatcher>>()
+const activeWatchers = new Map<string, FSWatcher>()
 const activeSessions = new Map<string, SSHSession>()
 
 function toRemotePath(localRoot: string, remoteRoot: string, filePath: string): string {
@@ -38,7 +40,7 @@ export async function startProjectSync(projectName: string): Promise<string> {
 
   await bulkSync(session, projectConfig.local, projectConfig.remote, projectConfig.excludes)
 
-  const watcher = createWatcher({
+  const watcher = await createWatcher({
     projectName,
     projectPath: projectConfig.local,
     excludes: projectConfig.excludes,
@@ -56,7 +58,7 @@ export async function startProjectSync(projectName: string): Promise<string> {
             await deleteRemoteFile(session, remotePath, true)
           }
         } catch (err) {
-          console.error(`[studio-sync] Error syncing ${event.path}:`, (err as Error).message)
+          log.error(`Error syncing ${event.path}: ${(err as Error).message}`)
         }
       }
     },

@@ -7,7 +7,6 @@ export const DEFAULT_EXCLUDES = [
   "__pycache__/",
   "*.pyc",
   ".env*",
-  ".chunkhound/",
   ".venv/",
   ".mypy_cache/",
   ".pytest_cache/",

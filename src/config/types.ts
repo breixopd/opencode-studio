@@ -1,6 +1,8 @@
 export type ProjectMapping = {
   local: string
   remote: string
+  /** Multi-remote support (Phase 6.2). Keys are env names like "dev", "staging". */
+  remotes?: Record<string, { remote: string; ssh?: Partial<SSHConfig> }>
   excludes: string[]
   /** When true, `.studio/` is not auto-added to .gitignore */
   commitStudio?: boolean

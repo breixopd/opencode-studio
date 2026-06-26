@@ -21,13 +21,28 @@ bun test        # Run all tests with Bun's test runner
 
 Test files sit next to their source files with `.test.ts` suffix:
 
-- `src/tunnel/manager.test.ts` -- Tunnel lifecycle, port detection, auto-reconnect
-- `src/sync/watcher.test.ts` -- File watching, batching, deduplication, exclusions
-- `src/sync/transfers.test.ts` -- Bulk sync, incremental sync, remote delete
-- `src/ssh/manager.test.ts` -- Session creation, command execution, file upload
-- `src/config/config.test.ts` -- Config load/save, project CRUD, schema validation
-- `src/tools/sync.test.ts` -- Sync tool MCP integration
-- `src/tools/tunnel.test.ts` -- Tunnel tool MCP integration
+- `src/core/cost.test.ts` — Cost ledger: capture, idempotency, filtering, pruning
+- `src/core/code-store.test.ts` — Incremental indexing, staleness, legacy JSON import
+- `src/core/code-query.test.ts` — FTS5 search, graph queries, budget retrieval
+- `src/core/workspace.test.ts` — Plans, tasks, rules, branches, handoffs (SQLite-backed)
+- `src/tunnel/manager.test.ts` — Tunnel lifecycle, port detection, auto-reconnect
+- `src/sync/watcher.test.ts` — File watching, batching, deduplication, exclusions
+- `src/sync/transfers.test.ts` — Bulk sync, incremental sync, remote delete
+- `src/ssh/manager.test.ts` — Session creation, command execution, file upload
+- `src/config/config.test.ts` — Config load/save, project CRUD, schema validation
+
+## Architecture
+
+**One SQLite database** (`.studio/studio.db`) holds all state:
+- Code intelligence: `files`, `symbols`, `chunks`, `edges`, `imports` + `fts_chunks` (FTS5 virtual table)
+- Workspace: `plans`, `tasks`, `rules`, `branches`, `handoffs`, `pinned_context`, `verify_state`
+- Cost ledger: `cost_events` (per-message token usage + $ cost)
+
+Connection is held for process lifetime (one per DB path). WAL mode + FTS5 enabled by default via `bun:sqlite`. No external dependencies.
+
+All state lives in `.studio/studio.db` — no JSON files, no legacy migration paths.
+
+**Query helpers** (`queryAll`, `queryOne`, `runQuery` in `studio-db.ts`) wrap `bun:sqlite`'s rest-param `.all(...params)` so callers can pass explicit arrays. Always use these instead of `db.query(sql).all([array])` to avoid typecheck issues.
 
 ## Type Checking
 
@@ -46,32 +61,36 @@ bun run build   # Outputs to dist/
 ```
 src/
   config/        Config system with Zod validation
-    config.ts    Config file read/write, project CRUD
-    schema.ts    Zod schemas for SSH, tunnel, project configs
+    config.ts    Config file read/save, project CRUD
+    schema.ts    Zod schemas for SSH, tunnel, project configs (incl. multi-remote)
     defaults.ts  Default config values and exclude patterns
     types.ts     TypeScript interfaces for all config types
     index.ts     Public API exports
+  core/          Core logic (no I/O deps except where noted)
+    studio-db.ts Unified SQLite connection (code index + workspace + cost ledger)
+    studio-db-schema.sql  DDL reference (mirrored inline in studio-db.ts)
+    code-store.ts  Incremental indexing into SQLite (mtime+sha256 staleness)
+    code-query.ts  FTS5 search, graph queries (refs/impact/importers/hotspots)
+    cost.ts       Token cost ledger — capture from message.updated, query, prune
+    workspace.ts  Plans/tasks/rules/branches/handoffs/pins — backed by SQLite
+    branch-context.ts  Git branch detection + branch switch notice
+    discipline.ts Always-on studio discipline system prompt
+    token-budget.ts  Dedup, compact, truncate helpers
+    compress.ts   Large output compression with cache + path-traversal-safe retrieval
+    model-routing.ts Autonomous per-agent model routing (free/balanced/quality)
   ssh/           SSH session manager
-    manager.ts   Session creation, ControlMaster multiplexing, command exec
-    types.ts     SSHSession and SSHSessionConfig types
-    index.ts     Public API exports
   sync/          File sync engine
-    watcher.ts   chokidar-based file watching with debounce and dedup
-    transfers.ts tar bulk sync, incremental SSH stream, remote delete
-    events.ts    Sync event types
-    index.ts     Public API exports
-  tunnel/        SSH tunnel manager
-    manager.ts   Tunnel lifecycle, port detection, auto-reconnect, heartbeat
-    index.ts     Public API exports
-  tools/         MCP tools
-    sync.ts      studio_sync_start / studio_sync_stop
-    tunnel.ts    studio_tunnel_status / studio_tunnel_restart
-    config.ts    studio_add_project / studio_remove_project
-    status.ts    studio_status / studio_list_projects
-    index.ts     Public API exports
+  tunnel/        SSH tunnel w/ exponential-backoff watchdog + heartbeat
+  hooks/         OpenCode plugin hooks
+    session-start.ts  Event hook: cost capture, model fallback, auto-start
+    discipline.ts     System prompt stable-prefix ordering + dedup
+    chat-message.ts   Model routing + self-improving rule capture
+    chat-params.ts    Temperature tiering + prompt cache key
+    tool-guards.ts    Handoff gate + TDD gate hook
+    compaction*.ts    Compaction continue + context injection
+  tools/         MCP tools (studio_*)
+  src/index.ts   Plugin entry — registers all tools + hooks
 rules/           Bundled OpenCode rules and SKILL.md files
-scripts/         Utility scripts
-  verify-coexistence.sh  Check coexistence with legacy tunnel on port 8443
 ```
 
 ## Commit Convention

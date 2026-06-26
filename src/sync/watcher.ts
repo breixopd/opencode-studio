@@ -1,6 +1,7 @@
-import chokidar, { type FSWatcher } from "chokidar"
+import type { FSWatcher } from "chokidar"
 import type { SyncEvent, SyncEventType, BatchEvents } from "./events"
 import { isExcluded } from "./excludes"
+import * as log from "../core/logger"
 
 const DEFAULT_DEBOUNCE_MS = 2000
 
@@ -12,7 +13,7 @@ export interface WatcherOptions {
   handler: (batch: BatchEvents) => Promise<void>
 }
 
-export function createWatcher(options: WatcherOptions): FSWatcher {
+export async function createWatcher(options: WatcherOptions): Promise<FSWatcher> {
   const {
     projectName,
     projectPath,
@@ -21,6 +22,7 @@ export function createWatcher(options: WatcherOptions): FSWatcher {
     handler,
   } = options
 
+  const chokidar = await import("chokidar")
   const watcher = chokidar.watch(projectPath, {
     ignored: (path: string) => isExcluded(path, projectPath, excludes),
     persistent: true,
@@ -46,7 +48,7 @@ export function createWatcher(options: WatcherOptions): FSWatcher {
       firstSeen: pending[0].timestamp,
     }
     pending = []
-    handler(batch).catch(console.error)
+    handler(batch).catch((err) => log.error(`Watcher batch handler error: ${(err as Error).message}`))
   }
 
   function enqueue(type: SyncEventType, path: string): void {
@@ -66,7 +68,7 @@ export function createWatcher(options: WatcherOptions): FSWatcher {
   watcher.on("unlinkDir", (path) => enqueue("unlinkDir", path as string))
 
   watcher.on("error", (err) => {
-    console.error(`[studio-watcher:${projectName}] Error:`, (err as Error).message)
+    log.error(`Watcher[${projectName}] error: ${(err as Error).message}`)
   })
 
   return watcher

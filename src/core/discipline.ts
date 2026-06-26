@@ -1,33 +1,80 @@
-/** Always-on studio discipline — injected every session, no user config */
-export const STUDIO_DISCIPLINE = `[studio] Professional workflow — research before you build.
+/**
+ * Dynamic discipline system prompt — generated from the tool catalog.
+ *
+ * When a new tool is added to tool-catalog.ts, it automatically appears in
+ * the discipline prompt. No manual prompt editing needed.
+ *
+ * The prompt has:
+ *   - Fixed preamble (never changes — stable prefix for prompt cache)
+ *   - Dynamic phase list (generated from catalog phases)
+ *   - Dynamic tool categories (generated from catalog categories)
+ *   - Fixed memory/rules/cost reminders (stable suffix)
+ */
+import { phaseList, toolListText, TOOL_CATALOG } from "./tool-catalog"
 
-RESEARCH FIRST (mandatory before planning or coding):
-- Official docs, API references, changelogs for libraries/frameworks you touch
-- Real examples: studio_search, studio_code_search, studio_fetch — not guesses
-- Delegate @studio-research for parallel doc/example gathering on non-trivial work
-- Record sources (URLs, file paths) in studio_plan under "Research"
+/** Fixed preamble — stable across sessions (prompt-cache friendly). */
+const PREAMBLE = `[studio] Real software delivery — act like a senior team.`
 
-PLAN → TASK → IMPLEMENT → VERIFY → HANDOFF:
-- studio_plan write: goal, architecture, file structure, steps, edge cases, tests
-- Follow active plan + .studio/architecture.md unless the user changes direction
-- studio_task: boulder tracking — finish ALL tasks before stopping
-- studio_verify before marking done; studio_handoff when complete
-- Large tool output auto-compresses — studio_retrieve for full text
+/** Fixed reminders — stable suffix. */
+const REMINDERS = `When user says "remember …" → studio_remember add immediately.
+Handoff requires studio_verify pass. studio_help for any topic. studio_models refresh_all when providers change.`
 
-USER "REMEMBER" = IMPORTANT RULE:
-- When the user says "remember …" they want a persistent rule — studio_remember add immediately
-- Remembered rules are injected every session; follow them unless the user revokes them
+/**
+ * Build the full discipline prompt dynamically from the tool catalog.
+ * Called once per session (not per turn) — the result is cached.
+ */
+let cachedPrompt: string | null = null
 
-ASK THE USER (question tool) when:
-- Requirements are ambiguous, trade-offs matter, or you'd be guessing preferences
-- Architecture/product choices aren't specified
-- Unless the user said "don't ask" / "just decide" — then pick the simplest reasonable default
+export function buildDisciplinePrompt(): string {
+  if (cachedPrompt) return cachedPrompt
 
-DECISIONS & DEFAULTS:
-- Remote path default: /home/{ssh.user}/{project-name} — save overrides via studio_preferences set_remote_path
-- .studio/ is gitignored by default — only commit if user asks (studio_preferences allow_studio_commit)
+  const parts: string[] = [PREAMBLE, ""]
 
-Subagents (parallel via task tool): @studio-explore @studio-implement @studio-review @studio-research @studio-remote @studio-verify
+  // ——— SDLC Phases (auto-generated from catalog) ————————————————
+  parts.push("PHASES (use in order; skip only when trivial):")
+  parts.push(phaseList())
+  parts.push("")
 
-Quality: YAGNI, stdlib first, behavior-focused tests, edge cases and failure paths.
-Remote sync and tunnel start automatically.`
+  // ——— Cross-cutting tool categories (auto-generated) ————————————————
+  const categoryLines = toolListText().split("\n")
+  // Remove the "# All studio tools" header, keep category lines
+  for (const line of categoryLines) {
+    if (line && !line.startsWith("#")) parts.push(line)
+  }
+  parts.push("")
+
+  // ——— Smart automation (fixed — describes the system behavior) ————————
+  parts.push("SMART AUTOMATION (zero-config):")
+  parts.push("- Auto-detects project type (21+ ecosystems) and configures verify commands")
+  parts.push("- Auto-detects formatter/linter and injects conventions into session context")
+  parts.push("- LSP diagnostics captured in real-time — agent knows about type errors")
+  parts.push("- file.edited → debounced incremental reindex (no full rebuild)")
+  parts.push("- session.idle → prune old cost/diagnostics, WAL checkpoint")
+  parts.push("- Cross-session resume card + pre-flight cost preview auto-injected")
+  parts.push("- Self-healing verify: snapshot HEAD, auto-rollback on persistent failure")
+  parts.push("- Self-improving rules: 'don't X' in chat → auto-saved rule")
+  parts.push("")
+
+  // ——— Key tools with when-to-use disambiguation ————————————————
+  parts.push("WHEN TO USE (disambiguation for overlapping tools):")
+  for (const tool of TOOL_CATALOG) {
+    if (tool.whenToUse) {
+      parts.push(`- ${tool.name}: ${tool.whenToUse}`)
+    }
+  }
+  parts.push("")
+
+  // ——— Reminders (stable suffix) ————————————————
+  parts.push(REMINDERS)
+
+  cachedPrompt = parts.join("\n")
+  return cachedPrompt
+}
+
+/** Invalidate the cache (call when tools change at runtime). */
+export function invalidateDisciplineCache(): void {
+  cachedPrompt = null
+}
+
+/** The discipline prompt, evaluated once at module load (cached). */
+export const STUDIO_DISCIPLINE = buildDisciplinePrompt()

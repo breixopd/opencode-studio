@@ -3,6 +3,22 @@ import { z } from "zod"
 export const ProjectMappingSchema = z.object({
   local: z.string().min(1, "local path must not be empty"),
   remote: z.string().min(1, "remote path must not be empty"),
+  remotes: z
+    .record(
+      z.string(),
+      z.object({
+        remote: z.string().min(1),
+        ssh: z
+          .object({
+            user: z.string().optional(),
+            host: z.string().optional(),
+            identityFile: z.string().optional(),
+            port: z.number().int().min(1).max(65535).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
   excludes: z.array(z.string()),
   commitStudio: z.boolean().optional(),
 })

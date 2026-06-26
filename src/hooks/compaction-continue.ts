@@ -1,0 +1,27 @@
+import { incompleteTasks, getVerifyState } from "../core/workspace"
+
+export const MAX_VERIFY_GRIND = 3
+
+export function compactionContinuePrompt(): string | null {
+  const open = incompleteTasks()
+  const verify = getVerifyState()
+
+  if (open.length) {
+    return `Continue: complete open tasks (${open.map((t) => t.title).join(", ")}), then studio_verify.`
+  }
+
+  if (verify && !verify.passed) {
+    return "Continue: studio_verify failed — fix issues, re-run studio_verify, then studio_handoff."
+  }
+
+  return null
+}
+
+export function createCompactionContinueHook() {
+  return async (
+    _input: { sessionID: string },
+    output: { enabled: boolean },
+  ) => {
+    if (compactionContinuePrompt()) output.enabled = true
+  }
+}

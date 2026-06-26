@@ -18,10 +18,8 @@ function applyGitignorePolicy(cwd: string): void {
 
 export function ensureStudioDirs(cwd = process.cwd()): string {
   const root = studioRoot(cwd)
-  for (const sub of ["tasks", "plans", "cache", "handoffs", "diagrams"]) {
-    const dir = join(root, sub)
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  }
+  const cache = join(root, "cache")
+  if (!existsSync(cache)) mkdirSync(cache, { recursive: true })
   applyGitignorePolicy(cwd)
   return root
 }

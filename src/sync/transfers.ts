@@ -1,8 +1,9 @@
 import { existsSync, readdirSync } from "fs"
-import { join, relative, sep } from "path"
+import { join, relative } from "path"
 import type { SSHSession } from "../ssh/types"
 import { execCommand } from "../ssh/manager"
 import { shellQuote } from "../ssh/quote"
+import * as log from "../core/logger"
 import { isRelativePathExcluded } from "./excludes"
 
 function walkDirectory(dir: string, localPath: string, excludes: string[]): string[] {
@@ -30,10 +31,10 @@ export async function bulkSync(
   await execCommand(session, `mkdir -p ${shellQuote(remotePath)}`)
 
   const toUpload = walkDirectory(localPath, localPath, excludes)
-  console.log(`[studio-sync] Starting bulk sync: ${toUpload.length} file(s) from ${localPath}`)
+  log.info(`Starting bulk sync: ${toUpload.length} file(s) from ${localPath}`)
 
   if (toUpload.length === 0) {
-    console.log(`[studio-sync] Bulk sync complete: no files to upload`)
+    log.info("Bulk sync complete: no files to upload")
     return
   }
 
@@ -74,7 +75,7 @@ export async function bulkSync(
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-  console.log(`[studio-sync] Bulk sync done: ${uploaded} uploaded, ${failed} failed, ${elapsed}s`)
+  log.info(`Bulk sync done: ${uploaded} uploaded, ${failed} failed, ${elapsed}s`)
 
   if (failed > 0) {
     throw new Error(`${failed} of ${toUpload.length} files failed to sync`)

@@ -3,8 +3,8 @@ import { basename, join } from "path"
 import { loadConfig, saveConfig } from "../config/config"
 import { parseSSHConfig } from "../config/ssh-config"
 import type { StudioConfig } from "../config/types"
+import * as log from "./logger"
 import { getActiveSyncProjects } from "../sync/active"
-import { startProjectSync } from "../tools/sync"
 import { isTunnelAlive, startTunnel } from "../tunnel/manager"
 import { ensureStudioGitignored } from "./gitignore"
 
@@ -88,7 +88,7 @@ export async function autoStartTunnelIfNeeded(): Promise<void> {
       remotePort: config.tunnel.remotePort,
     })
   } catch (err) {
-    console.warn("[opencode-studio] Auto-tunnel skipped:", (err as Error).message)
+    log.warn(`Auto-tunnel skipped: ${(err as Error).message}`)
   }
 }
 
@@ -103,10 +103,12 @@ export async function autoStartSyncIfNeeded(cwd = process.cwd()): Promise<string
   if (getActiveSyncProjects().includes(name)) return name
 
   try {
+    // Lazy import avoids core→tools dependency inversion.
+    const { startProjectSync } = await import("../tools/sync")
     await startProjectSync(name)
     return name
   } catch (err) {
-    console.warn(`[opencode-studio] Auto-sync skipped for '${name}':`, (err as Error).message)
+    log.warn(`Auto-sync skipped for '${name}': ${(err as Error).message}`)
     return null
   }
 }

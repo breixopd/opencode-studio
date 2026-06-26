@@ -22,7 +22,7 @@ const fakeWatcher: Partial<FSWatcher> & { close: () => Promise<void> } = {
   close: fakeWatcherClose,
   on: mock(() => fakeWatcher as FSWatcher),
 }
-const mockCreateWatcher = mock(() => fakeWatcher as FSWatcher)
+const mockCreateWatcher = mock(() => Promise.resolve(fakeWatcher as FSWatcher))
 
 mock.module("../config/config", () => ({
   loadConfig: mockLoadConfig,

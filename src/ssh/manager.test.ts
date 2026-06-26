@@ -58,13 +58,13 @@ function mockClient(opts?: {
   sftpObj?: MockSftp
 }): MockClient {
   const sftpObj: MockSftp = opts?.sftpObj ?? {
-    fastPut: mock((local: string, remote: string, cb: Function) => {
+    fastPut: mock((_local: string, _remote: string, cb: Function) => {
       cb(opts?.fastPutError ?? null)
     }),
   }
 
   return {
-    exec: mock((cmd: string, cb: Function) => {
+    exec: mock((_cmd: string, cb: Function) => {
       if (opts?.execError) return cb(opts.execError)
       const stream = mockStream({ exitCode: opts?.exitCode, stderrData: opts?.stderrData })
       cb(null, stream)
@@ -171,7 +171,7 @@ describe("SSH Manager (ssh2)", () => {
 
     it("uploads via sftp.fastPut with atomic rename", async () => {
       const sftpObj: MockSftp = {
-        fastPut: mock((local: string, remote: string, cb: Function) => cb(null)),
+        fastPut: mock((_local: string, _remote: string, cb: Function) => cb(null)),
       }
       client = mockClient({ sftpObj })
       setSSHFactory({
@@ -185,7 +185,7 @@ describe("SSH Manager (ssh2)", () => {
       expect(client.sftp).toHaveBeenCalled()
       expect(sftpObj.fastPut).toHaveBeenCalledWith(tmpFile, "/remote/file.txt.tmp", expect.any(Function))
       expect(client.exec).toHaveBeenCalledWith(
-        "mv /remote/file.txt.tmp /remote/file.txt",
+        "mv '/remote/file.txt.tmp' '/remote/file.txt'",
         expect.any(Function),
       )
     })

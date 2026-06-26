@@ -3,15 +3,15 @@ import {
   createTask,
   updateTask,
   listTasks,
-  getTask,
   incompleteTasks,
   setActiveTasks,
-  loadBoulder,
-} from "../core/tasks"
+  getActiveTasks,
+  getWorkflowState,
+} from "../core/workspace"
 
 export const studio_task: ToolDefinition = tool({
   description:
-    "Manage work tasks (boulder tracking). Actions: list, create, start, done, block, current. Keeps agents honest until all tasks complete.",
+    "Manage work tasks. Actions: list, create, start, done, block, current, incomplete. Finish all tasks before stopping.",
   args: {
     action: tool.schema
       .enum(["list", "create", "start", "done", "block", "current", "incomplete"])
@@ -33,45 +33,44 @@ export const studio_task: ToolDefinition = tool({
       }
       case "incomplete": {
         const open = incompleteTasks()
-        return open.length === 0
-          ? "All tasks complete."
-          : JSON.stringify(open, null, 2)
+        return open.length === 0 ? "All tasks complete." : JSON.stringify(open, null, 2)
       }
       case "current": {
-        const b = loadBoulder()
-        const active = b.activeTaskIds.map((id) => getTask(id)).filter(Boolean)
+        const workflow = getWorkflowState()
+        const active = getActiveTasks()
         return active.length === 0
           ? "No active tasks."
-          : JSON.stringify({ boulder: b, tasks: active }, null, 2)
+          : JSON.stringify({ workflow, tasks: active }, null, 2)
       }
       case "create": {
         if (!args.title) return "title required for create"
         const task = createTask(args.title, args.acceptance)
-        setActiveTasks([...loadBoulder().activeTaskIds, task.id])
+        setActiveTasks([...getWorkflowState().activeTaskIds, task.id])
         return JSON.stringify(task, null, 2)
       }
       case "start": {
         if (!args.id) return "id required"
-        const t = updateTask(args.id, { status: "in_progress" })
-        return JSON.stringify(t, null, 2)
+        return JSON.stringify(updateTask(args.id, { status: "in_progress" }), null, 2)
       }
       case "done": {
         if (!args.id) return "id required"
         const t = updateTask(args.id, { status: "done", notes: args.notes })
-        const b = loadBoulder()
-        b.activeTaskIds = b.activeTaskIds.filter((x) => x !== args.id)
-        setActiveTasks(b.activeTaskIds)
+        const workflow = getWorkflowState()
+        setActiveTasks(workflow.activeTaskIds.filter((x) => x !== args.id))
         const remaining = incompleteTasks()
         return JSON.stringify(
-          { task: t, remaining: remaining.length, message: remaining.length ? "More tasks remain." : "Boulder complete." },
+          {
+            task: t,
+            remaining: remaining.length,
+            message: remaining.length ? "More tasks remain." : "All tasks complete.",
+          },
           null,
           2,
         )
       }
       case "block": {
         if (!args.id) return "id required"
-        const t = updateTask(args.id, { status: "blocked", notes: args.notes })
-        return JSON.stringify(t, null, 2)
+        return JSON.stringify(updateTask(args.id, { status: "blocked", notes: args.notes }), null, 2)
       }
       default:
         return "Unknown action"

@@ -1,4 +1,4 @@
-import { relative, sep } from "path"
+import { relative } from "path"
 
 function normalizePattern(pattern: string): string {
   return pattern.replace(/\\/g, "/").replace(/\/$/, "")

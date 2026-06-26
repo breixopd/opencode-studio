@@ -8,7 +8,7 @@ export function createCompressOutputHook() {
     output: { output: string },
   ) => {
     if (SKIP.has(input.tool) || input.tool.startsWith("studio_")) return
-    const result = compressToolOutput(output.output)
+    const result = await compressToolOutput(output.output)
     if (result.cached) output.output = result.text
   }
 }

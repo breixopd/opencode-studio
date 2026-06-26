@@ -1,6 +1,7 @@
 import { existsSync } from "fs"
 import type { SSHSession, SSHSessionConfig } from "./types"
 import { sshFactory } from "./factory"
+import { shellQuote } from "./quote"
 
 export async function createSession(config: SSHSessionConfig): Promise<SSHSession> {
   return sshFactory.connect(config)
@@ -36,7 +37,7 @@ export async function uploadFile(session: SSHSession, localPath: string, remoteP
       sftp.fastPut(localPath, `${remotePath}.tmp`, (err) => {
         if (err) return reject(err)
 
-        execCommand(session, `mv ${remotePath}.tmp ${remotePath}`)
+        execCommand(session, `mv ${shellQuote(`${remotePath}.tmp`)} ${shellQuote(remotePath)}`)
           .then(() => resolve())
           .catch(reject)
       })

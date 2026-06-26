@@ -4,7 +4,6 @@ import {
   ProjectMappingSchema,
   SSHConfigSchema,
   TunnelConfigSchema,
-  StudioConfigSchema,
   validateConfig,
   safeValidateConfig,
 } from "./schema"
