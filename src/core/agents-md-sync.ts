@@ -61,7 +61,11 @@ export function syncRulesToAgentsMd(root: string): boolean {
     // Replace existing section.
     const before = content.slice(0, startIdx).trimEnd()
     const after = content.slice(endIdx + STUDIO_SECTION_END.length).trimStart()
-    content = section ? `${before}\n\n${section}${after ? "\n\n" + after : ""}` : (before + (after ? "\n\n" + after : ""))
+    const parts: string[] = []
+    if (before) parts.push(before)
+    if (section) parts.push(section)
+    if (after) parts.push(after)
+    content = parts.join("\n\n")
   } else if (section) {
     // Append new section.
     content = content ? `${content.trimEnd()}\n\n${section}` : section

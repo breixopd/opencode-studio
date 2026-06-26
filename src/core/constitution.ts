@@ -6,7 +6,7 @@
  * The constitution is written to `.studio/CONSTITUTION.md` and injected
  * into the session context so the agent follows project conventions.
  */
-import { writeFileSync, readFileSync, existsSync } from "fs"
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs"
 import { join } from "path"
 import { detectTooling } from "./project-detect"
 
@@ -117,6 +117,8 @@ export function generateConstitution(input: ConstitutionInput): string {
 /** Write the constitution to `.studio/CONSTITUTION.md`. */
 export function writeConstitution(root: string, content: string): string {
   const path = join(root, CONSTITUTION_PATH)
+  const dir = join(root, ".studio")
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(path, content, "utf-8")
   return path
 }
