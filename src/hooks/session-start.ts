@@ -10,6 +10,8 @@ import { detectTooling } from "../core/project-detect"
 import { handleFileEdited, handleSessionIdle } from "./maintenance-impl"
 import * as log from "../core/logger"
 import { syncRulesToAgentsMd } from "../core/agents-md-sync"
+import { syncAgentProfiles } from "../core/agent-profiles"
+import { ensureStudioGitignored } from "../core/gitignore"
 
 const handleFallback = createModelFallbackEventHandler()
 
@@ -146,6 +148,22 @@ export function createEventHook() {
     }
 
     if (input.event.type !== "session.created") return
+
+    // Ensure studio files are gitignored (unless user opted in).
+    try {
+      const { loadUserProfile } = require("../core/project-profile")
+      const profile = loadUserProfile()
+      ensureStudioGitignored(process.cwd(), profile.commitStudio ?? false)
+    } catch {
+      ensureStudioGitignored(process.cwd(), false)
+    }
+
+    // Sync agent profiles to .opencode/agents/ (dynamic — derived from AGENT_DEFS).
+    try {
+      syncAgentProfiles(process.cwd())
+    } catch {
+      /* best-effort */
+    }
 
     // Auto-detect project type + conventions on session start.
     try {

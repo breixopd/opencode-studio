@@ -98,6 +98,9 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // ——— Standards & CI ————————————————
   { name: "studio_constitution", category: "Code", phase: 3, description: "Generate coding standards from project analysis — linters, formatters, ecosystem rules", whenToUse: "to create a project constitution that's auto-injected into session context" },
   { name: "studio_ci", category: "Health", phase: null, description: "GitHub Actions CI watcher — check status, start/stop background monitoring (30s)", whenToUse: "to check if CI is passing or monitor it in background" },
+
+  // ——— Agents ————————————————
+  { name: "studio_agent", category: "Config", phase: null, description: "Manage agent profiles — list, sync (regenerate from catalog), create custom, remove", whenToUse: "to create custom subagents or regenerate studio agent profiles" },
 ]
 
 // ——— Derived data (auto-generated, never edit by hand) ————————————————
