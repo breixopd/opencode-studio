@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { execFileSync } from "child_process"
 import { existsSync } from "fs"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
@@ -18,7 +19,8 @@ function hasRipgrep(): boolean {
   try {
     execFileSync("rg", ["--version"], { stdio: "ignore" })
     rgCache = true
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/grep.ts", err);
     /* ripgrep not installed — fall back to JS grep */
     rgCache = false
   }

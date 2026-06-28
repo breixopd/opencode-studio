@@ -50,7 +50,8 @@ export async function snapshotHead(root: string): Promise<Snapshot | null> {
     }
     log.info(`Snapshot: ${commitHash.slice(0, 8)} on ${branch}`)
     return snapshot
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/self-heal.ts", err);
     /* not a git repo or no commits yet */
     return null
   }

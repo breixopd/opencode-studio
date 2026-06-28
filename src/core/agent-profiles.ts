@@ -150,7 +150,8 @@ export function syncAgentProfiles(root: string): number {
         writeFileSync(path, content, "utf-8")
         written++
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/agent-profiles.ts", err);
       /* best-effort */
     }
   }

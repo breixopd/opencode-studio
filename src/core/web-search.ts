@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /** Web search — DuckDuckGo (keyless default) + optional Tavily. */
 import { BROWSER_HEADERS } from "./web-fetch"
 import { stripHtml } from "./web-extract"
@@ -93,7 +94,8 @@ export async function searchWeb(
     try {
       const results = await searchTavily(query, maxResults, tavilyKey)
       if (results.length) return { backend: "tavily", results }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-search.ts", err);
       /* fall through to keyless */
     }
   }
@@ -123,7 +125,8 @@ export async function scrapeSearchResults(
       } else {
         out.push({ ...r, content: res.body.slice(0, maxChars) })
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-search.ts", err);
       /* enrichment best-effort — keep the unenriched result */
       out.push(r)
     }

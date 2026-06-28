@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import type { Config } from "@opencode-ai/plugin"
 import { execFileSync } from "child_process"
@@ -102,7 +103,8 @@ export const studio_doctor: ToolDefinition = tool({
     try {
       execFileSync("rg", ["--version"], { stdio: "ignore" })
       rgOk = true
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tools/doctor.ts", err);
       /* rg optional */
     }
     checks.push({
@@ -116,7 +118,8 @@ export const studio_doctor: ToolDefinition = tool({
     try {
       const { getStats } = await import("../core/code-store")
       indexStats = getStats(process.cwd())
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tools/doctor.ts", err);
       /* db not openable */
     }
     const indexOk = !!indexStats && indexStats.fileCount > 0

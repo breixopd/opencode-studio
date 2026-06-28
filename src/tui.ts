@@ -22,6 +22,7 @@
  */
 /// <reference types="@opentui/solid" />
 import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
+import { debugTui, debugCatch } from "./core/logger"
 
 // ——— Studio stats reader ————————————————————————————————
 
@@ -75,7 +76,8 @@ function readStats(): StudioStats {
     }
     statsCache = { data: result, at: Date.now() }
     return result
-  } catch {
+  } catch (err) {
+    debugCatch("readStats", err)
     return { cost: "$0", costByModel: [], tasksOpen: 0, tasksDone: 0, verify: "—", branch: "—", planTitle: null, diagnostics: 0 }
   }
 }
@@ -84,6 +86,7 @@ function readStats(): StudioStats {
 
 export const tui: TuiPlugin = async (api: TuiPluginApi) => {
   const { ui, command, event, slots, theme, state, kv, route, lifecycle } = api
+  debugTui("init", "TUI plugin starting")
 
   const prev = { verifyPassed: false, diagCount: 0, branch: "", ruleCount: 0 }
   const cleanups: Array<() => void> = []
@@ -93,6 +96,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     {
       name: "studio",
       render: () => {
+      debugTui("render", "sidebar");
         const s = readStats()
         const lines: string[] = [
           "╔══════════════════════════════════════════╗",
@@ -142,7 +146,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
       if (status.type === "retry") {
         ui.toast({ variant: "warning", title: "Retrying", message: `Attempt ${status.attempt}: ${status.message?.slice(0, 100) ?? ""}`, duration: 3000 })
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Session error → error toast ————————————————
@@ -150,7 +154,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     try {
       const msg = evt.properties?.error?.message ?? "Unknown error"
       ui.toast({ variant: "error", title: "Session Error", message: msg.slice(0, 150), duration: 5000 })
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Subagent lifecycle tracking ————————————————
@@ -219,7 +223,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
       if (info.cost && info.cost > 0.50) {
         ui.toast({ variant: "warning", title: "Cost Alert", message: `Session cost exceeded $${info.cost.toFixed(2)}. Try studio_preferences set_model_mode free.`, duration: 5000 })
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Tool after → verify pass/fail toast ————————————————
@@ -234,7 +238,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
         ui.toast({ variant: "error", title: "Verify Failed", message: "Fix issues and re-run studio_verify.", duration: 5000 })
         prev.verifyPassed = false
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Command executed → info toast for studio commands ————————————————
@@ -244,7 +248,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
       if (name.startsWith("studio") || name.startsWith("/studio")) {
         ui.toast({ variant: "info", title: "Command", message: `Running: ${name}`, duration: 1500 })
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Git branch changed → toast ————————————————
@@ -255,7 +259,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
         ui.toast({ variant: "info", title: "Branch Switched", message: `Now on ${branch}`, duration: 2000 })
         prev.branch = branch
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— LSP diagnostics changed → toast for new/cleared errors ————————————————
@@ -270,7 +274,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
         ui.toast({ variant: "success", title: "Type Errors Cleared", message: "All type errors resolved.", duration: 2000 })
       }
       prev.diagCount = count
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— File edited → toast for studio-managed files ————————————————
@@ -284,14 +288,14 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
       } else if (path.includes("AGENTS.md")) {
         ui.toast({ variant: "info", title: "Rules Synced", message: "Studio rules synced to AGENTS.md.", duration: 1500 })
       }
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Permission requested → info toast ————————————————
   cleanups.push(event.on("permission.asked", () => {
     try {
       ui.toast({ variant: "info", title: "Permission Requested", message: "Agent needs approval — check the prompt.", duration: 4000 })
-    } catch { /* best-effort */ }
+    } catch (err) { debugCatch("TUI", err) }
   }))
 
   // ——— Sidebar: studio stats + LSP ————————————————
@@ -333,7 +337,8 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
 
   // ——— Cleanup ————————————————————————
   lifecycle.onDispose(() => {
-    cleanups.forEach((fn) => { try { fn() } catch { /* best-effort */ } })
+    debugTui("dispose", "cleaning up");
+    cleanups.forEach((fn) => { try { fn() } catch (err) { debugCatch("TUI", err) } })
     ui.toast = originalToast
   })
 }

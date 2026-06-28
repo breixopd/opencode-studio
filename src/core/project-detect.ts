@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Language-agnostic project type detection.
  *
@@ -161,7 +162,8 @@ export function detectProjectType(root: string): ProjectType {
               if (ecosystem === "Unknown") ecosystem = marker.ecosystem
             }
           }
-        } catch {
+        } catch (err) {
+      log.debugCatch("src/core/project-detect.ts", err);
           /* ignore */
         }
       } else if (existsSync(join(root, file))) {
@@ -181,7 +183,8 @@ export function detectProjectType(root: string): ProjectType {
         ecosystem = ".NET"
         found.push(".NET")
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/project-detect.ts", err);
       /* ignore */
     }
   }
@@ -210,7 +213,8 @@ export function detectVerifyCommands(root: string, ecosystem: string): VerifyCom
           build: scripts.build ?? null,
         }
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/project-detect.ts", err);
       /* fall through to ecosystem defaults */
     }
   }
@@ -232,7 +236,8 @@ export function detectVerifyCommands(root: string, ecosystem: string): VerifyCom
           }
         }
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/project-detect.ts", err);
       /* fall through */
     }
   }
@@ -280,7 +285,8 @@ function pyprojectHasSection(root: string, section: string): boolean {
   try {
     const content = readFileSync(join(root, "pyproject.toml"), "utf-8")
     return content.includes(`[${section}]`)
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/project-detect.ts", err);
     /* no pyproject.toml — not a Python project */
     return false
   }

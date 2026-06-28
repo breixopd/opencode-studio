@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /** Workspace plans — plan CRUD, activation, revision, export. */
 import { writeFileSync, mkdirSync } from "fs"
 import { join } from "path"
@@ -123,7 +124,8 @@ export function exportPlanMarkdown(plan: StudioPlan): void {
     const dir = join(studioRoot(), "plans")
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, `${plan.id}.md`), formatPlanAsMarkdown(plan), "utf-8")
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/workspace-plans.ts", err);
     /* best-effort — never block a save on the export */
   }
 }

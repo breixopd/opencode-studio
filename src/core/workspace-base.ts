@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Workspace base — shared infrastructure for all workspace domain modules.
  *
@@ -52,7 +53,8 @@ function joinLines(arr: string[]): string {
 function jsonParse<T>(s: string, fallback: T): T {
   try {
     return JSON.parse(s) as T
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/workspace-base.ts", err);
     /* malformed/empty stored JSON — return fallback */
     return fallback
   }
@@ -61,7 +63,8 @@ function jsonParse<T>(s: string, fallback: T): T {
 function currentBranchSafe(): string {
   try {
     return currentBranch() ?? "main"
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/workspace-base.ts", err);
     return "main"
     /* not a git repo — default to main */
   }

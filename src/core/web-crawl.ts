@@ -1,3 +1,4 @@
+import * as log from "./logger"
 import { parseHTML } from "linkedom"
 import { safeFetch } from "./web-fetch"
 import { extractFromHtml, formatForLlm } from "./web-extract"
@@ -21,7 +22,8 @@ function sameOrigin(a: string, b: string): boolean {
     const ua = new URL(a)
     const ub = new URL(b)
     return ua.origin === ub.origin
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/web-crawl.ts", err);
     /* malformed URL — treat as not same-origin */
     return false
   }
@@ -36,7 +38,8 @@ function extractLinks(html: string, baseUrl: string): string[] {
     try {
       const abs = new URL(href, baseUrl).href
       if (sameOrigin(abs, baseUrl) && !links.includes(abs)) links.push(abs)
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-crawl.ts", err);
       /* skip */
     }
   }
@@ -77,7 +80,8 @@ export async function crawlSite(
           if (!visited.has(link)) queue.push({ url: link, depth: next.depth + 1 })
         }
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-crawl.ts", err);
       /* skip failed page */
     }
 

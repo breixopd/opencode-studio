@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /** Dynamic Zen model catalog + provider tier tables. */
 
 export const ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
@@ -26,7 +27,8 @@ export async function fetchZenModelIds(): Promise<string[]> {
     const ids = (data.data ?? []).map((m) => m.id)
     zenCatalogCache = { ids, fetchedAt: Date.now() }
     return ids
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/model-catalog.ts", err);
     /* network/registry unreachable — fall back to cached ids */
     return zenCatalogCache?.ids ?? []
   }

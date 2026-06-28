@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * AGENTS.md sync — keeps OpenCode's built-in instruction file in sync
  * with studio rules, so ALL agents (not just studio agents) see them.
@@ -25,7 +26,8 @@ export function syncRulesToAgentsMd(root: string): boolean {
 
   try {
     content = existsSync(agentsPath) ? readFileSync(agentsPath, "utf-8") : ""
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/agents-md-sync.ts", err);
     content = ""
   }
 
@@ -78,7 +80,8 @@ export function syncRulesToAgentsMd(root: string): boolean {
     if (existing === newContent) return false
     writeFileSync(agentsPath, newContent, "utf-8")
     return true
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/agents-md-sync.ts", err);
     return false
   }
 }

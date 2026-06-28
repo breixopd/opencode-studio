@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import {
   listPlans,
@@ -36,7 +37,8 @@ export const studio_plan: ToolDefinition = tool({
     if (args.action === "read") {
       try {
         return readPlanMarkdown(args.name)
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/tools/plan.ts", err);
       /* plan file does not exist */
         return `Plan not found: ${args.name}`
       }

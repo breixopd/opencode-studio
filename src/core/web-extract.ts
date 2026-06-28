@@ -1,3 +1,4 @@
+import * as log from "./logger"
 import type { FetchFormat } from "./web-fetch"
 
 // linkedom's parseHTML returns a document shaped like a DOM Document, but the
@@ -58,7 +59,8 @@ function collectLinks(doc: LinkedomDocument, baseUrl: string): Array<{ href: str
       const text = (a.textContent ?? "").trim().slice(0, 120)
       if (text && !out.some((l) => l.href === abs)) out.push({ href: abs, text })
       if (out.length >= 30) break
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-extract.ts", err);
       /* skip bad href */
     }
   }
@@ -131,7 +133,8 @@ export function extractJsonLd(html: string): unknown[] {
   while ((m = re.exec(html)) !== null) {
     try {
       out.push(JSON.parse(m[1]))
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/web-extract.ts", err);
       /* skip */
     }
   }

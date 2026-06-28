@@ -69,7 +69,8 @@ export async function bulkSync(
         `mv ${shellQuote(`${remoteFile}.tmp`)} ${shellQuote(remoteFile)}`,
       )
       uploaded++
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/sync/transfers.ts", err);
       /* individual file failed — continue with the rest */
       failed++
     }

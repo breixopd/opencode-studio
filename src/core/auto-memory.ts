@@ -99,7 +99,8 @@ export function readMemoryIndex(): string | null {
       return lines.slice(0, MAX_INDEX_LINES).join("\n") + "\n\n…(truncated — read topic files for details)"
     }
     return content
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
     return null
   }
 }
@@ -110,7 +111,8 @@ export function readMemoryTopic(topic: MemoryTopic): string | null {
   if (!existsSync(path)) return null
   try {
     return readFileSync(path, "utf-8")
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
     return null
   }
 }
@@ -138,7 +140,8 @@ export function hasSimilarMemory(content: string, topic?: MemoryTopic): boolean 
     try {
       const existing = readFileSync(path, "utf-8").toLowerCase()
       if (existing.includes(lower)) return true
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
       /* skip */
     }
   }
@@ -181,7 +184,8 @@ function trimIndex(): void {
       const trimmed = lines.slice(-MAX_INDEX_LINES).join("\n")
       writeFileSync(path, trimmed, "utf-8")
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
     /* best-effort */
   }
 }
@@ -254,7 +258,8 @@ export function recordCorrection(rule: string, scope: "project" | "global"): {
     if (existsSync(path)) {
       patterns = JSON.parse(readFileSync(path, "utf-8")) as CorrectionPattern[]
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
     /* corrupt file — start fresh */
   }
 
@@ -291,7 +296,8 @@ export function getRecurringPatterns(): CorrectionPattern[] | null {
   try {
     const patterns = JSON.parse(readFileSync(path, "utf-8")) as CorrectionPattern[]
     return patterns.filter((p) => p.count >= 3).slice(0, 3)
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto-memory.ts", err);
     return null
   }
 }

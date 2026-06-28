@@ -42,7 +42,8 @@ export function ensureStudioGitignored(cwd: string, allowCommit = false): "added
 
   try {
     content = existsSync(path) ? readFileSync(path, "utf-8") : ""
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/gitignore.ts", err);
     content = ""
   }
 

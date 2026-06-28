@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Unified SQLite connection layer for opencode-studio.
  *
@@ -66,7 +67,8 @@ export function closeStudioDb(root: string): void {
   try {
     db.run("PRAGMA wal_checkpoint(TRUNCATE);")
     db.close()
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/studio-db.ts", err);
     /* best-effort cleanup */
   }
   connections.delete(dbPath)

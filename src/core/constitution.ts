@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Constitution generator — analyzes the project and generates a coding
  * standards document (a "constitution") from detected conventions,
@@ -133,7 +134,8 @@ export function readConstitution(root: string): string | null {
   try {
     if (!constitutionExists(root)) return null
     return readFileSync(join(root, CONSTITUTION_PATH), "utf-8")
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/constitution.ts", err);
     return null
   }
 }

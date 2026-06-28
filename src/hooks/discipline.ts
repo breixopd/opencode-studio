@@ -12,6 +12,7 @@ import { constitutionContextBlock } from "../core/constitution"
 import { getCISummary } from "../core/ci-watcher"
 import { memoryContextBlock } from "../core/auto-memory"
 import { getRecurringCorrectionNotices } from "./chat-message"
+import * as log from "../core/logger"
 
 /**
  * System prompt ordering for prompt-cache stability:
@@ -32,77 +33,71 @@ import { getRecurringCorrectionNotices } from "./chat-message"
  */
 export function createDisciplineSystemHook() {
   return async (_input: { sessionID?: string }, output: { system: string[] }) => {
+    const before = output.system.length
+
     // —— STABLE PREFIX ———————————————————————————————————
-    // Discipline block first — it's a module-level constant, never mutates.
     if (!output.system.includes(STUDIO_DISCIPLINE)) {
       output.system.push(STUDIO_DISCIPLINE)
+      log.debugContext("discipline", STUDIO_DISCIPLINE.length)
     }
 
-    // Stable context: project profile + user rules (change rarely → cacheable).
     for (const block of studioStableContext()) {
       pushIfNotPresent(output.system, block)
+      log.debugContext("stable", block.length)
     }
 
-    // Auto-memory index — agent-driven learnings (topic files loaded on demand).
     const memory = memoryContextBlock()
-    if (memory) pushIfNotPresent(output.system, memory)
+    if (memory) {
+      pushIfNotPresent(output.system, memory)
+      log.debugContext("memory", memory.length)
+    }
 
     // —— DYNAMIC SUFFIX ———————————————————————————————————
-    // Plan, pinned context, verify state — changes per-turn.
     for (const block of studioDynamicContext()) {
       pushIfNotPresent(output.system, block)
+      log.debugContext("dynamic", block.length)
     }
 
-    // Open tasks — changes on every task update.
     const tasks = openTasksSystemBlock()
-    if (tasks) pushIfNotPresent(output.system, tasks)
+    if (tasks) { pushIfNotPresent(output.system, tasks); log.debugContext("tasks", tasks.length) }
 
-    // LSP diagnostics — active type/lint errors from the language server.
     const diags = diagnosticsContextBlock(process.cwd())
-    if (diags) pushIfNotPresent(output.system, diags)
+    if (diags) { pushIfNotPresent(output.system, diags); log.debugContext("diagnostics", diags.length) }
 
-    // Cross-session resume card — synthesized context for continuing work.
     const resume = resumeCard(process.cwd())
-    if (resume) pushIfNotPresent(output.system, resume)
+    if (resume) { pushIfNotPresent(output.system, resume); log.debugContext("resume", resume.length) }
 
-    // Pre-flight cost preview — estimated cost for remaining work.
     const costPreview = costPreviewBlock(process.cwd())
-    if (costPreview) pushIfNotPresent(output.system, costPreview)
+    if (costPreview) { pushIfNotPresent(output.system, costPreview); log.debugContext("cost-preview", costPreview.length) }
 
-    // Project constitution — coding standards auto-injected if present.
     const constitution = constitutionContextBlock(process.cwd())
-    if (constitution) pushIfNotPresent(output.system, constitution)
+    if (constitution) { pushIfNotPresent(output.system, constitution); log.debugContext("constitution", constitution.length) }
 
-    // CI status — failing workflows injected if CI watcher is active.
     const ci = getCISummary()
-    if (ci) pushIfNotPresent(output.system, ci)
+    if (ci) { pushIfNotPresent(output.system, ci); log.debugContext("ci", ci.length) }
 
     const catalogNotice = getPendingCatalogNotice()
     if (catalogNotice) {
-      pushIfNotPresent(
-        output.system,
-        `[studio catalog] ${catalogNotice} Run studio_models refresh_all when ready.`,
-      )
+      pushIfNotPresent(output.system, `[studio catalog] ${catalogNotice} Run studio_models refresh_all when ready.`)
+      log.debugContext("catalog", catalogNotice.length)
     }
 
     const branchNotice = branchSwitchNotice()
-    if (branchNotice) pushIfNotPresent(output.system, branchNotice)
+    if (branchNotice) { pushIfNotPresent(output.system, branchNotice); log.debugContext("branch", branchNotice.length) }
 
-    // Self-healing: grind count / auto-rollback recommendation.
     const grind = grindContextBlock(process.cwd())
-    if (grind) pushIfNotPresent(output.system, grind)
+    if (grind) { pushIfNotPresent(output.system, grind); log.debugContext("grind", grind.length) }
 
-    // Recurring correction patterns — surface when user corrects the same thing ≥3x.
     const patterns = getRecurringCorrectionNotices()
-    if (patterns) pushIfNotPresent(output.system, patterns)
+    if (patterns) { pushIfNotPresent(output.system, patterns); log.debugContext("patterns", patterns.length) }
 
-    // Phase 6.1 — tunnel watchdog: inject notice when tunnel is degraded.
     if (isTunnelDegraded()) {
-      pushIfNotPresent(
-        output.system,
-        `[studio tunnel] DOWN ${getTunnelFailureCount()}x — run studio_tunnel_restart. Remote sync may be interrupted.`,
-      )
+      const msg = `[studio tunnel] DOWN ${getTunnelFailureCount()}x — run studio_tunnel_restart. Remote sync may be interrupted.`
+      pushIfNotPresent(output.system, msg)
+      log.debugContext("tunnel-degraded", msg.length)
     }
+
+    log.debug("discipline", `Injected ${output.system.length - before} context blocks (total ${output.system.length})`)
   }
 }
 

@@ -244,7 +244,8 @@ export function stopTunnel(): boolean {
     tunnelSession.alive = false
     try {
       tunnelSession.client.end()
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tunnel/manager.ts", err);
       // Session already closed
     }
     tunnelSession = null
@@ -310,7 +311,8 @@ export function _resetTunnelState(): void {
     tunnelSession.alive = false
     try {
       tunnelSession.client.end()
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tunnel/manager.ts", err);
       // Session already closed
     }
     tunnelSession = null

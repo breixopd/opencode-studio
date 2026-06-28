@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Code store — incremental indexing into SQLite.
  *
@@ -81,7 +82,8 @@ function walkFiles(dir: string, root: string, out: string[]): void {
   let entries: string[]
   try {
     entries = readdirSync(dir)
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/code-store.ts", err);
     /* directory unreadable (permissions/removed) — skip */
     return
   }
@@ -92,7 +94,8 @@ function walkFiles(dir: string, root: string, out: string[]): void {
     let st
     try {
       st = statSync(abs)
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/core/code-store.ts", err);
     /* file vanished between readdir and stat — skip */
       continue
     }
@@ -169,7 +172,8 @@ function findStale(db: Database, discovered: DiscoveredFile[]): StaleSet {
         } else {
           modified.push(f)
         }
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/core/code-store.ts", err);
       /* can't read file to compare hash — treat as modified */
         modified.push(f)
       }
@@ -437,7 +441,8 @@ export async function indexFile(db: Database, _root: string, f: DiscoveredFile):
   try {
     content = readFileSync(f.abs, "utf-8")
     /* file no longer exists — skip indexing */
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/code-store.ts", err);
     return
   }
   const sha = fileHash(content)
@@ -527,7 +532,8 @@ export async function reindexFile(root: string, absPath: string): Promise<void> 
   let st: import("fs").Stats
   try {
     st = statSync(absPath)
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/code-store.ts", err);
     // File was deleted — remove from index.
     const rel = relative(root, absPath).replace(/\\/g, "/")
     runQuery(db, "DELETE FROM files WHERE path = ?", [rel])

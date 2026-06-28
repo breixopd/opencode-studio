@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { readFileSync } from "fs"
 import { join } from "path"
@@ -80,7 +81,8 @@ function detectDeps(root: string): Dep[] {
     for (const [name, version] of Object.entries(pkg.devDependencies ?? {})) {
       deps.push({ name, version: version as string, source: "npm (dev)" })
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not a Node project */
   }
 
@@ -91,7 +93,8 @@ function detectDeps(root: string): Dep[] {
       const m = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/)
       if (m) deps.push({ name: m[1], version: m[2], source: "crates.io" })
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not Rust */
   }
 
@@ -102,7 +105,8 @@ function detectDeps(root: string): Dep[] {
       const m = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/)
       if (m && m[1] !== "python") deps.push({ name: m[1], version: m[2], source: "pypi" })
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not Python */
   }
 
@@ -115,7 +119,8 @@ function detectDeps(root: string): Dep[] {
         deps.push({ name: m[1], version: m[2], source: "go modules" })
       }
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not Go */
   }
 
@@ -126,7 +131,8 @@ function detectDeps(root: string): Dep[] {
       const m = line.match(/^gem\s+["']([^"']+)["'](?:,\s*["']([^"']+)["'])?/)
       if (m) deps.push({ name: m[1], version: m[2] ?? "latest", source: "rubygems" })
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not Ruby */
   }
 
@@ -136,7 +142,8 @@ function detectDeps(root: string): Dep[] {
     for (const [name, version] of Object.entries(composer.require ?? {})) {
       if (name !== "php") deps.push({ name, version: version as string, source: "packagist" })
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
     /* not PHP */
   }
 
@@ -269,7 +276,8 @@ async function checkNpmOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
           out.push({ name: dep.name, current, latest, source: "npm" })
         }
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
       /* registry unreachable — skip this package */
     }
   }
@@ -291,7 +299,8 @@ async function checkCratesOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
         const current = dep.version.replace(/[\^~>=<]/g, "").split(" ")[0]
         if (latest !== current) out.push({ name: dep.name, current, latest, source: "crates.io" })
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
       /* registry unreachable — skip */
     }
   }
@@ -312,7 +321,8 @@ async function checkPyPIOutdated(deps: Dep[]): Promise<OutdatedDep[]> {
         const current = dep.version.replace(/[<>=!~^]/g, "").split(" ")[0]
         if (latest !== current) out.push({ name: dep.name, current, latest, source: "pypi" })
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/tools/deps.ts", err);
       /* registry unreachable — skip */
     }
   }

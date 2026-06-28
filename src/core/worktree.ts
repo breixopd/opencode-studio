@@ -94,7 +94,8 @@ export async function listWorktrees(root: string): Promise<Worktree[]> {
       }
     }
     return worktrees
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/worktree.ts", err);
     return []
   }
 }

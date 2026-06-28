@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { spawn } from "child_process"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure, recordVerifySuccess, getVerifyRetryHint } from "../core/workspace"
@@ -90,7 +91,8 @@ export const studio_verify: ToolDefinition = tool({
       try {
         const parent = execSync("git rev-parse HEAD~1", { cwd, encoding: "utf-8", timeout: 5_000 }).trim()
         return await rollbackToSnapshot(cwd, { commitHash: parent, branch: "", createdAt: "", taskId: null })
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/tools/verify.ts", err);
       /* no parent commit (shallow repo / initial commit) */
         return "Rollback failed — cannot find parent commit. Use studio_git action=restore to revert specific files."
       }

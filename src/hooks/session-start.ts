@@ -41,12 +41,15 @@ function isAssistantMessageUpdate(
 
 export function createEventHook() {
   return async (input: { event: { type: string; properties?: unknown } }) => {
+    // Debug-trace every event OpenCode sends (shows actual event shapes for diagnosis)
+    log.debugEvent(input.event.type, input.event.properties)
+
     // Model fallback handler — only on relevant events, wrapped to prevent crashes.
     if (input.event.type === "message.updated" || input.event.type === "session.error") {
       try {
         await handleFallback(input as unknown as Parameters<typeof handleFallback>[0])
-      } catch {
-        /* best-effort — never let fallback crash the event hook */
+      } catch (err) {
+        log.debugCatch("handleFallback", err)
       }
     }
 
@@ -54,9 +57,10 @@ export function createEventHook() {
     if (input.event.type === "message.updated" && isAssistantMessageUpdate(input.event)) {
       try {
         const msg = input.event.properties.info
+        log.debug("cost", `Capturing cost event: model=${msg.providerID}/${msg.modelID} cost=$${msg.cost?.toFixed(4) ?? "?"} tokens_in=${msg.tokens?.input ?? "?"} tokens_out=${msg.tokens?.output ?? "?"}`)
         recordCostEvent(msg)
-      } catch {
-        /* never block a session on cost capture */
+      } catch (err) {
+        log.debugCatch("recordCostEvent", err)
       }
     }
 
@@ -68,14 +72,15 @@ export function createEventHook() {
           file?: string
           diagnostics?: Array<{
             range?: { start?: { line?: number; character?: number } }
-            severity?: number  // 1=error, 2=warning, 3=info, 4=hint
+            severity?: number
             source?: string
             message?: string
           }>
         } | undefined
 
+        log.debug("lsp", `Diagnostics event: ${props?.diagnostics?.length ?? 0} entries for ${props?.uri ?? props?.file ?? "(unknown)"}`)
+
         if (!props?.diagnostics?.length) {
-          // File was fixed — clear its diagnostics.
           const file = props?.uri?.replace("file://", "") ?? props?.file
           if (file) clearDiagnosticsForFiles(process.cwd(), [file])
           return
@@ -88,7 +93,7 @@ export function createEventHook() {
           .filter((d) => d.message)
           .map((d) => ({
             file,
-            line: (d.range?.start?.line ?? 0) + 1,  // LSP is 0-indexed
+            line: (d.range?.start?.line ?? 0) + 1,
             col: (d.range?.start?.character ?? 0) + 1,
             severity: severityFromLsp(d.severity ?? 1),
             source: d.source ?? null,
@@ -96,8 +101,9 @@ export function createEventHook() {
           }))
 
         captureDiagnostics(process.cwd(), entries)
-      } catch {
-        /* never block on diagnostics capture */
+        log.debug("lsp", `Captured ${entries.length} diagnostic entries for ${file}`)
+      } catch (err) {
+        log.debugCatch("lsp.diagnostics", err)
       }
     }
 
@@ -125,7 +131,8 @@ export function createEventHook() {
       try {
         const synced = syncRulesToAgentsMd(process.cwd())
         if (synced) log.info("Rules synced to AGENTS.md")
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
         /* best-effort sync */
       }
     }
@@ -142,7 +149,8 @@ export function createEventHook() {
         if (todo?.content) {
           log.debug(`OpenCode todo updated: ${todo.content} (${todo.status})`)
         }
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
         /* best-effort todo sync */
       }
     }
@@ -154,14 +162,16 @@ export function createEventHook() {
       const { loadUserProfile } = require("../core/project-profile")
       const profile = loadUserProfile()
       ensureStudioGitignored(process.cwd(), profile.commitStudio ?? false)
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
       ensureStudioGitignored(process.cwd(), false)
     }
 
     // Sync agent profiles to .opencode/agents/ (dynamic — derived from AGENT_DEFS).
     try {
       syncAgentProfiles(process.cwd())
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort */
     }
 
@@ -178,14 +188,16 @@ export function createEventHook() {
           log.info(`Auto-detected ${newConventions.length} convention(s) for ${tooling.projectType.ecosystem}`)
         }
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort convention detection */
     }
 
     // Prune stale diagnostics on session start.
     try {
       pruneStaleDiagnostics(process.cwd())
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort */
     }
 
@@ -197,7 +209,8 @@ export function createEventHook() {
       if (started) {
         log.info(`Auto-sync started for '${started}'`)
       }
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort prefetch/auto-start — never block session start */
     }
   }

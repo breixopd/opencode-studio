@@ -40,7 +40,8 @@ export async function isGhAvailable(cwd: string): Promise<boolean> {
   try {
     await shell("gh auth status", cwd, 5_000)
     return true
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/ci-watcher.ts", err);
     return false
   }
 }
@@ -72,7 +73,8 @@ export async function checkCIStatus(cwd: string): Promise<CIStatus> {
         status.failingWorkflows.push({ name, conclusion, url })
       }
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/ci-watcher.ts", err);
     /* gh CLI not available or not a GitHub repo */
   }
 

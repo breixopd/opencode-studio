@@ -1,3 +1,4 @@
+import * as log from "./logger"
 import { execSync } from "child_process"
 import { openStudioDb, queryOne, runQuery } from "./studio-db"
 
@@ -19,7 +20,8 @@ export function currentBranch(root = process.cwd()): string {
       timeout: 1500,
     }).trim()
     if (out) branch = out
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/branch-context.ts", err);
     /* git not available or not a repo */
   }
   branchCache.set(root, { branch, at: Date.now() })

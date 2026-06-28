@@ -72,7 +72,8 @@ export function createChatMessageHook() {
         if (pattern.isRecurring) {
           log.info(`Recurring correction (${pattern.count}x): ${pattern.suggestion}`)
         }
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/hooks/chat-message.ts", err);
         /* rule already exists — deduped by UNIQUE constraint */
       }
     }

@@ -65,7 +65,8 @@ function findTestForTask(taskTitle: string, cwd: string): boolean {
     let entries: string[]
     try {
       entries = readdirSync(abs)
-    } catch {
+    } catch (err) {
+      log.debugCatch("src/hooks/tool-guards.ts", err);
     /* directory unreadable — skip */
       continue
     }

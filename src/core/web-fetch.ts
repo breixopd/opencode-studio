@@ -1,3 +1,4 @@
+import * as log from "./logger"
 import { lookup } from "dns/promises"
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024
@@ -29,7 +30,8 @@ export function rewriteGithubBlobUrl(url: string): string {
     const [owner, repo, , , ...rest] = parts.slice(1)
     if (!owner || !repo) return url
     return `https://raw.githubusercontent.com/${owner}/${repo}/${rest.join("/")}`
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/web-fetch.ts", err);
     /* not a valid URL — leave unchanged */
     return url
   }
@@ -40,7 +42,8 @@ export async function assertUrlSafe(url: string): Promise<void> {
   try {
     parsed = new URL(url)
     /* URL parse failed — rethrow with clearer message */
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/web-fetch.ts", err);
     throw new Error(`Invalid URL: ${url}`)
   }
   if (!["http:", "https:"].includes(parsed.protocol)) {

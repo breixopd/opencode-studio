@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Per-task cost ledger (Phase 3.6 — the differentiator).
  *
@@ -228,7 +229,8 @@ export function pruneOldCostEvents(daysOld = 30): number {
 function currentBranchSafe(): string | null {
   try {
     return currentBranch() ?? null
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/cost.ts", err);
     /* not a git repo — branch unknown */
     return null
   }
@@ -239,7 +241,8 @@ function activeTaskIdSafe(): string | null {
   try {
     const inProgress = getActiveTasks().find((t) => t.status === "in_progress")
     return inProgress?.id ?? getActivePlanId()
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/cost.ts", err);
     return null
     /* workspace not ready — no active task */
   }

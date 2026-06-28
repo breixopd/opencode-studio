@@ -1,3 +1,4 @@
+import * as log from "./logger"
 /**
  * Multi-language AST via tree-sitter WASM.
  * No third-party indexing services — grammars ship in tree-sitter-wasms.
@@ -154,7 +155,8 @@ async function loadLanguage(ext: string): Promise<unknown | null> {
     const lang = await tsModule!.Language.load(join(grammars, `${wasmName}.wasm`))
     langCache.set(wasmName, lang)
     return lang
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/tree-sitter-parser.ts", err);
     /* tree-sitter grammar unavailable — language unsupported */
     return null
   }

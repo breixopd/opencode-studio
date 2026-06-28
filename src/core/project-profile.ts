@@ -1,3 +1,4 @@
+import * as log from "./logger"
 import { createHash } from "crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from "fs"
 import { homedir } from "os"
@@ -44,7 +45,8 @@ export function projectRoot(cwd = process.cwd()): string {
     if (existsSync(join(dir, ".git"))) {
       try {
         return realpathSync(dir)
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/core/project-profile.ts", err);
       /* realpath failed (broken symlink/perm) — use unresolved path */
         return dir
       }
@@ -67,7 +69,8 @@ function detectName(root: string): string {
   try {
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf-8"))
     if (pkg.name && typeof pkg.name === "string") return pkg.name
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/project-profile.ts", err);
     /* not a Node project */
   }
   // Try Cargo.toml (Rust)
@@ -75,7 +78,8 @@ function detectName(root: string): string {
     const cargo = readFileSync(join(root, "Cargo.toml"), "utf-8")
     const m = cargo.match(/^name\s*=\s*"([^"]+)"/m)
     if (m) return m[1]
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/project-profile.ts", err);
     /* not Rust */
   }
   // Try pyproject.toml (Python)
@@ -83,7 +87,8 @@ function detectName(root: string): string {
     const py = readFileSync(join(root, "pyproject.toml"), "utf-8")
     const m = py.match(/^name\s*=\s*"([^"]+)"/m)
     if (m) return m[1]
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/project-profile.ts", err);
     /* not Python */
   }
   // Try go.mod
@@ -91,7 +96,8 @@ function detectName(root: string): string {
     const go = readFileSync(join(root, "go.mod"), "utf-8")
     const m = go.match(/^module\s+(\S+)/m)
     if (m) return m[1].split("/").pop()!
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/project-profile.ts", err);
     /* not Go */
   }
   return basename(root)

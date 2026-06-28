@@ -18,7 +18,8 @@ function projectNameForDir(dir: string): string {
     if (pkg.name && typeof pkg.name === "string") {
       return pkg.name.replace(/^@/, "").replace(/\//g, "-")
     }
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/core/auto.ts", err);
     // no package.json
   }
   return basename(dir)

@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { Glob } from "bun"
 import { statSync } from "fs"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
@@ -27,7 +28,8 @@ export function globWorkspace(
         if (!opts?.includeDirs && st.isDirectory()) continue
         hits.push({ path: rel, size: st.isFile() ? st.size : undefined })
         if (hits.length >= max) break
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/tools/glob.ts", err);
         /* skip missing */
       }
     }

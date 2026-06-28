@@ -34,7 +34,8 @@ export function handleFileEdited(filePath: string): void {
       reindexTimers.delete(filePath)
       try {
         await reindexFile(process.cwd(), filePath)
-      } catch {
+      } catch (err) {
+      log.debugCatch("src/hooks/maintenance-impl.ts", err);
         /* best-effort — file may not be ready */
       }
     }, REINDEX_DEBOUNCE_MS),
@@ -56,7 +57,8 @@ export function handleSessionIdle(): void {
 
     const db = openStudioDb(root)
     db.run("PRAGMA wal_checkpoint(PASSIVE);")
-  } catch {
+  } catch (err) {
+      log.debugCatch("src/hooks/maintenance-impl.ts", err);
     /* best-effort maintenance */
   }
 }
