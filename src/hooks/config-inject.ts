@@ -183,6 +183,14 @@ export function createConfigInjectHook() {
         template:
           `SDLC for {{args}}:\n1) studio_brief show\n2) ${fanOutInstruction("{{args}}", 4)}\n3) Synthesize agent findings\n4) studio_spec (generate requirements + acceptance)\n5) studio_plan\n6) studio_task\n7) @studio-implement\n8) @studio-review\n9) studio_verify (only=snapshot first)\n10) studio_handoff`,
       },
+      council: {
+        description: "Model Council — multi-lens review (security, architecture, correctness, maintainability)",
+        template: "studio_council action=review {{args}}",
+      },
+      "council-plan": {
+        description: "Model Council — multi-lens architecture review for a goal",
+        template: "studio_council action=plan goal='{{args}}'",
+      },
     }
     for (const [name, def] of Object.entries(commands)) {
       if (!config.command![name]) config.command![name] = def

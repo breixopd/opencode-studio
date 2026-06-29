@@ -53,6 +53,7 @@ export function buildDisciplinePrompt(): string {
   parts.push("- Cross-session resume card + pre-flight cost preview auto-injected")
   parts.push("- Self-healing verify: snapshot HEAD, auto-rollback on persistent failure")
   parts.push("- Self-improving rules: 'don't X' in chat → auto-saved rule")
+  parts.push("- Model Council: type 'council:' or /council to trigger multi-lens review")
   parts.push("")
 
   // ——— Key tools with when-to-use disambiguation ————————————————

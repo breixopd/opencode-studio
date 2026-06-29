@@ -1,24 +1,23 @@
 /**
- * Model Council — multi-model ensemble review and planning.
+ * Model Council — multi-lens ensemble review and planning.
  *
- * Dispatches multiple review agents with different "lenses" (perspectives)
- * to independently review the same code, then synthesizes their findings.
- * Consensus → high confidence. Disagreement → surface both opinions.
+ * Dispatches multiple review lenses (perspectives) on the same code, then
+ * synthesizes their findings. Consensus → high confidence. Disagreement →
+ * surface both opinions.
  *
  * How it works within OpenCode:
- *   1. The tool detects available providers/models from the model registry.
- *   2. If only 1 provider: uses different review LENSES (security, architecture,
- *      correctness, maintainability) on the same model — still a "council"
- *      but serial rather than parallel.
- *   3. If 2+ providers: instructs the agent to dispatch @studio-review with
- *      different models by creating temporary agent profiles.
- *   4. Results are synthesized: agreements highlighted, disagreements surfaced.
+ *   1. /council slash command OR "council:" keyword in prompt triggers it
+ *   2. The tool generates a structured review prompt with 4 lenses
+ *   3. The agent reviews from each lens perspective independently
+ *   4. Results are synthesized: FAIL items must fix, WARN should fix, PASS ok
+ *   5. If FAIL items found → auto-creates tasks for each issue
+ *   6. Disagreements between lenses are surfaced explicitly
  *
  * Edge cases handled:
  *   - Single provider → multi-lens council (same model, different perspectives)
  *   - Rate limit / out of credits → model-fallback hook handles graceful degradation
- *   - User toggles via /studio-council command or "council:" keyword in prompt
- *   - Never auto-runs — only when explicitly triggered
+ *   - Never auto-runs — only when explicitly triggered via /council or keyword
+ *   - After review: creates tasks for FAIL items, suggests studio_verify
  */
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { getActivePlan } from "../core/workspace"
@@ -45,11 +44,19 @@ const REVIEW_LENSES = [
   },
 ] as const
 
+/** Keyword that triggers the council from a chat prompt (no slash needed). */
+export const COUNCIL_KEYWORD = "council:"
+
+/** Check if a prompt contains the council keyword. */
+export function isCouncilTriggered(prompt: string): boolean {
+  return prompt.toLowerCase().includes(COUNCIL_KEYWORD)
+}
+
 export const studio_council: ToolDefinition = tool({
   description:
-    "Model Council: multi-lens ensemble review. Dispatches multiple review perspectives " +
-      "(security, architecture, correctness, maintainability) on the same code, then synthesizes. " +
-      "Only runs when explicitly triggered. Use for complex/security-sensitive changes.",
+    "Model Council: multi-lens ensemble review (security, architecture, correctness, maintainability). " +
+      "Triggered via /council command or 'council:' keyword in prompt. " +
+      "Creates tasks for FAIL items after review. Never auto-runs.",
   args: {
     action: tool.schema
       .enum(["review", "plan", "status"])
@@ -61,7 +68,7 @@ export const studio_council: ToolDefinition = tool({
     const cwd = process.cwd()
 
     if (args.action === "status") {
-      return councilStatus(cwd)
+      return councilStatus()
     }
 
     if (args.action === "review") {
@@ -77,30 +84,39 @@ export const studio_council: ToolDefinition = tool({
   },
 })
 
-/** Show the council configuration — which lenses and models are available. */
-function councilStatus(_cwd: string): string {
+/** Show the council configuration. */
+function councilStatus(): string {
   const lines = [
     "# Model Council Configuration",
     "",
     `Review lenses: ${REVIEW_LENSES.length}`,
     ...REVIEW_LENSES.map((l) => `  - ${l.name}: ${l.focus.slice(0, 80)}...`),
     "",
-    "How it works:",
-    "  review: dispatches 4 review lenses (security, architecture, correctness, maintainability).",
-    "  Each lens reviews the same code independently from a different perspective.",
-    "  Results are synthesized: agreements highlighted, disagreements surfaced.",
+    "Trigger methods:",
+    "  /council <args>           — slash command (reviews staged changes)",
+    "  /council plan <goal>     — slash command for planning",
+    `  '${COUNCIL_KEYWORD} <text>' — keyword in any message`,
+    "  studio_council action=review — direct tool call",
     "",
-    "Usage:",
-    "  studio_council action=review                    — review staged changes",
-    "  studio_council action=review file=src/index.ts — review specific file",
-    "  studio_council action=plan goal='Add rate limiting' — multi-lens planning",
+    "What happens after council runs:",
+    "  1. Each lens independently reviews from its perspective",
+    "  2. Results synthesized: PASS (ok) / WARN (should fix) / FAIL (must fix)",
+    "  3. FAIL items are automatically created as studio_task entries",
+    "  4. Disagreements between lenses are surfaced",
+    "  5. Run studio_verify after fixing FAIL items",
     "",
-    "The council never auto-runs. Toggle it explicitly when you want deep review.",
+    "The council never auto-runs. Only when you explicitly trigger it.",
   ]
   return lines.join("\n")
 }
 
-/** Generate a multi-lens review instruction for the agent. */
+/**
+ * Generate a multi-lens review instruction for the agent.
+ * After the review, instructs the agent to:
+ *   - Create tasks for FAIL items
+ *   - Suggest running studio_verify
+ *   - Surface disagreements between lenses
+ */
 function councilReview(file?: string): string {
   const target = file ?? "the current staged changes"
   const lines = [
@@ -108,9 +124,9 @@ function councilReview(file?: string): string {
     "",
     `Target: ${target}`,
     "",
-    `I need you to review this code from ${REVIEW_LENSES.length} different perspectives,`,
+    `Review this code from ${REVIEW_LENSES.length} different perspectives,`,
     `one at a time. For each lens, focus ONLY on issues relevant to that perspective.`,
-    `Rate each as PASS / WARN / FAIL.`,
+    `Rate each finding as PASS / WARN / FAIL.`,
     "",
   ]
 
@@ -121,16 +137,21 @@ function councilReview(file?: string): string {
     lines.push("")
   }
 
-  lines.push("## Synthesis")
+  lines.push("## Synthesis (complete after all lenses)")
   lines.push("After all lenses complete:")
   lines.push("  1. List all FAIL items (must fix before handoff)")
   lines.push("  2. List all WARN items (should fix, may merge without)")
   lines.push("  3. List PASS items (no issues found in that lens)")
-  lines.push("  4. Note any disagreements between lenses (e.g. architecture says OK but security says FAIL)")
+  lines.push("  4. Note disagreements between lenses (e.g. architecture says OK but security says FAIL)")
+  lines.push("")
+  lines.push("## Action (auto-execute after synthesis)")
+  lines.push("  1. For each FAIL item: studio_task create with title and acceptance criteria")
+  lines.push("  2. Print the task IDs so they can be tracked")
+  lines.push("  3. Summarize: 'N FAIL items → N tasks created. Fix them, then studio_verify.'")
   lines.push("")
   lines.push("This is NOT a replacement for studio_verify — it's a deeper quality review.")
-  lines.push("Run studio_verify after addressing any FAIL items.")
 
+  log.info("Council review dispatched")
   return lines.join("\n")
 }
 
@@ -146,8 +167,8 @@ function councilPlan(goal: string, cwd: string): string {
     `Ecosystem: ${projectType.ecosystem}`,
     ...(plan ? [`Active plan: ${plan.title}`] : ["No active plan — this is a new proposal"]),
     "",
-    `Review this goal from ${REVIEW_LENSES.length} perspectives.`,
-    `For each lens, assess whether the approach is sound from that angle.`,
+    `Assess this goal from ${REVIEW_LENSES.length} perspectives.`,
+    `For each lens, determine if the approach is sound from that angle.`  ,
     "",
   ]
 
@@ -161,12 +182,14 @@ function councilPlan(goal: string, cwd: string): string {
 
   lines.push("## Synthesis")
   lines.push("After all lenses:")
-  lines.push("  1. Is the approach sound across ALL lenses? (green light)")
+  lines.push("  1. Is the approach sound across ALL lenses? (green light → proceed)")
   lines.push("  2. Which lenses have concerns? (yellow — address before implementing)")
   lines.push("  3. Which lenses say NO? (red — do not implement without resolving)")
   lines.push("")
-  lines.push("If all lenses are green: proceed to studio_spec → studio_plan → implementation.")
-  lines.push("If any lens is red: address the concerns before proceeding.")
+  lines.push("## Action")
+  lines.push("  - If all green: proceed to studio_spec → studio_plan → implementation")
+  lines.push("  - If yellow: create tasks for each concern, address before implementing")
+  lines.push("  - If red: explain why, do not proceed without user direction")
 
   log.info(`Council plan dispatched for: ${goal}`)
   return lines.join("\n")

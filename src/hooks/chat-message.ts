@@ -3,6 +3,7 @@ import { refreshModelRouting } from "../core/model-routing"
 import { addRule } from "../core/workspace"
 import { addGlobalRule } from "../core/project-profile"
 import { recordCorrection, routeScope, getRecurringPatterns } from "../core/auto-memory"
+import { isCouncilTriggered } from "../tools/council"
 import * as log from "../core/logger"
 
 const MAIN_AGENTS = new Set(["build", "general", "plan"])
@@ -49,7 +50,17 @@ export function createChatMessageHook() {
       .join(" ")
       .trim()
 
-    if (!text || text.length < 10) return
+    if (!text || text.length < 5) return
+
+    // Council keyword detection — if the user types "council:" in their message,
+    // log it so the TUI can toast and the agent knows to run the council.
+    if (isCouncilTriggered(text)) {
+      log.info(`Council keyword detected in user message`)
+      // The keyword is just a signal — the agent will see "council:" in the
+      // message and should call studio_council action=review. The chat-message
+      // hook can't dispatch tools directly, but the discipline prompt mentions
+      // the keyword, so the agent knows what to do.
+    }
 
     const rules = extractRules(text)
     for (const rule of rules) {
