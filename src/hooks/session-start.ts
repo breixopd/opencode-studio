@@ -12,6 +12,7 @@ import * as log from "../core/logger"
 import { syncRulesToAgentsMd } from "../core/agents-md-sync"
 import { syncAgentProfiles } from "../core/agent-profiles"
 import { ensureStudioGitignored } from "../core/gitignore"
+import { trackFileEdit, pruneOldFiles } from "../core/passive-context"
 
 const handleFallback = createModelFallbackEventHandler()
 
@@ -111,12 +112,16 @@ export function createEventHook() {
     if (input.event.type === "file.edited") {
       const props = input.event.properties as { path?: string; file?: string } | undefined
       const filePath = props?.path ?? props?.file
-      if (filePath) handleFileEdited(filePath)
+      if (filePath) {
+        handleFileEdited(filePath)
+        trackFileEdit(filePath)
+      }
       return
     }
 
     if (input.event.type === "session.idle") {
       handleSessionIdle()
+      pruneOldFiles()
       return
     }
 

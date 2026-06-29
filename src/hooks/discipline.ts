@@ -12,6 +12,8 @@ import { constitutionContextBlock } from "../core/constitution"
 import { getCISummary } from "../core/ci-watcher"
 import { memoryContextBlock } from "../core/auto-memory"
 import { getRecurringCorrectionNotices } from "./chat-message"
+import { workingSetContextBlock } from "../core/passive-context"
+import { checkPlanDrift } from "../core/plan-drift"
 import * as log from "../core/logger"
 
 /**
@@ -87,6 +89,14 @@ export function createDisciplineSystemHook() {
 
     const grind = grindContextBlock(process.cwd())
     if (grind) { pushIfNotPresent(output.system, grind); log.debugContext("grind", grind.length) }
+
+    // Passive context — recently edited files (auto-tracked, no user action needed).
+    const workingSet = workingSetContextBlock()
+    if (workingSet) { pushIfNotPresent(output.system, workingSet); log.debugContext("working-set", workingSet.length) }
+
+    // Plan drift detection — warn if implementation diverges from plan.
+    const drift = checkPlanDrift()
+    if (drift) { pushIfNotPresent(output.system, drift); log.debugContext("drift", drift.length) }
 
     const patterns = getRecurringCorrectionNotices()
     if (patterns) { pushIfNotPresent(output.system, patterns); log.debugContext("patterns", patterns.length) }

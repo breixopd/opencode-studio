@@ -101,6 +101,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
 
   // ——— Agents ————————————————
   { name: "studio_agent", category: "Config", phase: null, description: "Manage agent profiles — list, sync (regenerate from catalog), create custom, remove", whenToUse: "to create custom subagents or regenerate studio agent profiles" },
+
+  // ——— Advanced ————————————————
+  { name: "studio_council", category: "Code", phase: 8, description: "Model Council: multi-lens ensemble review (security, architecture, correctness, maintainability)", whenToUse: "for complex/security-sensitive changes when you want deep multi-perspective review" },
+  { name: "studio_browser", category: "Code", phase: 10, description: "Browser verification — checks if web app loads, pages respond. Uses system Chrome headlessly (zero deps)", whenToUse: "for web projects to verify pages load after changes" },
 ]
 
 // ——— Derived data (auto-generated, never edit by hand) ————————————————
