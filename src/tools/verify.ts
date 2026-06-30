@@ -79,16 +79,16 @@ export const studio_verify: ToolDefinition = tool({
     }
 
     if (args.only === "rollback") {
-      // Use the last known good snapshot — we store it in verify_state.last_failure (repurposed for snapshot hash).
-      // For simplicity, rollback reverts to HEAD~1 (the commit before the last).
-      // The agent can also pass studio_git restore for fine-grained control.
       const health = checkGrindHealth(cwd)
       if (!health.shouldRollback && health.grindCount === 0) {
         return `No rollback needed — verify hasn't failed recently (grind: 0/${health.maxGrind}).`
       }
-      // Revert to HEAD~1 as a safe default — agent can use studio_git restore for fine-grained control.
+      // Use studio_git for rollback — it supports restore to a specific ref.
+      // The agent should have called studio_verify only=snapshot first to save HEAD.
+      // As a fallback, revert to HEAD~1 (the commit before the last).
       const { execSync } = await import("child_process")
       try {
+        
         const parent = execSync("git rev-parse HEAD~1", { cwd, encoding: "utf-8", timeout: 5_000 }).trim()
         return await rollbackToSnapshot(cwd, { commitHash: parent, branch: "", createdAt: "", taskId: null })
       } catch (err) {

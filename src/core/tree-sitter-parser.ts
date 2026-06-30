@@ -235,8 +235,7 @@ function walkSymbols(
       const isExported =
         exported ||
         node.parent?.type === "export_statement" ||
-        node.parent?.type === "export_declaration" ||
-        !!node.childForFieldName("name")?.parent
+        node.parent?.type === "export_declaration"
 
       out.push({
         name,

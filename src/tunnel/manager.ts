@@ -130,6 +130,12 @@ export async function startTunnel(config: TunnelConfig): Promise<TunnelState> {
   })
 
   localServer.listen(port, "127.0.0.1")
+  localServer.on("error", (err: Error) => {
+    lastErrorValue = err.message
+    log.error(`Tunnel: local server error: ${err.message}`)
+    tunnelSession = null
+    localServer = null
+  })
 
   session.client.on("close", () => {
     if (!tunnelSession) return
@@ -155,16 +161,18 @@ export async function startTunnel(config: TunnelConfig): Promise<TunnelState> {
         })
         .catch((err) => {
           log.error(`Tunnel: auto-restart failed: ${err.message}`)
-          // Reschedule — the watchdog will try again with increased backoff.
-          // Re-trigger by simulating a close event:
-          consecutiveFailures++
-          const nextDelay = Math.min(1000 * Math.pow(2, consecutiveFailures - 1), MAX_BACKOFF_MS)
+          // Schedule a new reconnect attempt without emitting close again
+          // (which would double-count the failure).
+          const nextDelay = Math.min(1000 * Math.pow(2, consecutiveFailures), MAX_BACKOFF_MS)
           restartTimer = setTimeout(() => {
             restartTimer = null
-            session.client.emit("close")
+            if (!currentTunnelConfig) return
+            startTunnel({ ...currentTunnelConfig, localPort: port }).catch(() => {})
           }, nextDelay)
+          restartTimer.unref?.()
         })
     }, delay)
+    restartTimer.unref?.()
   })
 
   session.client.on("error", (err: Error) => {

@@ -27,9 +27,14 @@ export function rewriteGithubBlobUrl(url: string): string {
     const parts = u.pathname.split("/")
     const blobIdx = parts.indexOf("blob")
     if (blobIdx < 0 || blobIdx + 2 >= parts.length) return url
-    const [owner, repo, , , ...rest] = parts.slice(1)
-    if (!owner || !repo) return url
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${rest.join("/")}`
+    // parts = ["", "owner", "repo", "blob", "ref", "path...", "file"]
+    // Keep owner, repo, ref and path: raw.githubusercontent.com/owner/repo/ref/path
+    const owner = parts[1]
+    const repo = parts[2]
+    const ref = parts[blobIdx + 1]
+    const filePath = parts.slice(blobIdx + 2).join("/")
+    if (!owner || !repo || !ref || !filePath) return url
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`
   } catch (err) {
       log.debugCatch("src/core/web-fetch.ts", err);
     /* not a valid URL — leave unchanged */

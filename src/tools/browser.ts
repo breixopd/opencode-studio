@@ -182,7 +182,7 @@ export const studio_browser: ToolDefinition = tool({
   args: {
     action: tool.schema
       .enum(["check", "routes", "screenshot"])
-      .describe("check=verify pages load | routes=list discovered routes | screenshot=save page screenshot"),
+      .describe("check=verify pages load | routes=list discovered routes | screenshot=check page content (no actual screenshot, uses CDP)"),
     url: tool.schema.string().optional().describe("Base URL (default: auto-detect dev server)"),
     routes: tool.schema.array(tool.schema.string()).optional().describe("Routes to check (default: common routes)"),
   },

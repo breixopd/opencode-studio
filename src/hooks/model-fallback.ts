@@ -24,15 +24,15 @@ export function createModelFallbackEventHandler() {
     const { event } = input
 
     if (event.type === "message.updated") {
-      const info = event.properties.info
-      if (info.role !== "assistant" || !info.error) return
+      const info = event.properties?.info
+      if (!info || info.role !== "assistant" || !info.error) return
       if (!isRateLimitError(info.error)) return
       await onAssistantError(info.mode, info.providerID, info.modelID, info.error)
       return
     }
 
     if (event.type === "session.error") {
-      const err = event.properties.error
+      const err = event.properties?.error
       if (!err || !isRateLimitError(err)) return
       const config = getLatestConfig()
       if (!config) return

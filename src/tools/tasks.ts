@@ -1,3 +1,4 @@
+import * as log from "../core/logger"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import {
   createTask,
@@ -25,6 +26,7 @@ export const studio_task: ToolDefinition = tool({
     notes: tool.schema.string().optional().describe("Notes for block/done"),
   },
   async execute(args) {
+    try {
     switch (args.action) {
       case "list": {
         const tasks = listTasks()
@@ -74,6 +76,10 @@ export const studio_task: ToolDefinition = tool({
       }
       default:
         return "Unknown action"
+    }
+    } catch (err) {
+      log.debugCatch("tasks", err)
+      return `✗ ${(err as Error).message}`
     }
   },
 })

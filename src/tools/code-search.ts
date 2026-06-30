@@ -30,7 +30,7 @@ export async function searchGitHubCode(query: string, max = 8): Promise<CodeHit[
 }
 
 export const studio_code_search: ToolDefinition = tool({
-  description: "Search public GitHub repos (not this workspace). For local code use studio_grep.",
+  description: "Search public GitHub repos (requires GITHUB_TOKEN env for auth, otherwise 401) (not this workspace). For local code use studio_grep.",
   args: {
     query: tool.schema.string().describe("Code search query"),
     count: tool.schema.number().optional().describe("Max results (default 8)"),

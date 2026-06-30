@@ -34,7 +34,7 @@ export const studio_context: ToolDefinition = tool({
     }
 
     if (args.action === "unpin") {
-      if (args.index === undefined) return "index (1-based) required for unpin"
+      if (args.index === undefined || args.index < 1) return "index (1-based) required for unpin"
       const pins = unpinContext(args.index - 1)
       return `Unpinned. ${pins.length} remaining.`
     }

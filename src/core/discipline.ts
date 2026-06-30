@@ -73,9 +73,6 @@ export function buildDisciplinePrompt(): string {
 }
 
 /** Invalidate the cache (call when tools change at runtime). */
-export function invalidateDisciplineCache(): void {
-  cachedPrompt = null
-}
 
 /** The discipline prompt, evaluated once at module load (cached). */
 export const STUDIO_DISCIPLINE = buildDisciplinePrompt()

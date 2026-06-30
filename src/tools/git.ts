@@ -138,17 +138,17 @@ export const studio_git: ToolDefinition = tool({
           if (!args.files?.[0]) return "files[0] required for blame"
           const file = args.files[0]
           const out = await git(
-            ["blame", "-L", `${args.line_start ?? 1},+20`, "--line-porcelain", file],
+            ["blame", "-L", `${args.line_start ?? 1},+20`, "--", file],
             cwd,
           )
           const lines = out
             .split("\n")
-            .filter((l) => !l.startsWith("\t") && !l.startsWith("author-") && !l.startsWith("summary"))
             .slice(0, 20)
             .map((l) => {
-              const m = l.match(/^([0-9a-f]+)\s+(\d+)\s+(\d+)\s+(.*)$/)
-              if (!m) return l
-              return `${m[1].slice(0, 8)} ${m[4].slice(0, 80)}`
+              // Default blame format: <hash> (<author> <date>) <line>
+              const m = l.match(/^([0-9a-f]+)\s+\(([^)]+)\)\s+(.*)$/)
+              if (!m) return l.slice(0, 100)
+              return `${m[1].slice(0, 8)} (${m[2].slice(0, 30)}) ${m[3].slice(0, 60)}`
             })
           return `Blame ${file}:${args.line_start ?? 1}:\n${lines.join("\n")}`
         }
@@ -163,13 +163,13 @@ export const studio_git: ToolDefinition = tool({
 
         case "stage": {
           if (!args.files?.length) return "files required for stage"
-          await git(["add", ...args.files], cwd)
+          await git(["add", "--", ...args.files], cwd)
           return `Staged ${args.files.length} file(s): ${args.files.join(", ")}`
         }
 
         case "unstage": {
           if (!args.files?.length) return "files required for unstage"
-          await git(["restore", "--staged", ...args.files], cwd)
+          await git(["restore", "--staged", "--", ...args.files], cwd)
           return `Unstaged ${args.files.length} file(s): ${args.files.join(", ")}`
         }
 

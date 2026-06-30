@@ -64,26 +64,10 @@ export function debugEvent(eventType: string, properties: unknown): void {
 }
 
 /**
- * Debug a tool execution — logs tool name, args (truncated), and result status.
- */
-export function debugTool(toolName: string, detail: string): void {
-  if (shouldLog("debug")) console.log(`[studio] tool: ${toolName} — ${detail}`)
-}
-
-/**
  * Debug a context block injection — logs which blocks were added to the system prompt.
  */
 export function debugContext(blockName: string, length: number): void {
   if (shouldLog("debug")) console.log(`[studio] context: ${blockName} (${length} chars)`)
-}
-
-/**
- * Debug a DB operation — logs the SQL + param count.
- */
-export function debugDb(operation: string, sql: string, paramCount: number): void {
-  if (!shouldLog("debug")) return
-  const sqlPreview = sql.replace(/\s+/g, " ").trim().slice(0, 80)
-  console.log(`[studio] db: ${operation} [${paramCount} params] ${sqlPreview}`)
 }
 
 /**
