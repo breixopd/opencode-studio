@@ -58,6 +58,7 @@ export function recordCostEvent(msg: {
   time: { created: number }
   path?: { cwd: string; root: string }
   agent?: string
+  mode?: string
 }): void {
   const d = openStudioDb(process.cwd())
   const branch = currentBranchSafe()
@@ -73,7 +74,7 @@ export function recordCostEvent(msg: {
     [
       msg.sessionID,
       msg.id,
-      msg.agent ?? null,
+      msg.mode ?? msg.agent ?? null,
       msg.providerID,
       msg.modelID,
       msg.tokens.input ?? 0,

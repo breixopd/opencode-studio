@@ -269,6 +269,7 @@ export async function analyzeWithTreeSitter(
   parser.setLanguage(lang)
   const tree = parser.parse(content)
   if (!tree) return null
+  try {
   const root = tree.rootNode
 
   const symbols: AstSymbol[] = []
@@ -278,6 +279,9 @@ export async function analyzeWithTreeSitter(
   const exports = symbols.filter((s) => s.exported).map((s) => s.name)
 
   return { symbols, imports, exports }
+  } finally {
+    tree.delete()
+  }
 }
 
 export function formatFileOutline(analysis: AstFileAnalysis, file: string): string {

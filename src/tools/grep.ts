@@ -51,7 +51,7 @@ export function grepWorkspace(
     if (ex.endsWith("/")) args.push("--glob", `!${ex}**`)
     else if (ex.includes("*")) args.push("--glob", `!${ex}`)
   }
-  args.push(pattern, ".")
+  args.push("--", pattern, ".")
 
   try {
     const out = execFileSync("rg", args, {

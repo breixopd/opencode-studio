@@ -47,7 +47,7 @@ export async function createWorktree(
   const wtDir = join(root, WORKTREE_DIR)
   if (!existsSync(wtDir)) mkdirSync(wtDir, { recursive: true })
 
-  const branchName = `studio/${name}`
+  const branchName = `studio/${name.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.\./g, "_")}`
   const wtPath = join(wtDir, name)
 
   // Create branch (from base if specified, else from HEAD) and worktree.

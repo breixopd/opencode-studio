@@ -38,7 +38,7 @@ export function handleFileEdited(filePath: string): void {
       log.debugCatch("src/hooks/maintenance-impl.ts", err);
         /* best-effort — file may not be ready */
       }
-    }, REINDEX_DEBOUNCE_MS),
+    }, REINDEX_DEBOUNCE_MS).unref?.(),
   )
 }
 

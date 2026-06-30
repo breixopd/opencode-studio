@@ -28,6 +28,7 @@ function isAssistantMessageUpdate(
       role: string
       providerID: string
       modelID: string
+      mode?: string
       cost: number
       tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
       time: { created: number }

@@ -464,18 +464,6 @@ export function researchCodebaseSqlite(
   return lines.join("\n")
 }
 
-export function listFiles(root: string, opts?: { lang?: string; limit?: number }): string[] {
-  const db = openStudioDb(root)
-  const limit = Math.min(opts?.limit ?? 200, 1000)
-  const rows = opts?.lang
-    ? queryAll<{ path: string }>(db, "SELECT path FROM files WHERE lang = ? ORDER BY path LIMIT ?", [
-        opts.lang,
-        limit,
-      ])
-    : queryAll<{ path: string }>(db, "SELECT path FROM files ORDER BY path LIMIT ?", [limit])
-  return rows.map((r) => r.path)
-}
-
 export function listSymbolsInFile(root: string, file: string): SymbolHit[] {
   const db = openStudioDb(root)
   const rows = queryAll<{

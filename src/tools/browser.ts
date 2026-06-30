@@ -156,6 +156,17 @@ async function checkPages(baseUrl: string, routes: string[]): Promise<Array<{ ro
 
   for (const route of routes) {
     const url = `${baseUrl}${route}`
+    // SSRF guard: only allow localhost/127.0.0.1 URLs (browser verify is for local dev servers)
+    try {
+      const parsed = new URL(url)
+      if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost" && parsed.hostname !== "0.0.0.0") {
+        results.push({ route, status: 0, title: "", hasContent: false, error: "Only localhost URLs allowed (SSRF protection)" })
+        continue
+      }
+    } catch {
+      results.push({ route, status: 0, title: "", hasContent: false, error: "Invalid URL" })
+      continue
+    }
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
       const html = await res.text()

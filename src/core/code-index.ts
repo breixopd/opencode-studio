@@ -19,12 +19,10 @@ import {
   listSymbolsInFile as listSymbolsInFileSqlite,
   retrieveWithBudget,
   researchCodebaseSqlite,
-  searchFts,
   searchSymbols as searchSymbolsSqlite,
 } from "./code-query"
 import {
   buildCodeIndexSqlite,
-  getStats,
   type IndexStats,
 } from "./code-store"
 
@@ -184,12 +182,4 @@ export function findImpactAnalysis(name: string, root = process.cwd(), maxDepth 
 }
 export function findArchitectureHotspots(root = process.cwd(), max = 20) {
   return findHotspots(root, max)
-}
-
-export function getIndexStats(root = process.cwd()) {
-  return getStats(root)
-}
-
-export function searchFtsChunks(query: string, root = process.cwd(), max = 20) {
-  return searchFts(root, query, max)
 }

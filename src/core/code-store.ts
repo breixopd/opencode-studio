@@ -158,7 +158,7 @@ function findStale(db: Database, discovered: DiscoveredFile[]): StaleSet {
     const cached = known.get(f.rel)
     if (!cached) {
       added.push(f)
-    } else if (Math.abs(f.mtimeMs - cached.mtime_ms) < 0.001 && f.size === cached.size) {
+    } else if (Math.floor(f.mtimeMs) === cached.mtime_ms && f.size === cached.size) {
       skipped++
     } else {
       try {
