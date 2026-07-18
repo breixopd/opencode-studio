@@ -1,6 +1,6 @@
 {
   "name": "opencode-studio",
-  "version": "2.0.0-alpha.6",
+  "version": "2.0.0-alpha.7",
   "description": "Autonomous OpenCode plugin — code intelligence, verify-first SDLC, spend caps, local models, remote sync",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
   },
   "scripts": {
     "prebuild": "mkdir -p dist && cp src/core/studio-db-schema.sql dist/",
-    "build": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --external chokidar --external linkedom --external turndown --external @mozilla/readability",
+    "build": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --external chokidar --external linkedom --external turndown --external @mozilla/readability && bun build src/core/parse-worker.ts --outfile dist/parse-worker.js --target bun --external web-tree-sitter --external tree-sitter-wasms",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:ci": "find src -name '*.test.ts' | sort | while read f; do bun test --timeout=30000 \"$f\" || exit 1; done",

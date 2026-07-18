@@ -120,6 +120,8 @@ const langCache = new Map<string, unknown>()
 let sharedParser: TSParser | null = null
 // Dynamic import holder — loaded on first use via ensureTreeSitter.
 let tsModule: { Parser: { init(opts: { locateFile: () => string }): Promise<void>; new (): TSParser }; Language: TSLanguage } | null = null
+/** Serialize main-thread parses — sharedParser.setLanguage is not re-entrant. */
+let parseGate: Promise<void> = Promise.resolve()
 
 function wasmPaths(): { runtime: string; grammars: string } {
   const runtimeRoot = dirname(require.resolve("web-tree-sitter/package.json"))
@@ -261,6 +263,24 @@ export async function analyzeWithTreeSitter(
   content: string,
   file: string,
 ): Promise<AstFileAnalysis | null> {
+  let release!: () => void
+  const next = new Promise<void>((r) => {
+    release = r
+  })
+  const prev = parseGate
+  parseGate = prev.then(() => next)
+  await prev
+  try {
+    return await analyzeWithTreeSitterUnlocked(content, file)
+  } finally {
+    release()
+  }
+}
+
+async function analyzeWithTreeSitterUnlocked(
+  content: string,
+  file: string,
+): Promise<AstFileAnalysis | null> {
   const ext = extensionOf(file)
   const lang = await loadLanguage(ext)
   if (!lang) return null
@@ -270,15 +290,15 @@ export async function analyzeWithTreeSitter(
   const tree = parser.parse(content)
   if (!tree) return null
   try {
-  const root = tree.rootNode
+    const root = tree.rootNode
 
-  const symbols: AstSymbol[] = []
-  walkSymbols(root, symbols, undefined, false)
+    const symbols: AstSymbol[] = []
+    walkSymbols(root, symbols, undefined, false)
 
-  const imports = extractImports(root)
-  const exports = symbols.filter((s) => s.exported).map((s) => s.name)
+    const imports = extractImports(root)
+    const exports = symbols.filter((s) => s.exported).map((s) => s.name)
 
-  return { symbols, imports, exports }
+    return { symbols, imports, exports }
   } finally {
     tree.delete()
   }

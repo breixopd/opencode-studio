@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.0.0-alpha.7 (2026-07-18)
+
+True OS-thread WASM parse workers for code indexing (still npm dist-tag `alpha`).
+
+### Added
+- **`ParsePool`** (`worker_threads`) — each worker owns its own tree-sitter Parser; index builds use real multi-core parse
+- **`dist/parse-worker.js`** shipped next to the plugin entry
+- Main-thread parse serialized (fixes shared-Parser races when workers are off)
+- Env **`STUDIO_PARSE_WORKERS`** — set to `0` to force inline; omit or set N for worker count (default min(8, CPUs))
+- Index stats expose `parseMode` / `parseWorkers` (`treesitter-workers` vs `treesitter`)
+
+---
+
 ## v2.0.0-alpha.6 (2026-07-18)
 
 GitHub system auth for code search + git remotes/PRs (stay on npm `alpha` for testing).

@@ -11,8 +11,9 @@ Product priorities live in **[ROADMAP.md](../ROADMAP.md)** at the repo root. Thi
 | Priority | Item | Status |
 |----------|------|--------|
 | P1 | OpenCode **plugin API v2** migration | Wait until V2 is stable — may unlock harder budget stops via transforms / client hooks |
-| P2 | True OS-thread WASM workers for parse | Promise pool ships today; revisit if monorepo index bottlenecks |
 | P2 | Hard stop of LLM turns when over budget | Today: tool block + free/local routing. Needs a host hook that can abort generation |
+
+OS-thread WASM parse workers (`ParsePool` / `STUDIO_PARSE_WORKERS`) shipped in alpha.7.
 
 If a README or help topic implies mid-generation abort or “plugin V2-only” APIs, treat that as drift — current behavior is the alpha list in `ROADMAP.md`.
 

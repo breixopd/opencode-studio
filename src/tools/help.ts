@@ -42,7 +42,7 @@ Use \`studio_help topic=tools\` for the full catalog. Core code tools:
 - **studio_symbols** — AST symbol index — search/file/outline/stats/rebuild
 - **studio_index** — unified: search, semantic, similar, research, symbols, **refs, importers, impact, hotspots, monorepo**
 
-**Index:** SQLite FTS5 + tree-sitter AST → \`.studio/studio.db\` (WAL mode)
+**Index:** SQLite FTS5 + tree-sitter AST → \`.studio/studio.db\` (WAL mode). Rebuild uses OS-thread WASM workers (\`STUDIO_PARSE_WORKERS=0\` to force inline).
 **Graph queries** (Phase 2): refs=callers, importers=who-imports-file, impact=transitive callers, hotspots=most-referenced, monorepo=workspace packages + cross-package imports
 **AST:** tree-sitter WASM — TS/JS/Python/Go/Rust/Java/Ruby/PHP/C/C++/C#/Swift/Kotlin/Lua/Zig/Elixir and more.
 

@@ -14,6 +14,7 @@ import * as log from "./logger"
 import { openStudioDb, type FileRow } from "./studio-db"
 import { discover, findStale } from "./code-store-discover"
 import { deleteFile, indexFile, resolveEdges } from "./code-store-index"
+import { ParsePool, defaultParseWorkerCount } from "./parse-pool"
 
 export type { DiscoveredFile, StaleSet } from "./code-store-discover"
 export { discover, findStale, fileHash, MAX_FILE_BYTES } from "./code-store-discover"
@@ -34,11 +35,14 @@ export interface IndexStats {
   deleted: number
   skipped: number
   durationMs: number
+  /** workers = OS threads; inline = serialized main-thread WASM */
+  parseMode: "workers" | "inline"
+  parseWorkers: number
 }
 
 export interface BuildOptions {
   force?: boolean
-  /** Max concurrent file parses. Default: min(4, CPU count). */
+  /** Max concurrent file parses / worker count. Default: min(8, CPUs) via ParsePool. */
   concurrency?: number
 }
 
@@ -70,7 +74,7 @@ export async function mapPool<T>(
 }
 
 function defaultIndexConcurrency(): number {
-  return Math.min(4, Math.max(1, cpus().length || 1))
+  return defaultParseWorkerCount() || Math.min(4, Math.max(1, cpus().length || 1))
 }
 
 export async function buildCodeIndexSqlite(
@@ -88,54 +92,69 @@ export async function buildCodeIndexSqlite(
 
   const toIndex = [...stale.added, ...stale.modified]
   const concurrency = opts?.concurrency ?? defaultIndexConcurrency()
-  if (toIndex.length > 0) {
-    log.info(
-      `Indexing ${toIndex.length} file(s) with concurrency=${concurrency}` +
-        (stale.deleted.length ? ` (${stale.deleted.length} deleted)` : ""),
-    )
-    await mapPool(toIndex, concurrency, async (f) => {
-      await indexFile(db, root, f)
-    }, (done, total) => {
-      if (done === total || done % PROGRESS_EVERY === 0) {
-        log.info(`Index progress: ${done}/${total} files`)
-      }
-    })
-  }
+  const pool = await ParsePool.create(concurrency)
+  try {
+    if (toIndex.length > 0) {
+      log.info(
+        `Indexing ${toIndex.length} file(s) with concurrency=${concurrency}` +
+          ` parse=${pool.mode}` +
+          (stale.deleted.length ? ` (${stale.deleted.length} deleted)` : ""),
+      )
+      await mapPool(
+        toIndex,
+        concurrency,
+        async (f) => {
+          await indexFile(db, root, f, {
+            analyze: (content, file) => pool.analyze(content, file),
+          })
+        },
+        (done, total) => {
+          if (done === total || done % PROGRESS_EVERY === 0) {
+            log.info(`Index progress: ${done}/${total} files`)
+          }
+        },
+      )
+    }
 
-  if (stale.added.length || stale.modified.length) resolveEdges(db)
+    if (stale.added.length || stale.modified.length) resolveEdges(db)
 
-  const counts = db
-    .query(
-      `SELECT
-         (SELECT COUNT(*) FROM files) AS file_count,
-         (SELECT COUNT(*) FROM symbols) AS symbol_count,
-         (SELECT COUNT(*) FROM chunks) AS chunk_count,
-         (SELECT COUNT(*) FROM edges) AS edge_count,
-         (SELECT COUNT(*) FROM imports) AS import_count`,
-    )
-    .get() as {
-    file_count: number
-    symbol_count: number
-    chunk_count: number
-    edge_count: number
-    import_count: number
-  }
+    const counts = db
+      .query(
+        `SELECT
+           (SELECT COUNT(*) FROM files) AS file_count,
+           (SELECT COUNT(*) FROM symbols) AS symbol_count,
+           (SELECT COUNT(*) FROM chunks) AS chunk_count,
+           (SELECT COUNT(*) FROM edges) AS edge_count,
+           (SELECT COUNT(*) FROM imports) AS import_count`,
+      )
+      .get() as {
+      file_count: number
+      symbol_count: number
+      chunk_count: number
+      edge_count: number
+      import_count: number
+    }
 
-  return {
-    root,
-    dbPath: join(root, ".studio", "studio.db"),
-    parser: "treesitter",
-    builtAt: new Date().toISOString(),
-    fileCount: counts.file_count,
-    symbolCount: counts.symbol_count,
-    chunkCount: counts.chunk_count,
-    edgeCount: counts.edge_count,
-    importCount: counts.import_count,
-    added: stale.added.length,
-    modified: stale.modified.length,
-    deleted: stale.deleted.length,
-    skipped: stale.skipped,
-    durationMs: Date.now() - started,
+    return {
+      root,
+      dbPath: join(root, ".studio", "studio.db"),
+      parser: pool.mode === "workers" ? "treesitter-workers" : "treesitter",
+      builtAt: new Date().toISOString(),
+      fileCount: counts.file_count,
+      symbolCount: counts.symbol_count,
+      chunkCount: counts.chunk_count,
+      edgeCount: counts.edge_count,
+      importCount: counts.import_count,
+      added: stale.added.length,
+      modified: stale.modified.length,
+      deleted: stale.deleted.length,
+      skipped: stale.skipped,
+      durationMs: Date.now() - started,
+      parseMode: pool.mode,
+      parseWorkers: pool.workerCount,
+    }
+  } finally {
+    await pool.close()
   }
 }
 

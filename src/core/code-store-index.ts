@@ -3,7 +3,7 @@ import { readFileSync, statSync } from "fs"
 import { relative } from "path"
 import type { Database } from "bun:sqlite"
 import { analyzeWithTreeSitter, formatFileOutline, isAstSupported, extensionOf } from "./tree-sitter-parser"
-import type { AstSymbol } from "./tree-sitter-parser"
+import type { AstFileAnalysis, AstSymbol } from "./tree-sitter-parser"
 import { openStudioDb, queryOne, runQuery } from "./studio-db"
 import { fileHash, MAX_FILE_BYTES, type DiscoveredFile } from "./code-store-discover"
 
@@ -244,7 +244,17 @@ function upsertFile(
   return info.id
 }
 
-export async function indexFile(db: Database, _root: string, f: DiscoveredFile): Promise<void> {
+export type IndexFileOptions = {
+  /** Override AST analysis (e.g. OS-thread ParsePool). */
+  analyze?: (content: string, file: string) => Promise<AstFileAnalysis | null>
+}
+
+export async function indexFile(
+  db: Database,
+  _root: string,
+  f: DiscoveredFile,
+  opts?: IndexFileOptions,
+): Promise<void> {
   let content: string
   try {
     content = readFileSync(f.abs, "utf-8")
@@ -258,7 +268,8 @@ export async function indexFile(db: Database, _root: string, f: DiscoveredFile):
 
   let parsed: ParsedFile
   if (isAstSupported(f.rel)) {
-    const ast = await analyzeWithTreeSitter(content, f.rel)
+    const analyze = opts?.analyze ?? analyzeWithTreeSitter
+    const ast = await analyze(content, f.rel)
     if (ast) {
       parsed = shapeAstResults(ast.symbols, ast.imports, content, f.rel)
     } else {

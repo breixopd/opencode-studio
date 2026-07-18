@@ -23,7 +23,7 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 
 - Unified SQLite store (`.studio/studio.db`): code index + workspace + cost ledger + diagnostics
 - Graph queries: refs / importers / impact / hotspots + **monorepo** cross-package imports
-- Parallel index build (promise pool, configurable concurrency)
+- Parallel index build (**OS-thread WASM workers** via `worker_threads`; `STUDIO_PARSE_WORKERS=0` for inline fallback)
 - SDLC team + `/start-work` fan-out, verify gate, grind loop, council
 - Autonomous **studio_scout** + autonomy modes; `full` auto-creates tasks; security/deps collectors
 - **`full` requires risk accept** + TUI warning toast (`accept_autonomy_risk` / NL / `accept_risk:true`)
@@ -46,7 +46,6 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 | Priority | Item | Why |
 |----------|------|-----|
 | P1 | OpenCode **plugin API v2** migration | Wait until V2 is stable/out — transforms + client hooks may unlock harder budget stops |
-| P2 | True OS-thread WASM workers for parse | Promise pool ships first; revisit if monorepo index still bottlenecks |
 | P2 | Hard stop of LLM turns when over budget | Needs OpenCode hook that can abort generation; tool block + free routing is current best |
 
 Docs pointer: [docs/roadmap-notes.md](docs/roadmap-notes.md).

@@ -32,7 +32,7 @@ OpenCode host
 
 | Cluster | Examples |
 |---------|----------|
-| Code intelligence | `code-store`, `code-store-discover`, `code-store-index`, `code-query`, `tree-sitter-parser`, `monorepo` |
+| Code intelligence | `code-store`, `code-store-discover`, `code-store-index`, `parse-pool` (OS-thread WASM), `code-query`, `tree-sitter-parser`, `monorepo` |
 | Workspace / SDLC | `workspace-*`, plans, tasks, verify gate |
 | Cost / budget | `cost`, `budget`, `budget-intent`, `tool-output-budget` |
 | Autonomy | `scout/*`, `toast-bus`, `discipline`, `constitution` |
