@@ -64,6 +64,8 @@ Subagents get models automatically from your OpenCode picker + Zen catalog.
 | studio_preferences set_model_mode balanced | Default: cheap read-only, main model for implement |
 | studio_preferences set_model_mode quality | Main model on all agents |
 | studio_preferences set_prefer_local true | Route fast/read-only agents to Ollama/LM Studio/local |
+| studio_preferences set_session_budget 5 | Set spend cap (\$); 0 or disable_budget disables |
+| /budget 5 · /budget off · /onboard | Quick set/disable budget or first-run wizard |
 | studio_preferences set_semantic_recall true | Optional similar-chunk recall (sqlite-vec or FTS fallback) |
 | studio_models show | Catalog + provider change detection |
 | studio_models refresh_all | Re-sync after adding/removing providers |
