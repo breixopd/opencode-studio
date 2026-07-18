@@ -14,23 +14,7 @@ import * as log from "./logger"
 const LOG_TRUNCATE = 6_000
 const CI_TASK_TAG = /^\[ci:([^\]]+)\]\s*/
 
-/** Run a shell command, returning trimmed stdout. Prefer `gh()` for new code. */
-function shell(cmd: string, cwd: string, timeoutMs = 10_000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, { cwd, shell: true, timeout: timeoutMs })
-    let stdout = ""
-    let stderr = ""
-    proc.stdout?.on("data", (d) => (stdout += d.toString()))
-    proc.stderr?.on("data", (d) => (stderr += d.toString()))
-    proc.on("error", reject)
-    proc.on("close", (code) => {
-      if (code === 0) resolve(stdout.trim())
-      else reject(new Error(stderr.trim() || `${cmd} failed`))
-    })
-  })
-}
-
-/** Run `gh` with argv (no shell). Preferred for new CI watcher code. */
+/** Run `gh` with argv (no shell). */
 export function gh(args: string[], cwd: string, timeoutMs = 30_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn("gh", args, { cwd, shell: false, timeout: timeoutMs })
@@ -122,26 +106,7 @@ export async function checkCIStatus(cwd: string): Promise<CIStatus> {
       }
     }
   } catch (err) {
-    // Fallback for older gh / odd environments — keep shell path alive during migration.
-    try {
-      const out = await shell(
-        `gh run list --limit 10 --json name,status,conclusion,url --jq '.[] | "|\\(.name)|\\(.status)|\\(.conclusion)|\\(.url)"'`,
-        cwd,
-        10_000,
-      )
-      for (const line of out.split("\n")) {
-        if (!line.startsWith("|")) continue
-        const [, name, runStatus, conclusion, url] = line.split("|")
-        if (runStatus === "in_progress" || runStatus === "queued") {
-          status.hasActiveRuns = true
-          status.pendingRuns++
-        } else if (runStatus === "completed" && conclusion === "failure") {
-          status.failingWorkflows.push({ name, conclusion, url })
-        }
-      }
-    } catch (fallbackErr) {
-      log.debugCatch("src/core/ci-watcher.ts", fallbackErr ?? err)
-    }
+    log.debugCatch("src/core/ci-watcher.ts", err)
   }
 
   lastStatus = status

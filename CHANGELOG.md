@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.0.0-alpha.4 (2026-07-18)
+
+Platform audit Phase 0: docs site, safer verify/remote/CI, layering fixes.
+
+### Added
+- **`docs/`** site — getting started, budget, security, tools (catalog SSOT), architecture
+- **`core/remote-policy`**, **`core/council-intent`**, **`core/model-session`** (cycle breaks)
+
+### Security / correctness
+- Verify commands use `bun|npm|pnpm|yarn run <script>` / `deno task` (not raw package.json bodies)
+- Remote exec rejects shell chaining metacharacters; policy lives in core
+- `GITHUB_TOKEN` sent as Bearer on `studio_code_search`
+- CI watcher: removed `shell:true` fallback
+- Hooks no longer import tools (council intent in core)
+
+---
+
 ## v2.0.0-alpha.3 (2026-07-18)
 
 Budget UX polish: set or disable on first run, first-session confirm prompt, `/budget` + `/onboard` commands.

@@ -15,8 +15,9 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
 
 1. **Plugin** — in ~/.config/opencode/opencode.json:
    \`\`\`json
-   { "plugin": ["opencode-studio"] }
+   { "plugin": ["opencode-studio@alpha"] }
    \`\`\`
+   (Until stable, use dist-tag \`alpha\`; npm \`latest\` may still be 1.x.)
 2. **Build** — in plugin repo: \`bun run build\`, restart OpenCode.
 3. **First-run** — \`studio_setup({ action: "onboard", budget_usd: 5 })\` or \`disable_budget: true\` for unlimited. Soft **$5** until you confirm. Say \"budget \$10\" / \"disable budget\", or \`/budget\` / \`/onboard\`.
 4. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
@@ -78,9 +79,9 @@ When providers change, studio prompts you to run \`studio_models refresh_all\`.`
 
   workflow: `# SDLC workflow
 
-Slash commands: /start-work, /deep-dive, /research, /architect, /security, /review, /verify, /plan, /handoff, /smoke-test, /scout, /council
+Slash commands: /onboard, /budget, /help, /start-work, /deep-dive, /research, /architect, /security, /review, /plan, /verify, /handoff, /scout, /council, /council-plan, /smoke-test
 
-**Agents:** studio-explore, studio-research, studio-architect, studio-security, studio-implement, studio-review, studio-verify, studio-scout
+**Agents:** studio-explore, studio-research, studio-architect, studio-security, studio-implement, studio-review, studio-verify, studio-remote, studio-scout
 
 **Autonomy (default=suggest):** Agents surface polish/test/research opportunities via studio_scout without being asked.
 - \`studio_preferences set_autonomy full\` — act on findings when idle (verify-first)
@@ -91,7 +92,7 @@ Slash commands: /start-work, /deep-dive, /research, /architect, /security, /revi
 
 **Memory:** studio_brief, studio_remember, studio_memory, studio_context pin
 
-**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent.`,
+**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent. Budget: /budget 5 · /budget off · studio_preferences set_session_budget.`,
 
   cost: `# Cost ledger
 
@@ -161,10 +162,11 @@ Run \`studio_report\` and paste JSON when debugging.`,
 
 **Shipped:** SQLite FTS5 + graph, token budgets, cost ledger, remote/tunnel, SDLC agents,
 verify gate + grind, scout autonomy, local model preference, semantic recall (optional),
-council, CI watcher, constitution, browser verify, TUI, session spend caps,
+council, CI triage/watcher, constitution, browser verify, TUI, session spend caps,
 local OpenAI-compatible sidecar recipe.
 
-See \`ROADMAP.md\` for post-alpha priorities (worker parse pool, CI triage).`,
+See \`ROADMAP.md\` / \`docs/roadmap-notes.md\` for deferred items (OpenCode plugin API v2,
+OS-thread WASM parse workers, hard LLM turn abort when over budget).`,
 }
 
 export function helpText(topic?: string): string {

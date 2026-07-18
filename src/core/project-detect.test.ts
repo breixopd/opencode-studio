@@ -60,16 +60,69 @@ describe("project-detect", () => {
     expect(type.confidence).toBe("low")
   })
 
-  it("detects Node verify commands from package.json scripts", () => {
+  it("detects Node verify commands as npm run <name>, not raw script bodies", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({
       name: "app",
-      scripts: { test: "bun test", lint: "eslint .", typecheck: "tsc", build: "bun build" },
+      scripts: { test: "vitest run", lint: "eslint .", typecheck: "tsc", build: "esbuild src/index.ts" },
     }))
     const cmds = detectVerifyCommands(dir, "Node")
-    expect(cmds.test).toBe("bun test")
-    expect(cmds.lint).toBe("eslint .")
-    expect(cmds.typecheck).toBe("tsc")
-    expect(cmds.build).toBe("bun build")
+    expect(cmds.test).toBe("npm run test")
+    expect(cmds.lint).toBe("npm run lint")
+    expect(cmds.typecheck).toBe("npm run typecheck")
+    expect(cmds.build).toBe("npm run build")
+  })
+
+  it("prefers pnpm run when pnpm-lock.yaml is present", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({
+      name: "app",
+      scripts: { test: "vitest", lint: "eslint ." },
+    }))
+    writeFileSync(join(dir, "pnpm-lock.yaml"), "lockfileVersion: 9\n")
+    const cmds = detectVerifyCommands(dir, "Node")
+    expect(cmds.test).toBe("pnpm run test")
+    expect(cmds.lint).toBe("pnpm run lint")
+  })
+
+  it("prefers yarn run when yarn.lock is present", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({
+      name: "app",
+      scripts: { test: "jest" },
+    }))
+    writeFileSync(join(dir, "yarn.lock"), "# yarn lockfile v1\n")
+    const cmds = detectVerifyCommands(dir, "Node")
+    expect(cmds.test).toBe("yarn run test")
+  })
+
+  it("detects Bun verify commands as bun run <name>", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({
+      name: "app",
+      scripts: { test: "bun test", lint: "eslint .", build: "bun build ./src/index.ts" },
+    }))
+    writeFileSync(join(dir, "bun.lock"), "{}")
+    const cmds = detectVerifyCommands(dir, "Bun")
+    expect(cmds.test).toBe("bun run test")
+    expect(cmds.lint).toBe("bun run lint")
+    expect(cmds.build).toBe("bun run build")
+  })
+
+  it("detects Deno package.json scripts as deno task <name>", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({
+      name: "app",
+      scripts: { test: "deno test", lint: "deno lint" },
+    }))
+    const cmds = detectVerifyCommands(dir, "Deno")
+    expect(cmds.test).toBe("deno task test")
+    expect(cmds.lint).toBe("deno task lint")
+  })
+
+  it("detects Deno deno.json tasks as deno task <name>, not raw bodies", () => {
+    writeFileSync(join(dir, "deno.json"), JSON.stringify({
+      tasks: { test: "deno test -A", build: "deno compile main.ts" },
+    }))
+    const cmds = detectVerifyCommands(dir, "Deno")
+    expect(cmds.test).toBe("deno task test")
+    expect(cmds.build).toBe("deno task build")
+    expect(cmds.lint).toBe("deno lint") // default when no lint task
   })
 
   it("detects Rust verify commands", () => {
@@ -130,7 +183,7 @@ describe("project-detect", () => {
     writeFileSync(join(dir, ".prettierrc"), "{}")
     const tooling = detectTooling(dir)
     expect(tooling.projectType.ecosystem).toBe("Bun")
-    expect(tooling.verifyCommands.test).toBe("bun test")
+    expect(tooling.verifyCommands.test).toBe("bun run test")
     expect(tooling.formatter).toBe("prettier")
     expect(tooling.conventions.length).toBeGreaterThan(0)
   })

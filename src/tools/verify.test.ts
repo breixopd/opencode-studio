@@ -39,15 +39,19 @@ describe("studio_verify helpers", () => {
           test: "bun test",
           lint: "eslint .",
           typecheck: "tsc --noEmit",
-          build: "bun run build",
+          build: "bun build ./src/index.ts",
         },
       }),
     )
     const tooling = detectTooling(dir)
     expect(tooling.projectType.ecosystem).toBe("Bun")
     const cmds = detectCommands(dir)
-    expect(cmds.some((c) => c.includes("test"))).toBe(true)
-    expect(cmds.some((c) => c.toLowerCase().includes("eslint") || c.includes("lint"))).toBe(true)
+    expect(cmds).toContain("bun run test")
+    expect(cmds).toContain("bun run lint")
+    expect(cmds).toContain("bun run typecheck")
+    expect(cmds).toContain("bun run build")
+    // Never surface raw script bodies
+    expect(cmds.some((c) => c === "eslint ." || c === "bun test")).toBe(false)
   })
 
   it("filterVerifyCommands applies aliases for only=lint", () => {

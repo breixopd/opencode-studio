@@ -10,6 +10,7 @@ import { listRules, formatRules } from "./workspace-base"
 import { getActivePlan } from "./workspace-plans"
 import { listBranches, getActiveBranch } from "./workspace-branches"
 import { listPinnedContext } from "./workspace-base"
+import { incompleteTasks } from "./workspace-tasks"
 
 const MAX_PLAN_CONTEXT_CHARS = 12_000
 
@@ -82,7 +83,6 @@ function getVerifyStateSafe(): VerifyState | undefined {
   if (!row || !row.at) return undefined
   return { passed: row.passed === 1, at: row.at, commands: row.commands ? row.commands.split("\n").filter((l) => l.length > 0) : [] }
 }
-import { incompleteTasks } from "./workspace"
 
 export function studioContextBlocks(): string[] {
   return studioPersistentContext()

@@ -12,6 +12,7 @@ import {
 import { getActivePlan } from "./workspace"
 import { formatModelRef, parseModelRef, ZEN_PROVIDER } from "./model-registry"
 import { isModelExhausted, clearExhaustedModels } from "./model-fallback"
+import { getLastMainModel } from "./model-session"
 import { pickTierModelFromRegistry } from "./model-registry"
 import {
   CODE_AGENTS,
@@ -22,6 +23,7 @@ import {
 } from "./agent-tiers"
 export { ZEN_PROVIDER, parseModelRef, formatModelRef } from "./model-registry"
 export { STUDIO_AGENT_NAMES } from "./agent-tiers"
+export { getLastMainModel, setSessionMainModel } from "./model-session"
 function providerEnabled(config: Config, provider: string): boolean {
   if (config.disabled_providers?.includes(provider)) return false
   if (config.enabled_providers?.length) return config.enabled_providers.includes(provider)
@@ -247,15 +249,4 @@ export function describeRoutingForProvider(config: Config): string {
     "Per-agent overrides in opencode.json always win.",
     "On rate limits: tries other free Zen → paid Zen → your provider tier → main model.",
   ].join("\n")
-}
-/** Tracks the model the user picked in the OpenCode UI (per session + last known). */
-const bySession = new Map<string, string>()
-let lastMainModel: string | undefined
-export function setSessionMainModel(sessionID: string, providerID: string, modelID: string): void {
-  const ref = `${providerID}/${modelID}`
-  bySession.set(sessionID, ref)
-  lastMainModel = ref
-}
-export function getLastMainModel(): string | undefined {
-  return lastMainModel
 }

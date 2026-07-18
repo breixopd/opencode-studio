@@ -22,8 +22,12 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { getActivePlan } from "../core/workspace"
 import { detectTooling } from "../core/project-detect"
+import { COUNCIL_KEYWORD } from "../core/council-intent"
 import * as log from "../core/logger"
 import { getActiveDirectory } from "../core/active-dir"
+
+// Re-export for callers that imported from tools/council
+export { COUNCIL_KEYWORD, isCouncilTriggered } from "../core/council-intent"
 
 /** Review lenses — each provides a different perspective on the same code. */
 const REVIEW_LENSES = [
@@ -44,14 +48,6 @@ const REVIEW_LENSES = [
     focus: "Readability, naming, function length, duplication, test coverage, documentation. Will the next developer understand this? Flag: functions >50 lines, magic numbers, unclear naming, missing tests, commented-out code.",
   },
 ] as const
-
-/** Keyword that triggers the council from a chat prompt (no slash needed). */
-export const COUNCIL_KEYWORD = "council:"
-
-/** Check if a prompt contains the council keyword. */
-export function isCouncilTriggered(prompt: string): boolean {
-  return prompt.toLowerCase().includes(COUNCIL_KEYWORD)
-}
 
 export const studio_council: ToolDefinition = tool({
   description:

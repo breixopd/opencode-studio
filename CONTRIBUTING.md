@@ -7,47 +7,45 @@ bun install
 bun run build
 ```
 
+User-facing docs: [docs/](docs/) (getting started, budget, security, tools, architecture).
+
 ## Development
 
 ```bash
-bun run dev     # Watch mode -- rebuilds on source changes
+bun run dev     # Watch mode — rebuilds on source changes
 ```
 
 ## Testing
 
 ```bash
-bun test        # Run all tests with Bun's test runner
+bun test              # Run all tests (Bun test runner)
+bun run test:ci       # Isolated per-file runs (matches CI)
 ```
 
-Test files sit next to their source files with `.test.ts` suffix:
+CI uses `test:ci`: each `src/**/*.test.ts` file is executed separately with a 30s timeout so one hanging suite cannot starve the rest.
 
-- `src/core/cost.test.ts` — Cost ledger: capture, idempotency, filtering, pruning
-- `src/core/code-store.test.ts` — Incremental indexing, staleness, legacy JSON import
-- `src/core/code-query.test.ts` — FTS5 search, graph queries, budget retrieval
-- `src/core/workspace.test.ts` — Plans, tasks, rules, branches, handoffs (SQLite-backed)
-- `src/tunnel/manager.test.ts` — Tunnel lifecycle, port detection, auto-reconnect
-- `src/sync/watcher.test.ts` — File watching, batching, deduplication, exclusions
-- `src/sync/transfers.test.ts` — Bulk sync, incremental sync, remote delete
-- `src/ssh/manager.test.ts` — Session creation, command execution, file upload
-- `src/config/config.test.ts` — Config load/save, project CRUD, schema validation
+Test files sit next to their sources with a `.test.ts` suffix (50+ files under `src/`). Cover core (budget, cost, index, scout, workspace), tools, hooks, config, ssh, sync, and tunnel. Prefer adding tests beside the module you change rather than a separate top-level suite.
 
 ## Architecture
 
 **One SQLite database** (`.studio/studio.db`) holds all state:
-- Code intelligence: `files`, `symbols`, `chunks`, `edges`, `imports` + `fts_chunks` (FTS5 virtual table)
+
+- Code intelligence: `files`, `symbols`, `chunks`, `edges`, `imports` + `fts_chunks` (FTS5)
 - Workspace: `plans`, `tasks`, `rules`, `branches`, `handoffs`, `pinned_context`, `verify_state`
 - Cost ledger: `cost_events` (per-message token usage + $ cost)
 
-Connection is held for process lifetime (one per DB path). WAL mode + FTS5 enabled by default via `bun:sqlite`. No external dependencies.
+Connection is held for process lifetime (one per DB path). WAL mode + FTS5 via `bun:sqlite`.
 
-All state lives in `.studio/studio.db` — no JSON files, no legacy migration paths.
+**Query helpers** (`queryAll`, `queryOne`, `runQuery` in `studio-db.ts`) wrap `bun:sqlite`'s rest-param `.all(...params)` so callers can pass explicit arrays. Always use these instead of `db.query(sql).all([array])`.
 
-**Query helpers** (`queryAll`, `queryOne`, `runQuery` in `studio-db.ts`) wrap `bun:sqlite`'s rest-param `.all(...params)` so callers can pass explicit arrays. Always use these instead of `db.query(sql).all([array])` to avoid typecheck issues.
+Longer layer overview: [docs/architecture.md](docs/architecture.md). Tool metadata SSOT: `src/core/tool-catalog.ts`.
 
 ## Type Checking
 
 ```bash
 bunx tsc --noEmit
+# or
+bun run typecheck
 ```
 
 ## Build
@@ -60,37 +58,16 @@ bun run build   # Outputs to dist/
 
 ```
 src/
+  index.ts       Plugin entry — registers tools + hooks
+  tui.ts         Optional OpenCode TUI suite
   config/        Config system with Zod validation
-    config.ts    Config file read/save, project CRUD
-    schema.ts    Zod schemas for SSH, tunnel, project configs (incl. multi-remote)
-    defaults.ts  Default config values and exclude patterns
-    types.ts     TypeScript interfaces for all config types
-    index.ts     Public API exports
-  core/          Core logic (no I/O deps except where noted)
-    studio-db.ts Unified SQLite connection (code index + workspace + cost ledger)
-    studio-db-schema.sql  DDL reference (mirrored inline in studio-db.ts)
-    code-store.ts  Incremental indexing into SQLite (mtime+sha256 staleness)
-    code-query.ts  FTS5 search, graph queries (refs/impact/importers/hotspots)
-    cost.ts       Token cost ledger — capture from message.updated, query, prune
-    workspace.ts  Plans/tasks/rules/branches/handoffs/pins — backed by SQLite
-    branch-context.ts  Git branch detection + branch switch notice
-    discipline.ts Always-on studio discipline system prompt
-    token-budget.ts  Dedup, compact, truncate helpers
-    compress.ts   Large output compression with cache + path-traversal-safe retrieval
-    model-routing.ts Autonomous per-agent model routing (free/balanced/quality) + prefer_local
-    scout.ts         Autonomous improvement finder (injected unless autonomy=off)
+  core/          Domain logic (SQLite, index, budget, scout, routing, …)
+  hooks/         OpenCode plugin hooks
+  tools/         MCP tools (studio_*)
   ssh/           SSH session manager
   sync/          File sync engine
-  tunnel/        SSH tunnel w/ exponential-backoff watchdog + heartbeat
-  hooks/         OpenCode plugin hooks
-    session-start.ts  Event hook: cost capture, model fallback, auto-start
-    discipline.ts     System prompt stable-prefix ordering + scout injection
-    chat-message.ts   Model routing + rule capture + autonomy NL opt-out
-    chat-params.ts    Temperature tiering + prompt cache key
-    tool-guards.ts    Handoff gate + TDD gate hook
-    compaction*.ts    Compaction continue + context injection
-  tools/         MCP tools (studio_*)
-  src/index.ts   Plugin entry — registers all tools + hooks
+  tunnel/        SSH tunnel + watchdog
+docs/            Versioned user docs
 rules/           Bundled OpenCode rules and SKILL.md files
 ```
 
@@ -113,17 +90,15 @@ One commit per logical change. Keep subject lines under 72 characters.
 
 ## Pull Request Process
 
-1. Run isolated tests (`for f in src/**/*.test.ts; do bun test "$f" || exit 1; done`) and `bunx tsc --noEmit` to verify nothing is broken
+1. Run `bun run test:ci` and `bun run typecheck` (or `bunx tsc --noEmit`)
 2. Write a clear PR description covering what, why, and how you tested
 3. Link related issues with `Closes #123` or `Related to #456`
 4. Mark breaking changes with a `BREAKING CHANGE:` footer
 
 ## CI
 
-Two GitHub Actions workflows:
-
-- **CI** -- Triggers on push/PR to `main`. Runs `bun install`, `bun run build`, `bunx tsc --noEmit`, and isolated per-file `bun test`.
-- **Release** -- Triggers on `v*.*.*` tags. Runs CI steps then publishes to npm with `--access public`.
+- **CI** — push/PR to `main`: `bun install`, `bun run build`, typecheck, `bun run test:ci`
+- **Release** — `v*` tags: same checks, then `npm publish` (`alpha` dist-tag for prereleases)
 
 ## License
 

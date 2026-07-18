@@ -26,7 +26,8 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 - Parallel index build (promise pool, configurable concurrency)
 - SDLC team + `/start-work` fan-out, verify gate, grind loop, council
 - Autonomous **studio_scout** + autonomy modes; `full` auto-creates tasks; security/deps collectors
-- Default **$5 session budget** (clear with `0`); over-budget blocks tools + forces free/local routing
+- Default **$5 session budget** (soft until confirmed; disable with `0` / `/budget off` / `disable_budget`)
+- Over-budget: block non-allowlisted tools + force free/local routing (LLM turn abort still deferred — see Next)
 - First-run **`studio_setup action=onboard`** (local detect, prefer_local, budget, verify card)
 - Local model preference (connected Ollama / LM Studio / local — no hardcoded model ids)
 - Optional semantic recall (`set_semantic_recall`; sqlite-vec when present, else FTS overlap)
@@ -45,6 +46,8 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 | P1 | OpenCode **plugin API v2** migration | Wait until V2 is stable/out — transforms + client hooks may unlock harder budget stops |
 | P2 | True OS-thread WASM workers for parse | Promise pool ships first; revisit if monorepo index still bottlenecks |
 | P2 | Hard stop of LLM turns when over budget | Needs OpenCode hook that can abort generation; tool block + free routing is current best |
+
+Docs pointer: [docs/roadmap-notes.md](docs/roadmap-notes.md).
 
 ---
 

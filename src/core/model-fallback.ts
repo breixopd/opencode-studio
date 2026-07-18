@@ -7,7 +7,7 @@ import {
   PROVIDER_TIERS,
 } from "./model-catalog"
 import { formatModelRef, parseModelRef, ZEN_PROVIDER } from "./model-registry"
-import { getLastMainModel } from "./model-routing"
+import { getLastMainModel } from "./model-session"
 import * as log from "./logger"
 import { tierForAgent } from "./agent-tiers"
 

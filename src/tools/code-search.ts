@@ -7,14 +7,18 @@ interface CodeHit {
   snippet: string
 }
 
-/** Native GitHub code search — unauthenticated, rate-limited */
+/** Native GitHub code search — uses GITHUB_TOKEN when set for higher rate limits. */
 export async function searchGitHubCode(query: string, max = 8): Promise<CodeHit[]> {
   const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=${max}`
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "opencode-studio",
+  }
+  const token = process.env.GITHUB_TOKEN?.trim()
+  if (token) headers.Authorization = `Bearer ${token}`
+
   const res = await fetch(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "opencode-studio",
-    },
+    headers,
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {

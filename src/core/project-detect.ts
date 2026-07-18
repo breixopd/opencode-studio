@@ -198,19 +198,46 @@ export function detectProjectType(root: string): ProjectType {
   return { ecosystem, runner, confidence, markers: found }
 }
 
+/** Detect Node package manager from lockfiles (pnpm/yarn/bun/npm). */
+function detectNodePackageManager(root: string): "pnpm" | "yarn" | "bun" | "npm" {
+  if (existsSync(join(root, "pnpm-lock.yaml"))) return "pnpm"
+  if (existsSync(join(root, "yarn.lock"))) return "yarn"
+  if (existsSync(join(root, "bun.lock")) || existsSync(join(root, "bun.lockb"))) return "bun"
+  return "npm"
+}
+
+/**
+ * Runner-invoked script name — never the raw package.json / deno.json body.
+ * Safer for studio_verify (shell:true on `bun run X` vs arbitrary script bodies).
+ */
+function scriptInvoke(ecosystem: string, root: string, scriptName: string): string {
+  if (ecosystem === "Bun") return `bun run ${scriptName}`
+  if (ecosystem === "Deno") return `deno task ${scriptName}`
+  const pm = detectNodePackageManager(root)
+  if (pm === "pnpm") return `pnpm run ${scriptName}`
+  if (pm === "yarn") return `yarn run ${scriptName}`
+  if (pm === "bun") return `bun run ${scriptName}`
+  return `npm run ${scriptName}`
+}
+
 export function detectVerifyCommands(root: string, ecosystem: string): VerifyCommands {
-  // First check for npm/bun scripts in package.json (overrides ecosystem defaults)
+  // First check for npm/bun scripts in package.json (overrides ecosystem defaults).
+  // Return runner-invoked names, never raw script bodies.
   if (ecosystem === "Bun" || ecosystem === "Node" || ecosystem === "Deno") {
     try {
       const pkgPath = join(root, "package.json")
       if (existsSync(pkgPath)) {
         const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"))
         const scripts = pkg.scripts ?? {}
-        return {
-          test: scripts.test ?? null,
-          lint: scripts.lint ?? null,
-          typecheck: scripts.typecheck ?? null,
-          build: scripts.build ?? null,
+        const hasAny =
+          scripts.test || scripts.lint || scripts.typecheck || scripts.build
+        if (hasAny) {
+          return {
+            test: scripts.test ? scriptInvoke(ecosystem, root, "test") : null,
+            lint: scripts.lint ? scriptInvoke(ecosystem, root, "lint") : null,
+            typecheck: scripts.typecheck ? scriptInvoke(ecosystem, root, "typecheck") : null,
+            build: scripts.build ? scriptInvoke(ecosystem, root, "build") : null,
+          }
         }
       }
     } catch (err) {
@@ -219,7 +246,7 @@ export function detectVerifyCommands(root: string, ecosystem: string): VerifyCom
     }
   }
 
-  // Deno: use deno.json tasks if present
+  // Deno: use deno.json tasks if present — invoke via `deno task <name>`, not raw bodies
   if (ecosystem === "Deno") {
     const verify = VERIFY_COMMANDS["Deno"]
     try {
@@ -229,10 +256,10 @@ export function detectVerifyCommands(root: string, ecosystem: string): VerifyCom
           const cfg = JSON.parse(readFileSync(p, "utf-8"))
           const tasks = cfg.tasks ?? {}
           return {
-            test: tasks.test ?? verify.test,
-            lint: tasks.lint ?? verify.lint,
-            typecheck: tasks.check ?? verify.typecheck,
-            build: tasks.build ?? verify.build,
+            test: tasks.test ? "deno task test" : verify.test,
+            lint: tasks.lint ? "deno task lint" : verify.lint,
+            typecheck: tasks.check ? "deno task check" : verify.typecheck,
+            build: tasks.build ? "deno task build" : verify.build,
           }
         }
       }

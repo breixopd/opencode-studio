@@ -7,3 +7,4 @@ dist/
 .studio/
 .opencode/agents/
 *.tgz
+.audit/
