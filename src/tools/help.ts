@@ -53,11 +53,12 @@ Use \`studio_help topic=tools\` for the full catalog. Core code tools:
 - **studio_search** — DuckDuckGo (no key) or Tavily if TAVILY_API_KEY set
 - **studio_fetch** — URL → readable markdown (readability extraction)
 - **studio_crawl** — bounded same-origin crawl
-- **studio_code_search** — public GitHub only (not your repo)
+- **studio_code_search** — public GitHub (auth: GITHUB_TOKEN / GH_TOKEN / \`gh auth\` login)
 
 **Tips:**
 - \`studio_search scrape:true\` — fetches and extracts top 3 results
-- For local code always use studio_grep / studio_index, not studio_code_search`,
+- For local code always use studio_grep / studio_index, not studio_code_search
+- If code search returns 401: run \`gh auth login\` (same login CI triage uses)`,
 
   models: `# Model routing
 

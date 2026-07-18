@@ -2,14 +2,25 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure } from "../core/workspace"
 import { getActiveDirectory } from "../core/active-dir"
 import { gitExec as git } from "../core/git-exec"
+import { gh } from "../core/ci-watcher"
+import { resolveGitHubAuth } from "../core/github-auth"
 
 const MAX_DIFF_CHARS = 8000
 const MAX_LOG_LINES = 30
 
+/** Env so git HTTPS / gh credential helper can use the same system login. */
+async function gitRemoteEnv(): Promise<NodeJS.ProcessEnv> {
+  const { token, source } = await resolveGitHubAuth()
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+  if (token && source !== "GH_TOKEN" && !env.GH_TOKEN) env.GH_TOKEN = token
+  if (token && source !== "GITHUB_TOKEN" && !env.GITHUB_TOKEN) env.GITHUB_TOKEN = token
+  return env
+}
+
 export const studio_git: ToolDefinition = tool({
   description:
-    "Git management: status, diff, log, blame, commit (auto-generates message), stage, stash, branch create/switch, restore/rollback. " +
-      "Parsed, token-cheap output — not raw git.",
+    "Git management: status, diff, log, blame, commit, stage, stash, branch, restore, push/pull, and GitHub PRs via `gh`. " +
+      "Remote ops use GITHUB_TOKEN / GH_TOKEN / `gh auth` system login. Parsed, token-cheap output — not raw git.",
   args: {
     action: tool.schema
       .enum([
@@ -27,6 +38,11 @@ export const studio_git: ToolDefinition = tool({
         "branch_list",
         "restore",
         "show",
+        "push",
+        "pull",
+        "pr_create",
+        "pr_view",
+        "pr_list",
       ])
       .describe("Git action to perform"),
     files: tool.schema
@@ -36,15 +52,19 @@ export const studio_git: ToolDefinition = tool({
     message: tool.schema
       .string()
       .optional()
-      .describe("Commit message (for commit). If omitted, auto-generated from staged diff."),
+      .describe("Commit message (for commit) or PR body (for pr_create). If omitted for commit, auto-generated from staged diff."),
     ref: tool.schema
       .string()
       .optional()
-      .describe("Git ref — commit hash, branch name, or HEAD~N (for log, show, restore, branch_switch)"),
+      .describe("Git ref — commit hash, branch name, or HEAD~N (for log, show, restore, branch_switch, push)"),
     line_start: tool.schema
       .number()
       .optional()
       .describe("Start line for blame"),
+    title: tool.schema
+      .string()
+      .optional()
+      .describe("PR title (for pr_create)"),
   },
   async execute(args) {
     const cwd = getActiveDirectory()
@@ -223,6 +243,69 @@ export const studio_git: ToolDefinition = tool({
           const filesToRestore = args.files ?? ["."]
           await git(["restore", "--", ...filesToRestore], cwd)
           return `Restored ${filesToRestore.length} file(s) to HEAD`
+        }
+
+        // ——— Remote / GitHub (system auth via gh / tokens) ———
+
+        case "push": {
+          const env = await gitRemoteEnv()
+          const ref = args.ref ?? "HEAD"
+          const out = await git(["push", "-u", "origin", ref], cwd, 60_000, env)
+          return out || `Pushed ${ref} to origin (uses gh auth / GITHUB_TOKEN / credential helper).`
+        }
+
+        case "pull": {
+          const env = await gitRemoteEnv()
+          const out = await git(["pull", "--ff-only"], cwd, 60_000, env)
+          return out || "Already up to date."
+        }
+
+        case "pr_create": {
+          const title = args.title?.trim()
+          const body = args.message?.trim()
+          if (!title && !body) return "title or message required for pr_create"
+          const ghArgs = ["pr", "create"]
+          if (title) ghArgs.push("--title", title)
+          if (body) ghArgs.push("--body", body)
+          // Fill any omitted fields from commits / branch.
+          if (!title || !body) ghArgs.push("--fill")
+          try {
+            const out = await gh(ghArgs, cwd, 60_000)
+            return out || "PR created."
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            return `✗ pr_create failed: ${msg.slice(0, 2000)}\nHint: run \`gh auth login\` (or set GITHUB_TOKEN).`
+          }
+        }
+
+        case "pr_view": {
+          try {
+            const out = await gh(
+              ["pr", "view", "--json", "number,title,url,state,isDraft,headRefName,baseRefName,body", "--jq",
+                '"#\\(.number) \\(.title)\\n\\(.url)\\n\\(.state) draft=\\(.isDraft) \\(.headRefName) → \\(.baseRefName)\\n\\n\\(.body // "")"'],
+              cwd,
+              30_000,
+            )
+            return out || "No open PR for this branch."
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            return `✗ pr_view failed: ${msg.slice(0, 2000)}\nHint: run \`gh auth login\`.`
+          }
+        }
+
+        case "pr_list": {
+          try {
+            const out = await gh(
+              ["pr", "list", "--limit", "10", "--json", "number,title,url,headRefName",
+                "--jq", '.[] | "#\\(.number) \\(.title) (\\(.headRefName))\\n  \\(.url)"'],
+              cwd,
+              30_000,
+            )
+            return out || "No open pull requests."
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            return `✗ pr_list failed: ${msg.slice(0, 2000)}\nHint: run \`gh auth login\`.`
+          }
         }
 
         default:

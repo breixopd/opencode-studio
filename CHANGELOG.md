@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.0.0-alpha.6 (2026-07-18)
+
+GitHub system auth for code search + git remotes/PRs (stay on npm `alpha` for testing).
+
+### Added / fixed
+- **`resolveGitHubAuth`** — `GITHUB_TOKEN` → `GH_TOKEN` → `gh auth token` (keyring / `gh auth login`)
+- **`studio_code_search`** uses that auth (no longer requires a separate env-only token)
+- **`studio_git`** — `push`, `pull`, `pr_create`, `pr_view`, `pr_list` (git + `gh`; same system login)
+- **Doctor** `github_auth` check (warn if unsigned)
+
+---
+
 ## v2.0.0-alpha.5 (2026-07-18)
 
 Full-autonomy risk accept + toast, structure splits (oh-my patterns), security/UX leftovers.

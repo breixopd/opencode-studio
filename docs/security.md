@@ -90,6 +90,8 @@ Keep `.studio/` gitignored unless you explicitly allow commits via preferences.
 
 **Web tools:** `studio_fetch` / crawl are SSRF-aware. Optional `TAVILY_API_KEY` sends queries to Tavily.
 
+**GitHub auth:** `studio_code_search`, `studio_git` push/PR, and `studio_ci` use (in order) `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token` from your system `gh auth login`. No separate Studio-only credential.
+
 **Plugins:** OpenCode plugins run with your user privileges — audit third-party plugins before install.
 
 ## Hardening checklist

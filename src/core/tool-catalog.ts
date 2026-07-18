@@ -43,10 +43,10 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_grep", category: "Code", phase: 1, description: "Ripgrep search (instant, needs rg on PATH)", whenToUse: "for quick text search before building index" },
   { name: "studio_glob", category: "Code", phase: 1, description: "Find files by pattern (e.g. **/*.ts)", whenToUse: "to find files, not code content" },
   { name: "studio_symbols", category: "Code", phase: 1, description: "AST symbol index — search/file/outline/stats/rebuild", whenToUse: "for symbol-level navigation, not full-text search" },
-  { name: "studio_code_search", category: "Code", phase: 2, description: "Public GitHub code search (not local workspace)", whenToUse: "to find how others implement a pattern publicly" },
+  { name: "studio_code_search", category: "Code", phase: 2, description: "Public GitHub code search (GITHUB_TOKEN / GH_TOKEN / gh auth)", whenToUse: "to find how others implement a pattern publicly" },
 
   // ——— Git ————————————————
-  { name: "studio_git", category: "Git", phase: 10, description: "Git management: status, diff, log, blame, commit (auto-message), stash, branch, restore/rollback", whenToUse: "for any git operation — parsed output, not raw" },
+  { name: "studio_git", category: "Git", phase: 10, description: "Git + GitHub: status/diff/commit/push/pull/PR via gh system auth", whenToUse: "for any git operation — parsed output, not raw" },
 
   // ——— Web ————————————————
   { name: "studio_search", category: "Web", phase: 2, description: "Web search (DuckDuckGo keyless, Tavily if key) with scraping", whenToUse: "to research APIs, docs, solutions" },

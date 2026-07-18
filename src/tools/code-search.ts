@@ -1,4 +1,5 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
+import { resolveGitHubAuth } from "../core/github-auth"
 
 interface CodeHit {
   repo: string
@@ -7,14 +8,17 @@ interface CodeHit {
   snippet: string
 }
 
-/** Native GitHub code search — uses GITHUB_TOKEN when set for higher rate limits. */
+/**
+ * Native GitHub code search.
+ * Auth: GITHUB_TOKEN / GH_TOKEN / `gh auth token` (same login as `gh` / CI triage).
+ */
 export async function searchGitHubCode(query: string, max = 8): Promise<CodeHit[]> {
   const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=${max}`
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "User-Agent": "opencode-studio",
   }
-  const token = process.env.GITHUB_TOKEN?.trim()
+  const { token } = await resolveGitHubAuth()
   if (token) headers.Authorization = `Bearer ${token}`
 
   const res = await fetch(url, {
@@ -22,9 +26,21 @@ export async function searchGitHubCode(query: string, max = 8): Promise<CodeHit[
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `GitHub search HTTP ${res.status} — sign in with \`gh auth login\` or set GITHUB_TOKEN/GH_TOKEN`,
+      )
+    }
     throw new Error(`GitHub search HTTP ${res.status}`)
   }
-  const data = (await res.json()) as { items?: Array<{ name: string; path: string; html_url: string; repository?: { full_name: string } }> }
+  const data = (await res.json()) as {
+    items?: Array<{
+      name: string
+      path: string
+      html_url: string
+      repository?: { full_name: string }
+    }>
+  }
   return (data.items ?? []).map((item) => ({
     repo: item.repository?.full_name ?? "unknown",
     path: item.path,
@@ -34,7 +50,8 @@ export async function searchGitHubCode(query: string, max = 8): Promise<CodeHit[
 }
 
 export const studio_code_search: ToolDefinition = tool({
-  description: "Search public GitHub repos (requires GITHUB_TOKEN env for auth, otherwise 401) (not this workspace). For local code use studio_grep.",
+  description:
+    "Search public GitHub repos (uses GITHUB_TOKEN, GH_TOKEN, or `gh auth` system login — not this workspace). For local code use studio_grep.",
   args: {
     query: tool.schema.string().describe("Code search query"),
     count: tool.schema.number().optional().describe("Max results (default 8)"),

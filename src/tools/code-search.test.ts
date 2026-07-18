@@ -1,12 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test"
 import { searchGitHubCode } from "./code-search"
+import { clearGitHubTokenCache } from "../core/github-auth"
+import * as child_process from "child_process"
+import { EventEmitter } from "events"
 
 describe("searchGitHubCode", () => {
   const originalFetch = globalThis.fetch
-  const originalToken = process.env.GITHUB_TOKEN
+  const originalGithub = process.env.GITHUB_TOKEN
+  const originalGh = process.env.GH_TOKEN
   let lastHeaders: RequestInit["headers"] | undefined
+  let spawnSpy: ReturnType<typeof spyOn> | undefined
 
   beforeEach(() => {
+    clearGitHubTokenCache()
+    delete process.env.GITHUB_TOKEN
+    delete process.env.GH_TOKEN
     lastHeaders = undefined
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       lastHeaders = init?.headers
@@ -28,8 +36,12 @@ describe("searchGitHubCode", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
-    if (originalToken === undefined) delete process.env.GITHUB_TOKEN
-    else process.env.GITHUB_TOKEN = originalToken
+    clearGitHubTokenCache()
+    spawnSpy?.mockRestore()
+    if (originalGithub === undefined) delete process.env.GITHUB_TOKEN
+    else process.env.GITHUB_TOKEN = originalGithub
+    if (originalGh === undefined) delete process.env.GH_TOKEN
+    else process.env.GH_TOKEN = originalGh
   })
 
   it("sends Authorization Bearer when GITHUB_TOKEN is set", async () => {
@@ -43,8 +55,40 @@ describe("searchGitHubCode", () => {
     expect(headers.get("Accept")).toBe("application/vnd.github+json")
   })
 
-  it("omits Authorization when GITHUB_TOKEN is unset", async () => {
-    delete process.env.GITHUB_TOKEN
+  it("uses gh auth token when env unset", async () => {
+    spawnSpy = spyOn(child_process, "spawn").mockImplementation((() => {
+      const proc = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter
+        stderr: EventEmitter
+      }
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      queueMicrotask(() => {
+        proc.stdout.emit("data", Buffer.from("gho_cli_token\n"))
+        proc.emit("close", 0)
+      })
+      return proc as unknown as ReturnType<typeof child_process.spawn>
+    }) as typeof child_process.spawn)
+
+    await searchGitHubCode("foo", 1)
+    const headers = new Headers(lastHeaders)
+    expect(headers.get("Authorization")).toBe("Bearer gho_cli_token")
+  })
+
+  it("omits Authorization when env and gh unavailable", async () => {
+    spawnSpy = spyOn(child_process, "spawn").mockImplementation((() => {
+      const proc = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter
+        stderr: EventEmitter
+      }
+      proc.stdout = new EventEmitter()
+      proc.stderr = new EventEmitter()
+      queueMicrotask(() => {
+        proc.emit("close", 1)
+      })
+      return proc as unknown as ReturnType<typeof child_process.spawn>
+    }) as typeof child_process.spawn)
+
     await searchGitHubCode("foo", 1)
     const headers = new Headers(lastHeaders)
     expect(headers.get("Authorization")).toBeNull()

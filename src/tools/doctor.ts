@@ -18,9 +18,10 @@ import {
 import { getSemanticRecallStatus } from "../core/semantic-recall"
 import { getActiveDirectory } from "../core/active-dir"
 import { probeOllama } from "./setup"
+import { resolveGitHubAuth } from "../core/github-auth"
 
 /** Checks that may be not-ok without failing overall health (progressive disclosure). */
-const WARN_ONLY = new Set(["tunnel", "tasks", "verify_gate", "ollama", "onboard", "sync"])
+const WARN_ONLY = new Set(["tunnel", "tasks", "verify_gate", "ollama", "onboard", "sync", "github_auth"])
 
 type Check = { name: string; ok: boolean; detail: string; advisory?: boolean }
 
@@ -170,6 +171,17 @@ export const studio_doctor: ToolDefinition = tool({
       name: "ripgrep",
       ok: rgOk,
       detail: rgOk ? "studio_grep ready" : "install rg for local code search",
+    })
+
+    const ghAuth = await resolveGitHubAuth()
+    checks.push({
+      name: "github_auth",
+      ok: !!ghAuth.token,
+      detail: ghAuth.token
+        ? ghAuth.source === "gh"
+          ? "ok via `gh auth` — studio_code_search / studio_git remotes / studio_ci"
+          : `ok via ${ghAuth.source}`
+        : "not signed in — `gh auth login` or set GITHUB_TOKEN/GH_TOKEN (code search + git push/PR)",
     })
 
     // Real SQLite code-index health check (not just "is rg installed").
