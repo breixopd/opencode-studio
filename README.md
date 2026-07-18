@@ -56,6 +56,19 @@ Recommended local tool-calling models on modest hardware: **Qwen3.5 4B**, **Qwen
 
 `studio_scout` `studio_verify` `studio_index` `studio_cost` `studio_plan` `studio_task` `studio_handoff` `studio_preferences` `studio_doctor` `studio_help`
 
+## Publish / CI
+
+- Push to `main` → build + typecheck + **isolated per-file tests**
+- Tag `v*` → same tests, then `npm publish`
+  - Prerelease versions (`2.0.0-alpha.1`) → dist-tag `alpha` (does not move `latest`)
+  - Stable versions → dist-tag `latest`
+
+**npm auth:** Prefer [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) on the package settings:
+
+1. npmjs.com → `opencode-studio` → Settings → Trusted Publisher  
+2. GitHub user `breixopd`, repo `opencode-studio`, workflow filename **`ci.yml`**  
+3. Or refresh the `NPM_TOKEN` GitHub secret (granular token with publish permission)
+
 ```bash
 bun install && bun run build && bun test
 ```
