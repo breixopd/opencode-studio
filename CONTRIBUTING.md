@@ -113,7 +113,7 @@ One commit per logical change. Keep subject lines under 72 characters.
 
 ## Pull Request Process
 
-1. Run `bun test` and `bunx tsc --noEmit` to verify nothing is broken
+1. Run isolated tests (`for f in src/**/*.test.ts; do bun test "$f" || exit 1; done`) and `bunx tsc --noEmit` to verify nothing is broken
 2. Write a clear PR description covering what, why, and how you tested
 3. Link related issues with `Closes #123` or `Related to #456`
 4. Mark breaking changes with a `BREAKING CHANGE:` footer
@@ -122,7 +122,7 @@ One commit per logical change. Keep subject lines under 72 characters.
 
 Two GitHub Actions workflows:
 
-- **CI** -- Triggers on push/PR to `main`. Runs `bun install`, `bun run build`, `bunx tsc --noEmit`, `bun test`.
+- **CI** -- Triggers on push/PR to `main`. Runs `bun install`, `bun run build`, `bunx tsc --noEmit`, and isolated per-file `bun test`.
 - **Release** -- Triggers on `v*.*.*` tags. Runs CI steps then publishes to npm with `--access public`.
 
 ## License

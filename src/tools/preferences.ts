@@ -20,6 +20,7 @@ import {
 } from "../core/project-profile"
 import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
 import { invalidateScoutCache } from "../core/scout"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_preferences: ToolDefinition = tool({
   description:
@@ -78,7 +79,7 @@ export const studio_preferences: ToolDefinition = tool({
   },
   async execute(args) {
     const config = loadConfig()
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
     const name = args.project ?? findProjectNameForLocal(config, cwd)
 
     if (args.action === "show") {
@@ -134,8 +135,8 @@ export const studio_preferences: ToolDefinition = tool({
       clearStudioRoutedAgents()
       await refreshModelRouting()
       return `Prefer local models: ${prefer ? "yes" : "no"}. ` +
-        "Routes fast/read-only subagents to Ollama/LM Studio/local when connected. " +
-        "Recommended local tool-calling models: qwen3.5:4b, qwen3:8b, nemotron-nano:4b (via Ollama)."
+        "Routes fast/read-only subagents to Ollama/LM Studio/local when connected, " +
+        "picking from models you have loaded (no hardcoded model list)."
     }
 
     if (args.action === "set_session_budget") {

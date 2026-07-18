@@ -5,6 +5,7 @@ import {
   PROVIDER_TIERS,
   LOCAL_PROVIDERS,
   pickZenModelForTier,
+  pickListedModelForTier,
   fetchZenModelIds,
 } from "./model-catalog"
 import { getActivePlan } from "./workspace"
@@ -56,6 +57,12 @@ function pickFromProvider(
   if (provider === ZEN_PROVIDER) {
     const dynamic = pickZenModelForTier(tier, zenCatalog)
     if (dynamic) candidates.push(dynamic)
+  }
+  // Local providers: pick from models the user actually connected (no hardcoded ids).
+  if ((LOCAL_PROVIDERS as readonly string[]).includes(provider)) {
+    const listed = Object.keys(config.provider?.[provider]?.models ?? {})
+    const fromListed = pickListedModelForTier(listed, tier)
+    if (fromListed) candidates.push(fromListed)
   }
   if (table?.[tier]) candidates.push(table[tier])
   const fromRegistry = pickTierModelFromRegistry(provider, tier)
@@ -230,7 +237,7 @@ export function describeRoutingForProvider(config: Config): string {
     `Providers: ${providers.join(", ")}`,
     `Zen: ${zen ? "enabled — read-only agents prefer free tier" : "disabled — tiers use your provider tables"}`,
     `Prefer local: ${profile.preferLocalModels ? "yes" : "no"}${local ? ` (detected: ${local})` : ""}`,
-    "Local tip: Ollama qwen3.5:4b / qwen3:8b for tool calls on small machines; Cactus Needle for tiny sidekick routers.",
+    "Local tip: connect Ollama / LM Studio / an OpenAI-compatible local provider — routing picks from models you have loaded.",
     "Per-agent overrides in opencode.json always win.",
     "On rate limits: tries other free Zen → paid Zen → your provider tier → main model.",
   ].join("\n")

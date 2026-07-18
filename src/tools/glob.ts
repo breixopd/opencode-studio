@@ -4,6 +4,7 @@ import { statSync } from "fs"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { DEFAULT_EXCLUDES } from "../config/defaults"
 import { isRelativePathExcluded } from "../sync/excludes"
+import { getActiveDirectory } from "../core/active-dir"
 
 export interface GlobHit {
   path: string
@@ -12,7 +13,7 @@ export interface GlobHit {
 
 export function globWorkspace(
   pattern: string,
-  cwd = process.cwd(),
+  cwd = getActiveDirectory(),
   opts?: { max?: number; includeDirs?: boolean },
 ): GlobHit[] | { error: string } {
   const max = opts?.max ?? 200
@@ -49,7 +50,7 @@ export const studio_glob: ToolDefinition = tool({
     include_dirs: tool.schema.boolean().optional().describe("Include directories"),
   },
   async execute(args) {
-    const result = globWorkspace(args.pattern, process.cwd(), {
+    const result = globWorkspace(args.pattern, getActiveDirectory(), {
       max: args.max,
       includeDirs: args.include_dirs,
     })

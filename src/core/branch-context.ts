@@ -1,13 +1,14 @@
 import * as log from "./logger"
 import { execSync } from "child_process"
 import { openStudioDb, queryOne, runQuery } from "./studio-db"
+import { getActiveDirectory } from "./active-dir"
 
 // Cache the branch name for 10 seconds — avoids spawning `git rev-parse` on
 // every chat turn via the discipline hook. The cache is per-process.
 const BRANCH_CACHE_MS = 10_000
 const branchCache = new Map<string, { branch: string; at: number }>()
 
-export function currentBranch(root = process.cwd()): string {
+export function currentBranch(root = getActiveDirectory()): string {
   const cached = branchCache.get(root)
   if (cached && Date.now() - cached.at < BRANCH_CACHE_MS) return cached.branch
 
@@ -29,11 +30,11 @@ export function currentBranch(root = process.cwd()): string {
 }
 
 /** Invalidate the branch cache (call on file.edited or session.idle if needed). */
-export function invalidateBranchCache(root = process.cwd()): void {
+export function invalidateBranchCache(root = getActiveDirectory()): void {
   branchCache.delete(root)
 }
 
-export function branchScopeKey(root = process.cwd()): string {
+export function branchScopeKey(root = getActiveDirectory()): string {
   return `${root}:${currentBranch(root)}`
 }
 
@@ -42,7 +43,7 @@ export function branchScopeKey(root = process.cwd()): string {
  * Invalidates the cache to detect real git checkouts.
  * Returns the previous branch name if a switch happened, or null if no switch.
  */
-export function detectBranchSwitch(root = process.cwd()): string | null {
+export function detectBranchSwitch(root = getActiveDirectory()): string | null {
   invalidateBranchCache(root)
   const now = currentBranch(root)
   const db = openStudioDb(root)
@@ -66,7 +67,7 @@ let lastBranchCheck = 0
 const BRANCH_CHECK_INTERVAL_MS = 10_000
 
 /** Inject a notice into discipline output when the agent should be aware of a switch. */
-export function branchSwitchNotice(root = process.cwd()): string | null {
+export function branchSwitchNotice(root = getActiveDirectory()): string | null {
   // Throttle: skip if checked recently (the 10s branch cache covers us).
   const now = Date.now()
   if (now - lastBranchCheck < BRANCH_CHECK_INTERVAL_MS) return null

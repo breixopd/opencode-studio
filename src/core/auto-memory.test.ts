@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 import {
   saveMemory,
@@ -17,17 +18,15 @@ import {
 
 describe("auto-memory", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-mem-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -100,16 +99,15 @@ describe("routeScope", () => {
 
 describe("correction patterns", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-pat-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
+    closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 

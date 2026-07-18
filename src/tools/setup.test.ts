@@ -37,9 +37,15 @@ describe("studio_setup", () => {
     mockParseSSHConfig.mockClear()
     mockHosts = []
     savedConfig = null
+    mockLoadConfig.mockReturnValue({
+      ssh: { user: "", host: "", identityFile: "" },
+      tunnel: { localPort: 8443, remotePort: 8443, host: "" },
+      projects: {},
+      defaultExcludes: [".git/"],
+    })
   })
 
-  it("returns multiple hosts when SSH hosts are found and no host specified", async () => {
+  it("lists candidates without saving when no host specified", async () => {
     mockHosts = [
       { alias: "myserver", host: "myserver.example.com", user: "admin", identityFile: "/home/user/.ssh/id_rsa" },
       { alias: "devbox", host: "192.168.1.100", user: "dev" },
@@ -48,7 +54,7 @@ describe("studio_setup", () => {
     const result = await studio_setup.execute({}, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("multiple_hosts")
+    expect(parsed.status).toBe("candidates")
     expect(parsed.all_hosts).toHaveLength(2)
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
@@ -73,7 +79,7 @@ describe("studio_setup", () => {
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
-  it("re-detects with force:true", async () => {
+  it("force without host lists candidates and does not auto-save", async () => {
     mockLoadConfig.mockReturnValueOnce({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
@@ -86,9 +92,8 @@ describe("studio_setup", () => {
     const result = await studio_setup.execute({ force: true }, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("detected")
-    expect(parsed.detected_host.alias).toBe("newhost")
-    expect(mockSaveConfig).toHaveBeenCalledTimes(1)
+    expect(parsed.status).toBe("candidates")
+    expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
   it("returns no_hosts when SSH config is empty", async () => {
@@ -102,26 +107,36 @@ describe("studio_setup", () => {
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
-  it("uses alias as host when no hostname is set", async () => {
+  it("binds only when host is explicit", async () => {
     mockHosts = [{ alias: "bare-alias", host: "bare-alias", user: "testuser" }]
 
-    const result = await studio_setup.execute({}, ctx)
+    const result = await studio_setup.execute({ host: "bare-alias" }, ctx)
     const parsed = JSON.parse(result as string)
 
-    expect(parsed.status).toBe("detected")
-    expect(parsed.config.host).toBe("bare-alias")
-    expect(parsed.config.user).toBe("testuser")
+    expect(parsed.status).toBe("selected")
+    expect(parsed.host).toBe("bare-alias")
+    expect(mockSaveConfig).toHaveBeenCalledTimes(1)
+    expect((savedConfig as any).ssh.host).toBe("bare-alias")
+    expect((savedConfig as any).ssh.user).toBe("testuser")
   })
 
-  it("saves config with correct structure", async () => {
+  it("saves config with correct structure when host selected", async () => {
     mockHosts = [{ alias: "saved-host", host: "saved.example.com", user: "me", identityFile: "/home/me/.ssh/key" }]
 
-    await studio_setup.execute({}, ctx)
+    await studio_setup.execute({ host: "saved-host" }, ctx)
 
     expect(savedConfig).not.toBeNull()
     expect((savedConfig as any).ssh.host).toBe("saved.example.com")
     expect((savedConfig as any).ssh.user).toBe("me")
     expect((savedConfig as any).ssh.identityFile).toBe("/home/me/.ssh/key")
     expect((savedConfig as any).tunnel.host).toBe("saved.example.com")
+  })
+
+  it("returns not_found for unknown host", async () => {
+    mockHosts = [{ alias: "real", host: "real.example.com", user: "u" }]
+    const result = await studio_setup.execute({ host: "missing" }, ctx)
+    const parsed = JSON.parse(result as string)
+    expect(parsed.status).toBe("not_found")
+    expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 })

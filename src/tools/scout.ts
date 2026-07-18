@@ -1,6 +1,7 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { getAutonomyMode } from "../core/project-profile"
 import { formatScoutReport, invalidateScoutCache, runScout } from "../core/scout"
+import { getActiveDirectory } from "../core/active-dir"
 
 /**
  * studio_scout — autonomous improvement finder.
@@ -32,7 +33,7 @@ export const studio_scout: ToolDefinition = tool({
     }
 
     invalidateScoutCache()
-    const findings = runScout(process.cwd(), args.max ?? 8)
+    const findings = runScout(getActiveDirectory(), args.max ?? 8)
     return formatScoutReport(findings, mode)
   },
 })

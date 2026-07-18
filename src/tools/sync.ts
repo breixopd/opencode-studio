@@ -8,6 +8,7 @@ import { bulkSync, syncFile, syncDirectory, deleteRemoteFile } from "../sync/tra
 import type { SSHSession } from "../ssh/types"
 import { markSyncActive, clearSyncActive } from "../sync/active"
 import * as log from "../core/logger"
+import { getActiveDirectory } from "../core/active-dir"
 
 export { getActiveSyncProjects } from "../sync/active"
 
@@ -98,7 +99,7 @@ export const studio_sync_start: ToolDefinition = tool({
       const config = loadConfig()
       let projectName = args.project
       if (!projectName) {
-        const cwd = process.cwd()
+        const cwd = getActiveDirectory()
         projectName = Object.entries(config.projects).find(
           ([, p]) => cwd === p.local || cwd.startsWith(p.local + "/"),
         )?.[0]

@@ -13,6 +13,7 @@ import { syncRulesToAgentsMd } from "../core/agents-md-sync"
 import { syncAgentProfiles } from "../core/agent-profiles"
 import { ensureStudioGitignored } from "../core/gitignore"
 import { trackFileEdit, pruneOldFiles } from "../core/passive-context"
+import { getActiveDirectory } from "../core/active-dir"
 
 const handleFallback = createModelFallbackEventHandler()
 
@@ -84,7 +85,7 @@ export function createEventHook() {
 
         if (!props?.diagnostics?.length) {
           const file = props?.uri?.replace("file://", "") ?? props?.file
-          if (file) clearDiagnosticsForFiles(process.cwd(), [file])
+          if (file) clearDiagnosticsForFiles(getActiveDirectory(), [file])
           return
         }
 
@@ -102,7 +103,7 @@ export function createEventHook() {
             message: d.message!,
           }))
 
-        captureDiagnostics(process.cwd(), entries)
+        captureDiagnostics(getActiveDirectory(), entries)
         log.debug("lsp", `Captured ${entries.length} diagnostic entries for ${file}`)
       } catch (err) {
         log.debugCatch("lsp.diagnostics", err)
@@ -135,29 +136,11 @@ export function createEventHook() {
     // Sync studio rules to AGENTS.md on session creation only (not every message).
     if (input.event.type === "session.created") {
       try {
-        const synced = syncRulesToAgentsMd(process.cwd())
+        const synced = syncRulesToAgentsMd(getActiveDirectory())
         if (synced) log.info("Rules synced to AGENTS.md")
       } catch (err) {
       log.debugCatch("src/hooks/session-start.ts", err);
         /* best-effort sync */
-      }
-    }
-
-    // Sync OpenCode's todo system with studio tasks.
-    if (input.event.type === "todo.updated") {
-      try {
-        const props = input.event.properties as {
-          todo?: { content?: string; status?: string }
-        } | undefined
-        const todo = props?.todo
-        // OpenCode todo → studio task sync is a future enhancement.
-        // For now we observe but don't auto-create tasks.
-        if (todo?.content) {
-          log.debug(`OpenCode todo updated: ${todo.content} (${todo.status})`)
-        }
-      } catch (err) {
-      log.debugCatch("src/hooks/session-start.ts", err);
-        /* best-effort todo sync */
       }
     }
 
@@ -167,15 +150,15 @@ export function createEventHook() {
     try {
       const { loadUserProfile } = require("../core/project-profile")
       const profile = loadUserProfile()
-      ensureStudioGitignored(process.cwd(), profile.commitStudio ?? false)
+      ensureStudioGitignored(getActiveDirectory(), profile.commitStudio ?? false)
     } catch (err) {
       log.debugCatch("src/hooks/session-start.ts", err);
-      ensureStudioGitignored(process.cwd(), false)
+      ensureStudioGitignored(getActiveDirectory(), false)
     }
 
     // Sync agent profiles to .opencode/agents/ (dynamic — derived from AGENT_DEFS).
     try {
-      syncAgentProfiles(process.cwd())
+      syncAgentProfiles(getActiveDirectory())
     } catch (err) {
       log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort */
@@ -183,7 +166,7 @@ export function createEventHook() {
 
     // Auto-detect project type + conventions on session start.
     try {
-      const tooling = detectTooling(process.cwd())
+      const tooling = detectTooling(getActiveDirectory())
       if (tooling.conventions.length) {
         // Merge detected conventions into the profile (dedupes with existing).
         const profile = touchProjectProfile()
@@ -201,7 +184,7 @@ export function createEventHook() {
 
     // Prune stale diagnostics on session start.
     try {
-      pruneStaleDiagnostics(process.cwd())
+      pruneStaleDiagnostics(getActiveDirectory())
     } catch (err) {
       log.debugCatch("src/hooks/session-start.ts", err);
       /* best-effort */

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "../core/active-dir"
+import { closeStudioDb } from "../core/studio-db"
 import { resetWorkspaceCache } from "../core/workspace"
 
 const { studio_remember } = await import("./remember")
@@ -10,17 +12,16 @@ const ctx: any = null!
 
 describe("studio_remember", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-remember-tool-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
     resetWorkspaceCache()
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
+    closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
     resetWorkspaceCache()
   })

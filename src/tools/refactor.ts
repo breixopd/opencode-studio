@@ -1,6 +1,7 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { findReferences, searchSymbols, findImpactAnalysis } from "../core/code-index"
 import { listSymbolsInFile } from "../core/code-index"
+import { getActiveDirectory } from "../core/active-dir"
 
 /**
  * studio_refactor — code refactoring using the existing symbol graph.
@@ -35,7 +36,7 @@ export const studio_refactor: ToolDefinition = tool({
     max: tool.schema.number().optional().describe("Max results (default 30)"),
   },
   async execute(args) {
-    const root = process.cwd()
+    const root = getActiveDirectory()
     const max = args.max ?? 30
 
     switch (args.action) {

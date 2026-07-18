@@ -25,6 +25,7 @@ import {
   buildCodeIndexSqlite,
   type IndexStats,
 } from "./code-store"
+import { getActiveDirectory } from "./active-dir"
 
 export type { SymbolEntry, SymbolKind, SymbolIndex } from "./code-types"
 
@@ -54,7 +55,7 @@ export interface SymbolHit {
 let prefetchPromise: Promise<CodeIndex> | null = null
 
 export async function buildCodeIndex(
-  root = process.cwd(),
+  root = getActiveDirectory(),
   force = false,
 ): Promise<CodeIndex> {
   const stats: IndexStats = await buildCodeIndexSqlite(root, { force })
@@ -72,7 +73,7 @@ export async function buildCodeIndex(
   }
 }
 
-export function prefetchCodeIndex(root = process.cwd()): Promise<CodeIndex> {
+export function prefetchCodeIndex(root = getActiveDirectory()): Promise<CodeIndex> {
   if (!prefetchPromise) {
     prefetchPromise = buildCodeIndex(root).catch((err) => {
       prefetchPromise = null
@@ -84,7 +85,7 @@ export function prefetchCodeIndex(root = process.cwd()): Promise<CodeIndex> {
 
 export function searchSymbols(
   name: string,
-  root = process.cwd(),
+  root = getActiveDirectory(),
   opts?: { kind?: SymbolKind; max?: number },
 ): Promise<SymbolHit[]> {
   const hits = searchSymbolsSqlite(root, name, {
@@ -105,7 +106,7 @@ export function searchSymbols(
 
 export function listSymbolsInFile(
   file: string,
-  root = process.cwd(),
+  root = getActiveDirectory(),
 ): Promise<SymbolHit[]> {
   const hits = listSymbolsInFileSqlite(root, file)
   return Promise.resolve(
@@ -131,7 +132,7 @@ export interface SemanticHit {
 
 export function semanticCodeSearch(
   query: string,
-  root = process.cwd(),
+  root = getActiveDirectory(),
   opts?: { max?: number; pathPrefix?: string; rebuild?: boolean },
 ): Promise<SemanticHit[]> {
   const budget = (opts?.max ?? 12) * 800 // ~800 tokens per result, capped
@@ -153,13 +154,13 @@ export function semanticCodeSearch(
 
 export function researchCodebase(
   query: string,
-  root = process.cwd(),
+  root = getActiveDirectory(),
   opts?: { max?: number },
 ): Promise<string> {
   return Promise.resolve(researchCodebaseSqlite(root, query, opts))
 }
 
-export async function outlineFile(file: string, root = process.cwd()): Promise<string> {
+export async function outlineFile(file: string, root = getActiveDirectory()): Promise<string> {
   const norm = file.replace(/\\/g, "/")
   const abs = join(root, norm)
   const content = readFileSync(abs, "utf-8")
@@ -171,15 +172,15 @@ export async function outlineFile(file: string, root = process.cwd()): Promise<s
 }
 
 /** Graph queries — new in v2. */
-export function findReferences(name: string, root = process.cwd(), max = 50) {
+export function findReferences(name: string, root = getActiveDirectory(), max = 50) {
   return findRefs(root, name, max)
 }
-export function findFileImporters(file: string, root = process.cwd(), max = 50) {
+export function findFileImporters(file: string, root = getActiveDirectory(), max = 50) {
   return findImporters(root, file, max)
 }
-export function findImpactAnalysis(name: string, root = process.cwd(), maxDepth = 3, max = 50) {
+export function findImpactAnalysis(name: string, root = getActiveDirectory(), maxDepth = 3, max = 50) {
   return findImpact(root, name, maxDepth, max)
 }
-export function findArchitectureHotspots(root = process.cwd(), max = 20) {
+export function findArchitectureHotspots(root = getActiveDirectory(), max = 20) {
   return findHotspots(root, max)
 }

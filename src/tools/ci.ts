@@ -1,5 +1,6 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { checkCIStatus, startCIWatcher, stopCIWatcher, getCISummary, isGhAvailable } from "../core/ci-watcher"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_ci: ToolDefinition = tool({
   description:
@@ -11,7 +12,7 @@ export const studio_ci: ToolDefinition = tool({
       .describe("status=check CI now | start=begin background watching | stop=stop watching | summary=view cached status"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     switch (args.action) {
       case "status": {

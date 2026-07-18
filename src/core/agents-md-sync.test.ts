@@ -2,26 +2,25 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, readFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 import { addRule } from "./workspace-base"
 import { syncRulesToAgentsMd } from "./agents-md-sync"
 
 describe("agents-md-sync", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-agents-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
     // Need studio dirs + DB initialized
     const { ensureStudioDirs } = require("./studio-dir")
     ensureStudioDirs()
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 

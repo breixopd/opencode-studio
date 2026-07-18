@@ -1,5 +1,6 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { generateConstitution, writeConstitution, readConstitution, constitutionExists } from "../core/constitution"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_constitution: ToolDefinition = tool({
   description:
@@ -15,7 +16,7 @@ export const studio_constitution: ToolDefinition = tool({
       .describe("Extra rules to include in the constitution (for generate action)"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     switch (args.action) {
       case "status": {

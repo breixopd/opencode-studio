@@ -66,3 +66,30 @@ describe("autonomy mode preference", () => {
     setAutonomyMode("suggest")
   })
 })
+
+describe("materializeAutoActTasks", () => {
+  it("creates tagged tasks for high findings and is idempotent", () => {
+    const { mkdtempSync, rmSync } = require("fs") as typeof import("fs")
+    const { join } = require("path") as typeof import("path")
+    const { tmpdir } = require("os") as typeof import("os")
+    const { setActiveDirectory, clearActiveDirectory } = require("./active-dir") as typeof import("./active-dir")
+    const { closeStudioDb } = require("./studio-db") as typeof import("./studio-db")
+    const { incompleteTasks } = require("./workspace-tasks") as typeof import("./workspace-tasks")
+    const { materializeAutoActTasks } = require("./scout") as typeof import("./scout")
+
+    const dir = mkdtempSync(join(tmpdir(), "scout-auto-"))
+    setActiveDirectory(dir)
+    try {
+      const findings = sampleFindings()
+      const first = materializeAutoActTasks(findings)
+      expect(first.some((t) => t.title.includes("[scout:b]"))).toBe(true)
+      const second = materializeAutoActTasks(findings)
+      expect(second).toHaveLength(0)
+      expect(incompleteTasks().filter((t) => t.title.startsWith("[scout:b]")).length).toBe(1)
+    } finally {
+      clearActiveDirectory()
+      closeStudioDb(dir)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

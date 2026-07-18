@@ -18,7 +18,7 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
    { "plugin": ["opencode-studio"] }
    \`\`\`
 2. **Build** — in plugin repo: \`bun run build\`, restart OpenCode.
-3. **SSH (optional)** — ~/.ssh/config with a Host entry; studio auto-configures on first session.
+3. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
 4. **Verify** — \`studio_doctor\` or \`/smoke-test\`
 
 **Optional env (never required):**
@@ -66,7 +66,7 @@ Subagents get models automatically from your OpenCode picker + Zen catalog.
 | studio_models show | Catalog + provider change detection |
 | studio_models refresh_all | Re-sync after adding/removing providers |
 
-**Local / cost saving:** Connect Ollama (or LM Studio / OpenAI-compatible local). Recommended tool-calling models on small machines: \`qwen3.5:4b\`, \`qwen3:8b\`, \`nemotron-nano:4b\`. For tiny sidekick routers, Cactus Compute Needle (26M) via an OpenAI-compatible endpoint works as a \`local\` provider.
+**Local / cost saving:** Connect Ollama (or LM Studio / OpenAI-compatible local). Studio auto-routes to models you have loaded — no hardcoded local model list.
 
 When providers change, studio prompts you to run \`studio_models refresh_all\`.`,
 
@@ -149,9 +149,9 @@ Run \`studio_report\` and paste JSON when debugging.`,
 
 **Shipped:** SQLite FTS5 + graph, token budgets, cost ledger, remote/tunnel, SDLC agents,
 verify gate + grind, scout autonomy, local model preference, council, CI watcher, constitution,
-browser verify, TUI.
+browser verify, TUI, session spend caps (\`studio_preferences set_session_budget\`).
 
-See \`ROADMAP.md\` for post-alpha priorities (spend caps, worker parse pool, edge/local recipes).`,
+See \`ROADMAP.md\` for post-alpha priorities (worker parse pool, edge/local recipes).`,
 }
 
 export function helpText(topic?: string): string {

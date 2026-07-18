@@ -168,7 +168,11 @@ async function checkPages(baseUrl: string, routes: string[]): Promise<Array<{ ro
       continue
     }
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+      const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5000) })
+      if (res.status >= 300 && res.status < 400) {
+        results.push({ route, status: res.status, title: "", hasContent: false, error: "Redirect blocked (SSRF protection)" })
+        continue
+      }
       const html = await res.text()
       const hasContent = html.length > 100 && !html.includes("Cannot GET") && !html.includes("404")
       const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i)
@@ -226,6 +230,15 @@ export const studio_browser: ToolDefinition = tool({
     }
 
     if (args.action === "screenshot") {
+      // Same localhost-only policy as check/routes (screenshot previously skipped SSRF guard).
+      try {
+        const parsed = new URL(baseUrl)
+        if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost" && parsed.hostname !== "0.0.0.0") {
+          return "Only localhost URLs allowed for screenshot (SSRF protection)."
+        }
+      } catch {
+        return "Invalid URL"
+      }
       if (!chromePath) {
         return "System Chrome not found. Set STUDIO_CHROME_PATH or install google-chrome.\nScreenshot requires Chrome headless."
       }

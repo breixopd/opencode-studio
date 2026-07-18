@@ -4,6 +4,7 @@ import { existsSync } from "fs"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { isExcluded, isRelativePathExcluded } from "../sync/excludes"
 import { DEFAULT_EXCLUDES } from "../config/defaults"
+import { getActiveDirectory } from "../core/active-dir"
 
 export interface GrepHit {
   file: string
@@ -30,7 +31,7 @@ function hasRipgrep(): boolean {
 /** Search this repo with ripgrep — no index build, respects default excludes. */
 export function grepWorkspace(
   pattern: string,
-  cwd = process.cwd(),
+  cwd = getActiveDirectory(),
   opts?: { glob?: string; max?: number; ignoreCase?: boolean },
 ): GrepHit[] | { error: string } {
   if (!hasRipgrep()) {
@@ -94,7 +95,7 @@ export const studio_grep: ToolDefinition = tool({
     ignore_case: tool.schema.boolean().optional().describe("Case insensitive"),
   },
   async execute(args) {
-    const result = grepWorkspace(args.pattern, process.cwd(), {
+    const result = grepWorkspace(args.pattern, getActiveDirectory(), {
       glob: args.glob,
       max: args.max,
       ignoreCase: args.ignore_case,

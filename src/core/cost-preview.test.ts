@@ -2,27 +2,26 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 import { estimateRunCost, costPreviewBlock } from "./cost-preview"
 
 describe("cost-preview", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-cp-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 
   it("returns null when no plan and no tasks", () => {
-    const estimate = estimateRunCost(process.cwd())
+    const estimate = estimateRunCost(dir)
     expect(estimate).toBeNull()
   })
 
@@ -34,14 +33,14 @@ describe("cost-preview", () => {
     activatePlan("test-plan")
     createTask("task 1")
 
-    const estimate = estimateRunCost(process.cwd())
+    const estimate = estimateRunCost(dir)
     expect(estimate).not.toBeNull()
     expect(estimate!.confidence).toBe("low")
     expect(estimate!.estimatedCostUsd).toBeGreaterThan(0)
   })
 
   it("costPreviewBlock returns null when no plan", () => {
-    const block = costPreviewBlock(process.cwd())
+    const block = costPreviewBlock(dir)
     expect(block).toBeNull()
   })
 })

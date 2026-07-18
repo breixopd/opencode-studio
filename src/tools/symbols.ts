@@ -6,6 +6,7 @@ import {
   searchSymbols,
   type SymbolKind,
 } from "../core/code-index"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_symbols: ToolDefinition = tool({
   description:
@@ -23,7 +24,7 @@ export const studio_symbols: ToolDefinition = tool({
     max: tool.schema.number().optional().describe("Max results (default 40)"),
   },
   async execute(args) {
-    const root = process.cwd()
+    const root = getActiveDirectory()
 
     if (args.action === "rebuild") {
       const index = await buildCodeIndex(root, true)

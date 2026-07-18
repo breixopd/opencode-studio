@@ -16,7 +16,9 @@ import { workingSetContextBlock } from "../core/passive-context"
 import { checkPlanDrift } from "../core/plan-drift"
 import { scoutContextBlock } from "../core/scout"
 import { budgetContextBlock } from "../core/budget"
+import { sshSetupSuggestion } from "../core/auto"
 import * as log from "../core/logger"
+import { getActiveDirectory } from "../core/active-dir"
 
 /**
  * System prompt ordering for prompt-cache stability:
@@ -65,16 +67,16 @@ export function createDisciplineSystemHook() {
     const tasks = openTasksSystemBlock()
     if (tasks) { pushIfNotPresent(output.system, tasks); log.debugContext("tasks", tasks.length) }
 
-    const diags = diagnosticsContextBlock(process.cwd())
+    const diags = diagnosticsContextBlock(getActiveDirectory())
     if (diags) { pushIfNotPresent(output.system, diags); log.debugContext("diagnostics", diags.length) }
 
-    const resume = resumeCard(process.cwd())
+    const resume = resumeCard(getActiveDirectory())
     if (resume) { pushIfNotPresent(output.system, resume); log.debugContext("resume", resume.length) }
 
-    const costPreview = costPreviewBlock(process.cwd())
+    const costPreview = costPreviewBlock(getActiveDirectory())
     if (costPreview) { pushIfNotPresent(output.system, costPreview); log.debugContext("cost-preview", costPreview.length) }
 
-    const constitution = constitutionContextBlock(process.cwd())
+    const constitution = constitutionContextBlock(getActiveDirectory())
     if (constitution) { pushIfNotPresent(output.system, constitution); log.debugContext("constitution", constitution.length) }
 
     const ci = getCISummary()
@@ -89,7 +91,7 @@ export function createDisciplineSystemHook() {
     const branchNotice = branchSwitchNotice()
     if (branchNotice) { pushIfNotPresent(output.system, branchNotice); log.debugContext("branch", branchNotice.length) }
 
-    const grind = grindContextBlock(process.cwd())
+    const grind = grindContextBlock(getActiveDirectory())
     if (grind) { pushIfNotPresent(output.system, grind); log.debugContext("grind", grind.length) }
 
     // Passive context — recently edited files (auto-tracked, no user action needed).
@@ -101,11 +103,14 @@ export function createDisciplineSystemHook() {
     if (drift) { pushIfNotPresent(output.system, drift); log.debugContext("drift", drift.length) }
 
     // Autonomous scout — polish/test/research opportunities (respects autonomy opt-out).
-    const scout = scoutContextBlock(process.cwd())
+    const scout = scoutContextBlock(getActiveDirectory())
     if (scout) { pushIfNotPresent(output.system, scout); log.debugContext("scout", scout.length) }
 
     const budget = budgetContextBlock(_input.sessionID)
     if (budget) { pushIfNotPresent(output.system, budget); log.debugContext("budget", budget.length) }
+
+    const sshSuggest = sshSetupSuggestion()
+    if (sshSuggest) { pushIfNotPresent(output.system, sshSuggest); log.debugContext("ssh-suggest", sshSuggest.length) }
 
     const patterns = getRecurringCorrectionNotices()
     if (patterns) { pushIfNotPresent(output.system, patterns); log.debugContext("patterns", patterns.length) }

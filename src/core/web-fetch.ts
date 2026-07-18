@@ -7,6 +7,25 @@ const RETRY_STATUSES = new Set([429, 502, 503, 504])
 const PRIVATE_IP =
   /^(127\.|10\.|192\.168\.|169\.254\.|0\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc00:|fd00:|fe80:)/i
 
+/** True for private/link-local/loopback, including IPv4-mapped IPv6 (::ffff:127.0.0.1). */
+export function isPrivateOrLocalAddress(address: string): boolean {
+  const raw = address.toLowerCase().replace(/^\[|\]$/g, "")
+  if (PRIVATE_IP.test(raw)) return true
+  const mapped = raw.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
+  if (mapped?.[1]) return PRIVATE_IP.test(mapped[1])
+  // Compact hex form: ::ffff:7f00:1 → 127.0.0.1
+  const hexMapped = raw.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
+  if (hexMapped) {
+    const hi = parseInt(hexMapped[1]!, 16)
+    const lo = parseInt(hexMapped[2]!, 16)
+    if (!Number.isNaN(hi) && !Number.isNaN(lo)) {
+      const v4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+      return PRIVATE_IP.test(v4)
+    }
+  }
+  return false
+}
+
 export type FetchFormat = "text" | "markdown" | "llm"
 
 export interface SafeFetchResult {
@@ -60,7 +79,7 @@ export async function assertUrlSafe(url: string): Promise<void> {
   }
   const records = await lookup(host, { all: true })
   for (const r of records) {
-    if (PRIVATE_IP.test(r.address)) {
+    if (isPrivateOrLocalAddress(r.address)) {
       throw new Error(`Private network address blocked: ${host}`)
     }
   }
@@ -99,36 +118,61 @@ export async function safeFetch(
   rawUrl: string,
   opts?: { timeoutMs?: number; headers?: Record<string, string> },
 ): Promise<SafeFetchResult> {
-  const url = rewriteGithubBlobUrl(rawUrl)
+  let url = rewriteGithubBlobUrl(rawUrl)
   await assertUrlSafe(url)
-  const parsed = new URL(url)
-  await politeDelay(parsed.hostname)
-
   const timeoutMs = opts?.timeoutMs ?? 20_000
   const headers = { ...BROWSER_HEADERS, ...opts?.headers }
 
   let lastErr: Error | null = null
+  // Manual redirects so each hop is re-checked against the private-IP denylist
+  // (open redirect → 169.254.169.254 is a classic SSRF bypass with redirect:"follow").
+  const MAX_REDIRECTS = 5
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1000))
     try {
-      const res = await fetch(url, {
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok && RETRY_STATUSES.has(res.status) && attempt === 0) continue
-      const contentType = res.headers.get("content-type") ?? "text/plain"
-      const body = await readLimitedBody(res)
-      return {
-        url: rawUrl,
-        finalUrl: res.url,
-        status: res.status,
-        contentType,
-        body,
+      let current = url
+      let retryable = false
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        const parsed = new URL(current)
+        await politeDelay(parsed.hostname)
+        await assertUrlSafe(current)
+
+        const res = await fetch(current, {
+          headers,
+          redirect: "manual",
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+
+        if (res.status >= 300 && res.status < 400) {
+          const loc = res.headers.get("location")
+          if (!loc) throw new Error(`Redirect ${res.status} without Location`)
+          current = new URL(loc, current).toString()
+          continue
+        }
+
+        if (!res.ok && RETRY_STATUSES.has(res.status) && attempt === 0) {
+          retryable = true
+          break
+        }
+
+        const contentType = res.headers.get("content-type") ?? "text/plain"
+        const body = await readLimitedBody(res)
+        return {
+          url: rawUrl,
+          finalUrl: current,
+          status: res.status,
+          contentType,
+          body,
+        }
       }
+      if (retryable) continue
+      throw new Error(`Too many redirects (>${MAX_REDIRECTS})`)
     } catch (err) {
       lastErr = err as Error
-      if (attempt === 0) continue
+      if (attempt === 0 && !/Private network|localhost|Unsupported protocol|Invalid URL/.test(lastErr.message)) {
+        continue
+      }
+      throw lastErr
     }
   }
   throw lastErr ?? new Error("Fetch failed")

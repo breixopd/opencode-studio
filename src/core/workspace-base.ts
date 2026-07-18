@@ -6,6 +6,7 @@ import * as log from "./logger"
  * ensureMigrated, loadWorkspace/saveWorkspace/resetWorkspaceCache.
  */
 import { randomUUID } from "crypto"
+import { getActiveDirectory } from "./active-dir"
 import { openStudioDb, queryAll, queryOne, runQuery } from "./studio-db"
 import { ensureStudioDirs } from "./studio-dir"
 import {
@@ -23,6 +24,7 @@ import {
 import { currentBranch } from "./branch-context"
 
 // ——— Helpers ———————————————————————————————————
+
 
 function now(): string {
   return new Date().toISOString()
@@ -195,7 +197,7 @@ export function handoffFromRow(r: HandoffRow): StudioHandoff {
 // ——— DB connection + initialization ————————————————
 
 export function db() {
-  return openStudioDb(process.cwd())
+  return openStudioDb(getActiveDirectory())
 }
 
 export function ensureMigrated(): void {

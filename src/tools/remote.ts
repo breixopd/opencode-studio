@@ -12,7 +12,9 @@ import { parseSSHConfig } from "../config/ssh-config"
 export const studio_remote: ToolDefinition = tool({
   description:
     "Run a command on a remote host via SSH. Use for verify/tests/etc when the local box can't run the stack. " +
-      "Host aliases come from ~/.ssh/config.",
+      "Host aliases come from ~/.ssh/config. " +
+      "WARNING: remote exec is unrestricted and user-trusted — the command runs as the SSH user with no sandbox. " +
+      "Only run commands you would type yourself on that host.",
   args: {
     host: tool.schema
       .string()
@@ -24,6 +26,10 @@ export const studio_remote: ToolDefinition = tool({
       .describe("Timeout in seconds (default 120)"),
   },
   async execute(args) {
+    if (!args.command?.trim()) {
+      return "Empty command rejected. Provide a non-empty shell command to run on the remote host."
+    }
+
     const hosts = parseSSHConfig()
     const host = hosts.find((h) => h.alias === args.host || h.host === args.host)
     if (!host) {

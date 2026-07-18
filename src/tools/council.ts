@@ -23,6 +23,7 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { getActivePlan } from "../core/workspace"
 import { detectTooling } from "../core/project-detect"
 import * as log from "../core/logger"
+import { getActiveDirectory } from "../core/active-dir"
 
 /** Review lenses — each provides a different perspective on the same code. */
 const REVIEW_LENSES = [
@@ -65,7 +66,7 @@ export const studio_council: ToolDefinition = tool({
     goal: tool.schema.string().optional().describe("Goal description for plan council (e.g. 'Add rate limiting')"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     if (args.action === "status") {
       return councilStatus()

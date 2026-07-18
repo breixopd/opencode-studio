@@ -11,6 +11,7 @@ import { collectStudioRuntime } from "../core/studio-runtime"
 import { describeRoutingForProvider } from "../core/model-routing"
 import { loadModelRegistry } from "../core/model-registry"
 import { getPendingCatalogNotice } from "../core/project-profile"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_doctor: ToolDefinition = tool({
   description: "Health check: config, SSH, tunnel, sync, code index, model routing.",
@@ -34,10 +35,15 @@ export const studio_doctor: ToolDefinition = tool({
     })
 
     const sshReady = runtime.ssh.configured
+    const sshHosts = parseSSHConfig()
     checks.push({
       name: "ssh",
       ok: sshReady,
-      detail: sshReady ? `${config.ssh.user}@${config.ssh.host}` : "Add ~/.ssh/config hosts",
+      detail: sshReady
+        ? `${config.ssh.user}@${config.ssh.host}`
+        : sshHosts.length > 0
+          ? `Not bound — candidates: ${sshHosts.map((h) => h.alias).join(", ")}. Run studio_setup({ host })`
+          : "Add ~/.ssh/config hosts, then studio_setup({ host })",
     })
 
     if (sshReady) {
@@ -48,7 +54,6 @@ export const studio_doctor: ToolDefinition = tool({
       })
     }
 
-    const sshHosts = parseSSHConfig()
     checks.push({
       name: "ssh_hosts",
       ok: sshHosts.length > 0,
@@ -117,7 +122,7 @@ export const studio_doctor: ToolDefinition = tool({
     let indexStats: { fileCount: number; symbolCount: number; builtAt: string | null } | null = null
     try {
       const { getStats } = await import("../core/code-store")
-      indexStats = getStats(process.cwd())
+      indexStats = getStats(getActiveDirectory())
     } catch (err) {
       log.debugCatch("src/tools/doctor.ts", err);
       /* db not openable */

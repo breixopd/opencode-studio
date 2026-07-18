@@ -60,8 +60,9 @@ export function openStudioDb(root: string): Database {
   return db
 }
 
-export function closeStudioDb(root: string): void {
-  const dbPath = studioDbPath(root)
+export function closeStudioDb(rootOrDbPath: string): void {
+  // Accept either a project root or a cached db path key.
+  const dbPath = connections.has(rootOrDbPath) ? rootOrDbPath : studioDbPath(rootOrDbPath)
   const db = connections.get(dbPath)
   if (!db) return
   try {
@@ -75,7 +76,7 @@ export function closeStudioDb(root: string): void {
 }
 
 export function closeAllStudioDbs(): void {
-  for (const root of [...connections.keys()]) closeStudioDb(root)
+  for (const dbPath of [...connections.keys()]) closeStudioDb(dbPath)
 }
 
 process.on?.("beforeExit", () => closeAllStudioDbs())

@@ -2,6 +2,7 @@ import * as log from "../core/logger"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { readFileSync } from "fs"
 import { join } from "path"
+import { getActiveDirectory } from "../core/active-dir"
 
 /** Extract body lines of a TOML section whose header matches the pattern.
  *  Stops at the next line starting with [ (a new section header). */
@@ -38,7 +39,7 @@ export const studio_deps: ToolDefinition = tool({
       .describe("list=show all deps | audit=vulnerability scan (OSV.dev) | outdated=check for updates"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     switch (args.action) {
       case "list": {

@@ -5,6 +5,7 @@ import { homedir } from "os"
 import { basename, join } from "path"
 
 import type { StudioHandoff } from "./workspace-types"
+import { getActiveDirectory } from "./active-dir"
 
 const PROFILE_DIR = join(homedir(), ".config", "opencode-studio", "projects")
 const USER_PROFILE_PATH = join(homedir(), ".config", "opencode-studio", "user.json")
@@ -48,7 +49,7 @@ function ensureDirs(): void {
   mkdirSync(PROFILE_DIR, { recursive: true })
 }
 
-export function projectRoot(cwd = process.cwd()): string {
+export function projectRoot(cwd = getActiveDirectory()): string {
   let dir = cwd
   while (dir !== "/") {
     if (existsSync(join(dir, ".git"))) {
@@ -236,7 +237,7 @@ export function addGlobalRule(rule: string): string[] {
   return profile.globalRules
 }
 
-export function loadProjectProfile(cwd = process.cwd()): ProjectProfile {
+export function loadProjectProfile(cwd = getActiveDirectory()): ProjectProfile {
   ensureDirs()
   const root = projectRoot(cwd)
   const id = projectIdForPath(root)
@@ -268,7 +269,7 @@ export function saveProjectProfile(profile: ProjectProfile): void {
   writeFileSync(profilePath(profile.id), JSON.stringify(profile, null, 2), "utf-8")
 }
 
-export function touchProjectProfile(cwd = process.cwd()): ProjectProfile {
+export function touchProjectProfile(cwd = getActiveDirectory()): ProjectProfile {
   const profile = loadProjectProfile(cwd)
   profile.lastActive = now()
   saveProjectProfile(profile)
@@ -277,7 +278,7 @@ export function touchProjectProfile(cwd = process.cwd()): ProjectProfile {
 
 export function updateProjectBrief(
   patch: Partial<Pick<ProjectProfile, "summary" | "stack" | "conventions">>,
-  cwd = process.cwd(),
+  cwd = getActiveDirectory(),
 ): ProjectProfile {
   const profile = loadProjectProfile(cwd)
   if (patch.summary !== undefined) profile.summary = patch.summary
@@ -287,7 +288,7 @@ export function updateProjectBrief(
   return profile
 }
 
-export function recordMilestone(text: string, cwd = process.cwd()): ProjectProfile {
+export function recordMilestone(text: string, cwd = getActiveDirectory()): ProjectProfile {
   const profile = loadProjectProfile(cwd)
   const trimmed = text.trim()
   if (trimmed && !profile.completed.includes(trimmed)) {
@@ -297,7 +298,7 @@ export function recordMilestone(text: string, cwd = process.cwd()): ProjectProfi
   return profile
 }
 
-export function syncHandoffToProfile(handoff: StudioHandoff, cwd = process.cwd()): ProjectProfile {
+export function syncHandoffToProfile(handoff: StudioHandoff, cwd = getActiveDirectory()): ProjectProfile {
   const profile = loadProjectProfile(cwd)
   profile.lastHandoff = handoff.summary
   profile.lastActive = now()
@@ -317,7 +318,7 @@ export function syncHandoffToProfile(handoff: StudioHandoff, cwd = process.cwd()
   return profile
 }
 
-export function projectContextBlock(cwd = process.cwd()): string | null {
+export function projectContextBlock(cwd = getActiveDirectory()): string | null {
   const profile = loadProjectProfile(cwd)
   const user = loadUserProfile()
   const parts: string[] = []

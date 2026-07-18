@@ -11,19 +11,18 @@ import {
   projectContextBlock,
   addGlobalRule,
 } from "./project-profile"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 
 describe("project-profile", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-profile-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 

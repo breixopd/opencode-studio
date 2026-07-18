@@ -56,12 +56,9 @@ export function pickZenModelForTier(tier: ModelTier, catalog?: string[]): string
 }
 
 /**
- * Known cheap/strong models per provider when catalog isn't available.
- *
- * Local providers (ollama / lmstudio / local): prefer small tool-calling models
- * that fit modest hardware (≈4–8GB). Qwen3.5 4B / Qwen3 8B lead 2026 tool-call
- * evals; Nemotron Nano 4B is a strong alternative. Cactus Compute Needle (26M)
- * is ideal for tiny tool-routing sidekicks via an OpenAI-compatible endpoint.
+ * Known cheap/strong models per cloud provider when catalog isn't available.
+ * Local providers (ollama / lmstudio / local) are NOT hardcoded — routing picks
+ * from the models the user actually has connected via registry / config.provider.
  */
 export const PROVIDER_TIERS: Record<string, Record<ModelTier, string>> = {
   opencode: {
@@ -84,26 +81,26 @@ export const PROVIDER_TIERS: Record<string, Record<ModelTier, string>> = {
     code: "gemini-3.5-flash",
     reason: "gemini-3.1-pro",
   },
-  // Local / self-hosted — OpenAI-compatible endpoints
-  ollama: {
-    fast: "qwen3.5:4b",
-    code: "qwen3:8b",
-    reason: "qwen3:14b",
-  },
-  lmstudio: {
-    fast: "qwen3.5-4b",
-    code: "qwen3-8b",
-    reason: "qwen3-14b",
-  },
-  local: {
-    fast: "qwen3.5:4b",
-    code: "qwen3:8b",
-    reason: "qwen3:14b",
-  },
 }
 
 /** Providers treated as local/zero-cost for prefer_local routing. */
 export const LOCAL_PROVIDERS = ["ollama", "lmstudio", "local"] as const
+
+/** Pick a model id from a provider's listed models using tier keywords. */
+export function pickListedModelForTier(
+  modelIds: string[],
+  tier: ModelTier,
+): string | undefined {
+  if (!modelIds.length) return undefined
+  const keywordMatch = modelIds.find((id) => TIER_KEYWORDS[tier].test(id))
+  if (keywordMatch) return keywordMatch
+  // Prefer smaller ids for "fast" when no keyword hits (heuristic: shorter name / lower digits).
+  if (tier === "fast") {
+    const sorted = [...modelIds].sort((a, b) => a.length - b.length)
+    return sorted[0]
+  }
+  return modelIds[0]
+}
 
 export function resetZenCatalogCache(): void {
   zenCatalogCache = null

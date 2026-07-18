@@ -7,6 +7,7 @@ First public alpha of the SQLite rewrite. Publishes to npm as dist-tag **`alpha`
 ### Added
 
 - **`studio_scout`** + autonomy modes + `@studio-scout` / `/scout`
+- **`autonomy=full` auto-act** — materializes high/medium findings as `[scout:…]` tasks and mandates implement→verify
 - **Prefer local models** for cheap/read-only subagents
 - **Session spend cap** — `studio_preferences set_session_budget` (or say `budget $5`); blocks expensive tools when exceeded
 - Plugin binds OpenCode `directory` (worktree-aware) via active-dir
@@ -32,7 +33,7 @@ First public alpha. Includes the full SQLite rewrite formerly developed on `v2-b
 - **`studio_scout`** — autonomous improvement scout (verify failures, test gaps, polish, hotspots, open concerns)
 - **Autonomy modes** — `studio_preferences set_autonomy full|suggest|off` (default `suggest`); natural language: "don't scout" / "be proactive"
 - **`@studio-scout`** agent + `/scout` command
-- **Prefer local models** — `studio_preferences set_prefer_local true` routes fast/read-only subagents to Ollama / LM Studio / local
+- **Prefer local models** — `studio_preferences set_prefer_local true` routes fast/read-only subagents to connected Ollama / LM Studio / local providers (picks from models you have loaded)
 - Discipline + help updated for verify-first autonomous development
 
 ### Docs

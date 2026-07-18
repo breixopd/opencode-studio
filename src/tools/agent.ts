@@ -5,6 +5,7 @@ import {
   listAgentProfiles,
   removeCustomAgent,
 } from "../core/agent-profiles"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_agent: ToolDefinition = tool({
   description:
@@ -23,7 +24,7 @@ export const studio_agent: ToolDefinition = tool({
     model: tool.schema.string().optional().describe("Model override (e.g. anthropic/claude-sonnet-4)"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     switch (args.action) {
       case "list": {

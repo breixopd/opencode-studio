@@ -11,6 +11,7 @@ import {
   listWorktrees,
   mergeWorktree,
 } from "../core/worktree"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_branch: ToolDefinition = tool({
   description:
@@ -60,20 +61,20 @@ export const studio_branch: ToolDefinition = tool({
 
     if (args.action === "worktree_create") {
       if (!args.title) return "title (worktree name) required for worktree_create"
-      const cwd = process.cwd()
+      const cwd = getActiveDirectory()
       const wt = await createWorktree(cwd, args.title, args.base_branch)
       return `Worktree created:\n  Path: ${wt.path}\n  Branch: ${wt.branch}\n  Created at: ${wt.createdAt}\n\nUse this path as the working directory for a parallel @studio-implement agent.`
     }
 
     if (args.action === "worktree_list") {
-      const cwd = process.cwd()
+      const cwd = getActiveDirectory()
       const wts = await listWorktrees(cwd)
       if (!wts.length) return "No studio worktrees."
       return wts.map((w) => `${w.branch} — ${w.path}`).join("\n")
     }
 
     if (args.action === "worktree_merge") {
-      const cwd = process.cwd()
+      const cwd = getActiveDirectory()
       const wts = await listWorktrees(cwd)
       const target = wts.find((w) => args.id && (w.branch === args.id || w.path.includes(args.id)))
       if (!target) return `Worktree not found: ${args.id}. Run worktree_list to see available worktrees.`
@@ -82,7 +83,7 @@ export const studio_branch: ToolDefinition = tool({
     }
 
     if (args.action === "worktree_remove") {
-      const cwd = process.cwd()
+      const cwd = getActiveDirectory()
       const wts = await listWorktrees(cwd)
       const target = wts.find((w) => args.id && (w.branch === args.id || w.path.includes(args.id)))
       if (!target) return `Worktree not found: ${args.id}. Run worktree_list to see available worktrees.`

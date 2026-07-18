@@ -7,7 +7,7 @@
  * files without merge conflicts.
  */
 import { spawn } from "child_process"
-import { join } from "path"
+import { join, resolve, sep } from "path"
 import { existsSync, mkdirSync } from "fs"
 import * as log from "./logger"
 
@@ -47,8 +47,12 @@ export async function createWorktree(
   const wtDir = join(root, WORKTREE_DIR)
   if (!existsSync(wtDir)) mkdirSync(wtDir, { recursive: true })
 
-  const branchName = `studio/${name.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.\./g, "_")}`
-  const wtPath = join(wtDir, name)
+  const slug = name.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.\./g, "_").replace(/^_+|_+$/g, "") || "wt"
+  const branchName = `studio/${slug}`
+  const wtPath = resolve(wtDir, slug)
+  if (!wtPath.startsWith(resolve(wtDir) + sep) && wtPath !== resolve(wtDir)) {
+    throw new Error(`Invalid worktree name: ${name}`)
+  }
 
   // Create branch (from base if specified, else from HEAD) and worktree.
   const base = baseBranch ?? (await git(["rev-parse", "--abbrev-ref", "HEAD"], root))

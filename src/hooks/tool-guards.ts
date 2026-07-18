@@ -3,6 +3,7 @@ import { join } from "path"
 import { canHandoff, getActiveTasks } from "../core/workspace"
 import { assertBudgetAllowsTool } from "../core/budget"
 import * as log from "../core/logger"
+import { getActiveDirectory } from "../core/active-dir"
 
 /**
  * Tool guards — pre-execution checks that prevent common mistakes.
@@ -34,7 +35,7 @@ export function createToolGuardsHook() {
       const task = tasks.find((t) => t.status === "in_progress") ?? tasks[0]
       if (!task) return
 
-      const testExists = findTestForTask(task.title, process.cwd())
+      const testExists = findTestForTask(task.title, getActiveDirectory())
       if (!testExists) {
         log.warn(
           `TDD gate: no test file found for active task '${task.title}'. Consider writing a test first (TDD), then re-run studio_verify.`,

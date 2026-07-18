@@ -18,22 +18,21 @@ import {
   pinContext,
   listPinnedContext,
 } from "./workspace"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 
 describe("workspace", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-ws-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
     resetWorkspaceCache()
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
     resetWorkspaceCache()
   })

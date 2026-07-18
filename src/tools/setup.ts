@@ -19,18 +19,22 @@ function applyHost(existing: StudioConfig, selected: ReturnType<typeof parseSSHC
   }
 }
 
+function hostSummaries(hosts: ReturnType<typeof parseSSHConfig>) {
+  return hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile }))
+}
+
 export const studio_setup: ToolDefinition = tool({
   description:
-    "First-time setup wizard for opencode-studio. Auto-detects SSH hosts from ~/.ssh/config and helps configure remote development.",
+    "First-time setup wizard for opencode-studio. Lists SSH hosts from ~/.ssh/config and binds only when you pass host=<alias> explicitly (nothing is auto-saved on session start).",
   args: {
     force: tool.schema
       .boolean()
       .optional()
-      .describe("Force re-detection even if config exists"),
+      .describe("Force re-bind even if SSH is already configured (still requires host)"),
     host: tool.schema
       .string()
       .optional()
-      .describe("SSH host alias to use (from ~/.ssh/config). If omitted, auto-selects the first host with key-based auth."),
+      .describe("SSH host alias to bind (from ~/.ssh/config). Required to persist — omit to list candidates only."),
   },
   async execute(args) {
     const existing = loadConfig()
@@ -47,50 +51,36 @@ export const studio_setup: ToolDefinition = tool({
       return JSON.stringify({
         status: "already_configured",
         ssh: { host: existing.ssh.host, user: existing.ssh.user, port: existing.ssh.port },
-        message: "Studio is already configured. Use studio_setup({ force: true }) to re-detect or studio_setup({ host: '<alias>' }) to switch hosts.",
+        all_hosts: hostSummaries(hosts),
+        message:
+          "Studio is already configured. Use studio_setup({ host: '<alias>', force: true }) to switch hosts.",
       })
     }
 
-    if (args.host) {
-      const selected = hosts.find((h) => h.alias === args.host)
-      if (!selected) {
-        return JSON.stringify({
-          status: "not_found",
-          requested: args.host,
-          all_hosts: hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile })),
-          message: `Host '${args.host}' not found in ~/.ssh/config. Available: ${hosts.map((h) => h.alias).join(", ")}`,
-        })
-      }
-      saveConfig(applyHost(existing, selected))
+    if (!args.host) {
       return JSON.stringify({
-        status: "selected",
-        host: selected.alias,
-        all_hosts: hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile })),
-        message: `Selected '${selected.alias}' (${selected.user}@${selected.host}). Run studio_status to verify.`,
+        status: "candidates",
+        all_hosts: hostSummaries(hosts),
+        message: `Found ${hosts.length} SSH host(s). Confirm with studio_setup({ host: "<alias>" }) — nothing was saved.`,
       })
     }
 
-    const keyHosts = hosts.filter((h) => h.identityFile && h.host)
-    const hasMultiple = keyHosts.length > 1 || hosts.length > 1
-
-    if (hasMultiple && !args.force) {
+    const selected = hosts.find((h) => h.alias === args.host)
+    if (!selected) {
       return JSON.stringify({
-        status: "multiple_hosts",
-        all_hosts: hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile })),
-        message: `Found ${hosts.length} SSH hosts. Which would you like to use? Use studio_setup({ host: "<alias>" }) to select.`,
+        status: "not_found",
+        requested: args.host,
+        all_hosts: hostSummaries(hosts),
+        message: `Host '${args.host}' not found in ~/.ssh/config. Available: ${hosts.map((h) => h.alias).join(", ")}`,
       })
     }
 
-    const first = keyHosts[0] || hosts[0]
-    const config = applyHost(existing, first)
-    saveConfig(config)
-
+    saveConfig(applyHost(existing, selected))
     return JSON.stringify({
-      status: "detected",
-      detected_host: first,
-      all_hosts: hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile })),
-      config: { host: config.ssh.host, user: config.ssh.user, port: config.ssh.port ?? config.tunnel.localPort },
-      message: `Auto-detected '${first.alias}' as default. Use studio_setup({ host: "<alias>" }) to change.`,
+      status: "selected",
+      host: selected.alias,
+      all_hosts: hostSummaries(hosts),
+      message: `Selected '${selected.alias}' (${selected.user}@${selected.host}). Run studio_status to verify.`,
     })
   },
 })

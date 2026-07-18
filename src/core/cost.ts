@@ -11,6 +11,7 @@ import * as log from "./logger"
  * This module records each one. The `studio_cost` tool queries the ledger.
  */
 import type { SQLQueryBindings } from "bun:sqlite"
+import { getActiveDirectory } from "./active-dir"
 import { openStudioDb, queryAll, runQuery } from "./studio-db"
 import { currentBranch } from "./branch-context"
 import { getActivePlanId, getActiveTasks } from "./workspace"
@@ -72,17 +73,27 @@ export function recordCostEvent(msg: {
   mode?: string
 }): void {
   setLastCostSessionId(msg.sessionID)
-  const d = openStudioDb(process.cwd())
+  const d = openStudioDb(getActiveDirectory())
   const branch = currentBranchSafe()
   const taskId = activeTaskIdSafe()
 
   runQuery(
     d,
-    `INSERT OR IGNORE INTO cost_events
+    `INSERT INTO cost_events
      (session_id, message_id, agent, provider_id, model_id,
       tokens_input, tokens_output, tokens_reasoning,
       cache_read, cache_write, cost_usd, branch, cwd, task_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(message_id) DO UPDATE SET
+       tokens_input = excluded.tokens_input,
+       tokens_output = excluded.tokens_output,
+       tokens_reasoning = excluded.tokens_reasoning,
+       cache_read = excluded.cache_read,
+       cache_write = excluded.cache_write,
+       cost_usd = excluded.cost_usd,
+       agent = excluded.agent,
+       provider_id = excluded.provider_id,
+       model_id = excluded.model_id`,
     [
       msg.sessionID,
       msg.id,
@@ -109,7 +120,7 @@ export function getCostSummary(opts?: {
   sinceMs?: number
   branch?: string
 }): CostSummary {
-  const d = openStudioDb(process.cwd())
+  const d = openStudioDb(getActiveDirectory())
   const where: string[] = []
   const params: SQLQueryBindings[] = []
 
@@ -236,7 +247,7 @@ export function formatCostSummary(summary: CostSummary): string {
 /** Clear cost events older than `daysOld` (housekeeping). */
 export function pruneOldCostEvents(daysOld = 30): number {
   const cutoff = Date.now() - daysOld * 24 * 60 * 60 * 1000
-  const d = openStudioDb(process.cwd())
+  const d = openStudioDb(getActiveDirectory())
   const result = runQuery(d, "DELETE FROM cost_events WHERE created_at < ?", [cutoff])
   return result.changes
 }

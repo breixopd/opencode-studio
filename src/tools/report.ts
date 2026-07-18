@@ -19,6 +19,7 @@ import {
   loadWorkspace,
 } from "../core/workspace"
 import { loadProjectProfile } from "../core/project-profile"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_report: ToolDefinition = tool({
   description:
@@ -42,7 +43,7 @@ export const studio_report: ToolDefinition = tool({
     const plan = getActivePlan()
     const report = {
       generatedAt: new Date().toISOString(),
-      cwd: process.cwd(),
+      cwd: getActiveDirectory(),
       runtime,
       routing: {
         modelMode: getModelMode(),

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 import {
   generateConstitution,
@@ -13,22 +14,20 @@ import {
 
 describe("constitution", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-const-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 
   it("constitutionExists returns false when no constitution", () => {
-    expect(constitutionExists(process.cwd())).toBe(false)
+    expect(constitutionExists(dir)).toBe(false)
   })
 
   it("generateConstitution produces content with project type", () => {

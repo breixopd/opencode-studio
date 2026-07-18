@@ -1,4 +1,5 @@
 import { tierForAgent } from "../core/agent-tiers"
+import { getActiveDirectory } from "../core/active-dir"
 
 /**
  * Chat params hook — temperature tiering + prompt-cache key.
@@ -35,6 +36,6 @@ export function createChatParamsHook() {
     // Both Anthropic and OpenAI benefit from stable prompt prefixes; this key
     // helps identify what CAN be cached. The actual caching is driven by the
     // stable-prefix ordering in the discipline hook.
-    output.options.cache_key = `studio:${process.cwd()}:${input.agent}:v2`
+    output.options.cache_key = `studio:${getActiveDirectory()}:${input.agent}:v2`
   }
 }

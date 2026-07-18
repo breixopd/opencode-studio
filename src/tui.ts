@@ -23,6 +23,7 @@
 /// <reference types="@opentui/solid" />
 import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { debugTui, debugCatch } from "./core/logger"
+import { getActiveDirectory } from "./core/active-dir"
 
 // ——— Studio stats reader ————————————————————————————————
 
@@ -46,7 +47,7 @@ function readStats(): StudioStats {
 
   try {
     const { openStudioDb, queryAll, queryOne } = require("../core/studio-db")
-    const db = openStudioDb(process.cwd())
+    const db = openStudioDb(getActiveDirectory())
 
     // Combined query: task open + done in one, diag count in one
     const tasks = queryOne<{ open: number; done: number }>(
@@ -207,7 +208,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
         // Rule auto-capture detection (rules table count change)
         try {
           const { openStudioDb, queryOne } = require("../core/studio-db")
-          const db = openStudioDb(process.cwd())
+          const db = openStudioDb(getActiveDirectory())
           const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM rules")?.c ?? 0
           if (prev.ruleCount === 0) prev.ruleCount = count
           if (count > prev.ruleCount) {
@@ -266,7 +267,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
   cleanups.push(event.on("lsp.client.diagnostics", (evt: { type: string; properties: { path?: string } }) => {
     try {
       const { openStudioDb, queryOne } = require("../core/studio-db")
-      const db = openStudioDb(process.cwd())
+      const db = openStudioDb(getActiveDirectory())
       const count = queryOne<{ c: number }>(db, "SELECT COUNT(*) AS c FROM diagnostics WHERE severity = 'error'")?.c ?? 0
       if (count > prev.diagCount) {
         ui.toast({ variant: "warning", title: "Type Error", message: `${count} error(s) in ${evt.properties?.path?.split("/").pop() ?? "file"}`, duration: 3000 })

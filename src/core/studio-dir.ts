@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "fs"
-import { join } from "path"
+import { join, resolve, sep } from "path"
 import { loadConfig } from "../config/config"
 import { ensureStudioGitignored } from "./gitignore"
 import { getActiveDirectory } from "./active-dir"
@@ -32,7 +32,16 @@ export function ensureStudioDirs(cwd = getActiveDirectory()): string {
   return root
 }
 
+/**
+ * Join path under `.studio/`. Resolves and asserts the result stays inside
+ * `studioRoot()` — rejects `..` traversal and absolute escapes.
+ */
 export function studioPath(...parts: string[]): string {
   const root = ensureStudioDirs()
-  return join(root, ...parts)
+  const rootResolved = resolve(root)
+  const resolved = resolve(root, ...parts)
+  if (resolved !== rootResolved && !resolved.startsWith(rootResolved + sep)) {
+    throw new Error(`studioPath escapes .studio/: ${parts.join("/")}`)
+  }
+  return resolved
 }

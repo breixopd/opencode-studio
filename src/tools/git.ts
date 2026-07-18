@@ -1,6 +1,7 @@
 import { spawn } from "child_process"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure } from "../core/workspace"
+import { getActiveDirectory } from "../core/active-dir"
 
 /** Run a git command asynchronously, returning trimmed stdout. */
 function git(args: string[], cwd: string, timeoutMs = 30_000): Promise<string> {
@@ -62,7 +63,7 @@ export const studio_git: ToolDefinition = tool({
       .describe("Start line for blame"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     try {
       // Reject refs that look like git options to prevent argument injection

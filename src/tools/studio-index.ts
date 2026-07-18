@@ -11,6 +11,7 @@ import {
 import { getSessionDeduper } from "../core/dedup-session"
 import { optimizeToolOutput } from "../core/token-budget"
 import { grepWorkspace } from "./grep"
+import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_index: ToolDefinition = tool({
   description:
@@ -33,7 +34,7 @@ export const studio_index: ToolDefinition = tool({
     max: tool.schema.number().optional().describe("Max results (default 15; hotspots default 20)"),
   },
   async execute(args, ctx) {
-    const root = ctx?.directory ?? process.cwd()
+    const root = ctx?.directory ?? getActiveDirectory()
     const deduper = getSessionDeduper(ctx?.sessionID)
     const max = args.max ?? 15
 

@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from "fs"
 import { basename, join } from "path"
 import { loadConfig, saveConfig } from "../config/config"
-import { parseSSHConfig } from "../config/ssh-config"
+import { parseSSHConfig, type SSHHost } from "../config/ssh-config"
 import type { StudioConfig } from "../config/types"
 import * as log from "./logger"
 import { getActiveSyncProjects } from "../sync/active"
 import { isTunnelAlive, startTunnel } from "../tunnel/manager"
 import { ensureStudioGitignored } from "./gitignore"
+import { getActiveDirectory } from "./active-dir"
 
 function isGitRepo(dir: string): boolean {
   return existsSync(join(dir, ".git"))
@@ -19,7 +20,7 @@ function projectNameForDir(dir: string): string {
       return pkg.name.replace(/^@/, "").replace(/\//g, "-")
     }
   } catch (err) {
-      log.debugCatch("src/core/auto.ts", err);
+    log.debugCatch("src/core/auto.ts", err)
     // no package.json
   }
   return basename(dir)
@@ -39,27 +40,49 @@ function findProjectForCwd(config: StudioConfig, cwd: string): [string, StudioCo
   return null
 }
 
-/** Silent first-run: detect SSH host, map cwd → remote project */
-export function ensureStudioReady(cwd = process.cwd()): StudioConfig {
-  let config = loadConfig()
+export interface SshCandidate {
+  alias: string
+  host: string
+  user: string
+  hasKey: boolean
+}
 
-  if (!config.ssh.host) {
-    const hosts = parseSSHConfig()
-    const first = hosts.find((h) => h.identityFile && h.host) || hosts[0]
-    if (first) {
-      config = {
-        ...config,
-        ssh: {
-          user: first.user || "",
-          host: first.host || first.alias,
-          identityFile: first.identityFile || "",
-          port: first.port,
-        },
-        tunnel: { ...config.tunnel, host: first.host || first.alias },
-      }
-      saveConfig(config)
-    }
-  }
+/** Suggest SSH hosts from ~/.ssh/config — never auto-persists. */
+export function listSshCandidates(): SshCandidate[] {
+  return parseSSHConfig().map((h: SSHHost) => ({
+    alias: h.alias,
+    host: h.host || h.alias,
+    user: h.user || "",
+    hasKey: Boolean(h.identityFile),
+  }))
+}
+
+/**
+ * Notice when SSH is not bound but candidates exist.
+ * User must run studio_setup({ host }) before anything is persisted.
+ */
+export function sshSetupSuggestion(config?: StudioConfig): string | null {
+  const cfg = config ?? loadConfig()
+  if (cfg.ssh.host) return null
+  const hosts = listSshCandidates()
+  if (hosts.length === 0) return null
+  const list = hosts
+    .slice(0, 8)
+    .map((h) => `${h.alias}${h.hasKey ? "" : " (no key)"}`)
+    .join(", ")
+  const more = hosts.length > 8 ? ` (+${hosts.length - 8} more)` : ""
+  return (
+    `[studio ssh] ${hosts.length} host(s) in ~/.ssh/config (${list}${more}). ` +
+    `Nothing is auto-bound — run studio_setup({ host: "<alias>" }) to confirm and persist.`
+  )
+}
+
+/**
+ * Silent first-run: map cwd → remote project only.
+ * Does NOT auto-save SSH hosts — that requires explicit studio_setup.
+ */
+export function ensureStudioReady(cwd = getActiveDirectory()): StudioConfig {
+  let config = loadConfig()
 
   if (isGitRepo(cwd) && !findProjectForCwd(config, cwd)) {
     const name = projectNameForDir(cwd)
@@ -93,7 +116,7 @@ export async function autoStartTunnelIfNeeded(): Promise<void> {
   }
 }
 
-export async function autoStartSyncIfNeeded(cwd = process.cwd()): Promise<string | null> {
+export async function autoStartSyncIfNeeded(cwd = getActiveDirectory()): Promise<string | null> {
   const config = ensureStudioReady(cwd)
   if (!config.ssh.host || !config.ssh.identityFile) return null
 

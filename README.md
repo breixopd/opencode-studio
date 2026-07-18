@@ -29,11 +29,11 @@ Common pain with similar products: runaway token cost, agents that wait to be as
 
 ```
 studio_preferences set_autonomy full|suggest|off
-studio_preferences set_prefer_local true   # Ollama / LM Studio for cheap subagents
+studio_preferences set_prefer_local true   # use connected Ollama / LM Studio when present
 studio_preferences set_session_budget 5    # hard spend cap ($) — or say "budget $5"
 ```
 
-Recommended local tool-calling models on modest hardware: **Qwen3.5 4B**, **Qwen3 8B**, **Nemotron Nano 4B** via Ollama. For tiny sidekick routers, Cactus Compute Needle (26M) behind an OpenAI-compatible endpoint works as provider `local`.
+Local routing does **not** hardcode model names — connect Ollama / LM Studio / any OpenAI-compatible local provider and Studio picks from the models you have loaded (same pattern as Zen/provider auto-routing).
 
 ## Model routing
 

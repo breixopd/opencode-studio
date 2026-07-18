@@ -3,7 +3,6 @@ import { join, dirname } from "path"
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs"
 import type { StudioConfig, ProjectMapping } from "./types"
 import { DEFAULT_CONFIG, DEFAULT_EXCLUDES } from "./defaults"
-import { parseSSHConfig } from "./ssh-config"
 import { safeValidateConfig } from "./schema"
 
 const CONFIG_DIR = join(homedir(), ".config", "opencode-studio")
@@ -26,37 +25,13 @@ function validateOrThrow(config: StudioConfig, context: string): StudioConfig {
   return result.data
 }
 
-export function loadConfig(configPath?: string, sshConfigPath?: string): StudioConfig {
+export function loadConfig(configPath?: string): StudioConfig {
   const resolvedPath = configPath || CONFIG_PATH
   const resolvedDir = dirname(resolvedPath)
 
   if (!existsSync(resolvedPath)) {
     mkdirSync(resolvedDir, { recursive: true })
-
-    const hosts = parseSSHConfig(sshConfigPath)
-    if (hosts.length > 0) {
-      const first = hosts.find((h) => h.identityFile && h.host) || hosts[0]
-      const autoConfig = validateOrThrow(
-        {
-          ssh: {
-            user: first.user || "",
-            host: first.host || first.alias,
-            identityFile: first.identityFile || "",
-            port: first.port,
-          },
-          tunnel: {
-            ...DEFAULT_CONFIG.tunnel,
-            host: first.host || first.alias,
-          },
-          projects: {},
-          defaultExcludes: DEFAULT_EXCLUDES,
-        },
-        "auto-detect",
-      )
-      writeFileSync(resolvedPath, JSON.stringify(autoConfig, null, 2))
-      return { ...autoConfig, projects: { ...autoConfig.projects } }
-    }
-
+    // Do not auto-bind SSH from ~/.ssh/config — require studio_setup({ host }).
     const defaults = validateOrThrow(DEFAULT_CONFIG, "defaults")
     writeFileSync(resolvedPath, JSON.stringify(defaults, null, 2))
     return { ...defaults, projects: { ...defaults.projects } }

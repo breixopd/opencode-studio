@@ -2,22 +2,21 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 import { closeStudioDb } from "./studio-db"
 import { recordCostEvent, getCostSummary, formatCostSummary, pruneOldCostEvents } from "./cost"
 
 describe("cost ledger", () => {
   let dir: string
-  let prevCwd: string
 
   beforeEach(() => {
-    prevCwd = process.cwd()
     dir = mkdtempSync(join(tmpdir(), "studio-cost-"))
-    process.chdir(dir)
+    setActiveDirectory(dir)
   })
 
   afterEach(() => {
-    process.chdir(prevCwd)
     closeStudioDb(dir)
+    clearActiveDirectory()
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -47,19 +46,25 @@ describe("cost ledger", () => {
     expect(summary.byModel[0].modelId).toBe("claude-sonnet-4-6")
   })
 
-  it("is idempotent on message_id (dedupes re-emitted events)", () => {
-    const msg = {
+  it("upserts on message_id (keeps latest cost)", () => {
+    const base = {
       id: "msg-dup",
       sessionID: "sess1",
       providerID: "anthropic",
       modelID: "claude-sonnet-4-6",
-      cost: 0.01,
       tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } },
       time: { created: Date.now() },
     }
-    recordCostEvent(msg)
-    recordCostEvent(msg) // same message_id — should be ignored
-    expect(getCostSummary().messageCount).toBe(1)
+    recordCostEvent({ ...base, cost: 0.01 })
+    recordCostEvent({
+      ...base,
+      cost: 0.05,
+      tokens: { input: 200, output: 80, reasoning: 0, cache: { read: 0, write: 0 } },
+    })
+    const summary = getCostSummary()
+    expect(summary.messageCount).toBe(1)
+    expect(summary.totalCost).toBe(0.05)
+    expect(summary.totalTokens.input).toBe(200)
   })
 
   it("filters by session", () => {

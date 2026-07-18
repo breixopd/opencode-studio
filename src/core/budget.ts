@@ -1,6 +1,11 @@
 /**
  * Session spend cap — hard stop when session $ exceeds user budget.
  * Addresses the #1 competitor complaint (runaway agent token burn).
+ *
+ * Scope: tool.execute.before only. When the cap is exceeded we block the
+ * expensive tools listed in EXPENSIVE_TOOLS — we do NOT stop LLM turns,
+ * chat completions, or cheap/read-only tools. Soft warnings (≥80%) are
+ * injected via budgetContextBlock into the system prompt.
  */
 import { getCostSummary, getLastCostSessionId } from "./cost"
 import { getSessionBudgetUsd } from "./project-profile"
@@ -56,10 +61,15 @@ export function budgetContextBlock(sessionId?: string): string | null {
   ].join(" ")
 }
 
-/** Tools blocked when over budget (read-only cheap tools still allowed). */
+/**
+ * Tools blocked when over budget (read-only cheap tools still allowed).
+ * Keep in sync with high-cost / network / remote side-effect tools in the catalog.
+ * LLM turns are NOT stopped — only these tool calls.
+ */
 const EXPENSIVE_TOOLS = new Set([
   "studio_search",
   "studio_crawl",
+  "studio_fetch",
   "studio_code_search",
   "studio_council",
   "studio_browser",

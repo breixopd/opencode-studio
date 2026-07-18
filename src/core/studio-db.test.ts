@@ -6,6 +6,7 @@ import {
   studioDbPath,
   openStudioDb,
   closeStudioDb,
+  closeAllStudioDbs,
   queryAll,
   queryOne,
   runQuery,
@@ -136,6 +137,14 @@ describe("studio-db", () => {
     // Opening again should create a new connection (different object)
     const db1 = openStudioDb(dir)
     closeStudioDb(dir)
+    const db2 = openStudioDb(dir)
+    expect(db1).not.toBe(db2)
+    closeStudioDb(dir)
+  })
+
+  it("closeAllStudioDbs actually closes cached connections", () => {
+    const db1 = openStudioDb(dir)
+    closeAllStudioDbs()
     const db2 = openStudioDb(dir)
     expect(db1).not.toBe(db2)
     closeStudioDb(dir)

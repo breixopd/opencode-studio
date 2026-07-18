@@ -1,6 +1,7 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { savePlan, createTask, activatePlan, getActivePlan } from "../core/workspace"
 import { detectTooling } from "../core/project-detect"
+import { getActiveDirectory } from "../core/active-dir"
 
 export interface SpecSection {
   heading: string
@@ -169,7 +170,7 @@ export const studio_spec: ToolDefinition = tool({
     if (!args.goal?.trim()) return "goal required for create: describe the feature you want to build"
 
     const goal = args.goal.trim()
-    const { projectType } = detectTooling(process.cwd())
+    const { projectType } = detectTooling(getActiveDirectory())
     const spec = generateSpec(goal, projectType.ecosystem)
 
     const lines: string[] = [

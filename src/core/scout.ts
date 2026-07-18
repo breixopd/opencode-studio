@@ -12,7 +12,7 @@ import { existsSync, readdirSync, statSync } from "fs"
 import { basename, dirname, extname, join, relative } from "path"
 import { getDiagnosticsSummary, getDiagnostics } from "./diagnostics"
 import { getWorkingSet } from "./passive-context"
-import { incompleteTasks, listTasks } from "./workspace-tasks"
+import { incompleteTasks, listTasks, createTask } from "./workspace-tasks"
 import { getActivePlan } from "./workspace-plans"
 import { getVerifyState, getVerifyRetryHint } from "./workspace-verify"
 import { loadProjectProfile, getAutonomyMode, type AutonomyMode } from "./project-profile"
@@ -20,6 +20,7 @@ import { findHotspots } from "./code-query"
 import { getCISummary } from "./ci-watcher"
 import { constitutionContextBlock } from "./constitution"
 import * as log from "./logger"
+import { getActiveDirectory } from "./active-dir"
 
 export type ScoutSeverity = "high" | "medium" | "low"
 
@@ -49,7 +50,7 @@ export function invalidateScoutCache(): void {
   cache = null
 }
 
-export function runScout(root = process.cwd(), max = 8): ScoutFinding[] {
+export function runScout(root = getActiveDirectory(), max = 8): ScoutFinding[] {
   if (cache && cache.root === root && Date.now() - cache.at < CACHE_MS) {
     return cache.findings.slice(0, max)
   }
@@ -297,7 +298,7 @@ function rankFindings(findings: ScoutFinding[]): ScoutFinding[] {
 }
 
 /** Context block for discipline injection. Null when autonomy is off or nothing found. */
-export function scoutContextBlock(root = process.cwd()): string | null {
+export function scoutContextBlock(root = getActiveDirectory()): string | null {
   const mode = getAutonomyMode()
   if (mode === "off") return null
 
@@ -314,9 +315,58 @@ export function scoutContextBlock(root = process.cwd()): string | null {
   if (mode === "suggest") {
     lines.push("Mode=suggest: surface these; only act on high severity or when idle unless user asks.")
   } else {
-    lines.push("Mode=full: when idle or between tasks, proactively fix high/medium items (tests+verify first). Ask before large refactors.")
+    const created = materializeAutoActTasks(findings)
+    if (created.length) {
+      lines.push(
+        `Mode=full auto-act: created ${created.length} task(s): ${created.map((t) => t.title).join("; ")}`,
+      )
+    }
+    const top = findings.find((f) => f.severity === "high") ?? findings.find((f) => f.severity === "medium")
+    if (top) {
+      lines.push(
+        `Mode=full MANDATORY NEXT (verify-first): @studio-implement — ${top.action} then studio_verify. ` +
+          `Do this before new feature work. Ask before large refactors.`,
+      )
+    } else {
+      lines.push("Mode=full: when idle, proactively fix medium/low items (tests+verify first). Ask before large refactors.")
+    }
   }
   return lines.join("\n")
+}
+
+const SCOUT_TASK_TAG = /^\[scout:([^\]]+)\]\s*/
+
+/**
+ * When autonomy=full, turn high (and top medium) findings into studio_tasks
+ * so the board + agent both have concrete work — not just prompt text.
+ * Idempotent: skips findings that already have an open scout-tagged task.
+ */
+export function materializeAutoActTasks(findings: ScoutFinding[]): Array<{ id: string; title: string }> {
+  const open = incompleteTasks()
+  const existingIds = new Set(
+    open
+      .map((t) => t.title.match(SCOUT_TASK_TAG)?.[1])
+      .filter((id): id is string => Boolean(id)),
+  )
+
+  const actionable = findings.filter(
+    (f) => f.severity === "high" || (f.severity === "medium" && f.category !== "polish"),
+  )
+  const created: Array<{ id: string; title: string }> = []
+  for (const f of actionable.slice(0, 3)) {
+    if (existingIds.has(f.id)) continue
+    const title = `[scout:${f.id}] ${f.title}`.slice(0, 500)
+    const task = createTask(title, [
+      f.detail.slice(0, 400),
+      `Action: ${f.action}`,
+      "Verify-first: implement → studio_verify before handoff",
+      `scout-id:${f.id}`,
+    ])
+    created.push({ id: task.id, title: task.title })
+    existingIds.add(f.id)
+    log.info(`Auto-act task created: ${task.title}`)
+  }
+  return created
 }
 
 /** Detect natural-language autonomy opt-out / opt-in from user chat. */

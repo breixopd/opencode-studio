@@ -7,9 +7,11 @@
  * concurrently rather than sequentially.
  *
  * This module provides:
- *   - The fan-out template for /start-work (injected into config-inject.ts)
- *   - A studio_fanout tool that the agent can call to dispatch specific agents
- *   - A heuristic for deciding whether fan-out is warranted (>3 plan steps)
+ *   - Heuristics for deciding whether fan-out is warranted (>3 plan steps)
+ *   - A static /start-work step that defers fan-out to runtime plan size
+ *
+ * Agents dispatch @studio-* mentions as concurrent subtasks; there is no
+ * separate studio_fanout tool.
  */
 
 export interface FanOutPlan {
@@ -52,7 +54,7 @@ export function planFanOut(goal: string, planSteps: number): FanOutPlan {
   }
 }
 
-/** Build the fan-out instruction text for the /start-work template. */
+/** Build the fan-out instruction text for a known goal + plan step count. */
 export function fanOutInstruction(goal: string, planSteps: number): string {
   const plan = planFanOut(goal, planSteps)
   if (!plan.parallel) {
@@ -68,4 +70,18 @@ export function fanOutInstruction(goal: string, planSteps: number): string {
   lines.push("")
   lines.push("Wait for ALL agents to complete, then synthesize their findings before proceeding to studio_plan.")
   return lines.join("\n")
+}
+
+/**
+ * Static /start-work step — does NOT hardcode planSteps.
+ * Agent decides fan-out from the real plan/goal size at runtime.
+ */
+export function startWorkFanOutStep(): string {
+  return [
+    "Estimate scope for {{args}} (rough step count), then fan out read-only agents based on REAL size:",
+    "≤3 steps and no auth/API/DB/security keywords → @studio-explore only;",
+    "auth/security/API/payment → also @studio-security;",
+    ">3 steps or refactor/migration/architecture/DB → also @studio-architect.",
+    "Dispatch chosen @studio-* agents IN ONE MESSAGE for parallel execution; wait for all, then synthesize before studio_spec/studio_plan.",
+  ].join(" ")
 }

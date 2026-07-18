@@ -1,10 +1,10 @@
-import * as log from "../core/logger"
 import { spawn } from "child_process"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure, recordVerifySuccess, getVerifyRetryHint } from "../core/workspace"
 import { MAX_VERIFY_GRIND } from "../core/workspace"
 import { detectTooling, type VerifyCommands } from "../core/project-detect"
-import { snapshotHead, rollbackToSnapshot, checkGrindHealth } from "../core/self-heal"
+import { snapshotHead, rollbackToSnapshot, loadSnapshot, checkGrindHealth } from "../core/self-heal"
+import { getActiveDirectory } from "../core/active-dir"
 
 /** Detect verify commands from project type — works for ANY language (Python/Rust/Go/Java/etc.). */
 function detectCommands(cwd: string): string[] {
@@ -69,7 +69,7 @@ export const studio_verify: ToolDefinition = tool({
       .describe("Which check to run (default: all) | snapshot=save HEAD before work | rollback=revert to last snapshot"),
   },
   async execute(args) {
-    const cwd = process.cwd()
+    const cwd = getActiveDirectory()
 
     // ——— Self-healing: snapshot / rollback ————————————————
     if (args.only === "snapshot") {
@@ -79,23 +79,22 @@ export const studio_verify: ToolDefinition = tool({
     }
 
     if (args.only === "rollback") {
+      const snap = loadSnapshot(cwd)
+      if (!snap) {
+        return (
+          "No persisted snapshot found. Run studio_verify only=snapshot before implementation, " +
+          "then studio_verify only=rollback to restore that exact commit."
+        )
+      }
       const health = checkGrindHealth(cwd)
       if (!health.shouldRollback && health.grindCount === 0) {
-        return `No rollback needed — verify hasn't failed recently (grind: 0/${health.maxGrind}).`
+        return (
+          `Snapshot ${snap.commitHash.slice(0, 8)} is available, but verify hasn't failed recently ` +
+          `(grind: 0/${health.maxGrind}). Pass only=rollback again after grind, or restore manually with ` +
+          `studio_git action=restore ref=${snap.commitHash.slice(0, 8)}.`
+        )
       }
-      // Use studio_git for rollback — it supports restore to a specific ref.
-      // The agent should have called studio_verify only=snapshot first to save HEAD.
-      // As a fallback, revert to HEAD~1 (the commit before the last).
-      const { execSync } = await import("child_process")
-      try {
-        
-        const parent = execSync("git rev-parse HEAD~1", { cwd, encoding: "utf-8", timeout: 5_000 }).trim()
-        return await rollbackToSnapshot(cwd, { commitHash: parent, branch: "", createdAt: "", taskId: null })
-      } catch (err) {
-      log.debugCatch("src/tools/verify.ts", err);
-      /* no parent commit (shallow repo / initial commit) */
-        return "Rollback failed — cannot find parent commit. Use studio_git action=restore to revert specific files."
-      }
+      return await rollbackToSnapshot(cwd, snap)
     }
 
     let cmds = detectCommands(cwd)

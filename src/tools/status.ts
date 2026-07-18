@@ -6,17 +6,16 @@ import { collectStudioRuntime } from "../core/studio-runtime"
 import { describeRoutingForProvider } from "../core/model-routing"
 import type { Config } from "@opencode-ai/plugin"
 
-const runtimeDeps = {
-  tunnelAlive: isTunnelAlive,
-  tunnelState: getTunnelState,
-  activeSyncs: getActiveSyncProjects,
-}
-
 export const studio_status = tool({
   description: "Studio runtime snapshot: tunnel, SSH, projects, syncs, tasks, verify gate, model mode.",
   args: {},
   async execute() {
-    const snapshot = collectStudioRuntime(runtimeDeps)
+    // Resolve deps at call time so test mocks (and live ESM bindings) apply.
+    const snapshot = collectStudioRuntime({
+      tunnelAlive: isTunnelAlive,
+      tunnelState: getTunnelState,
+      activeSyncs: getActiveSyncProjects,
+    })
     return JSON.stringify(snapshot, null, 2)
   },
 })

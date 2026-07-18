@@ -10,6 +10,7 @@ import { pruneStaleDiagnostics } from "../core/diagnostics"
 import { evictStaleDedupers } from "../core/dedup-session"
 import { openStudioDb } from "../core/studio-db"
 import * as log from "../core/logger"
+import { getActiveDirectory } from "../core/active-dir"
 
 const reindexTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const REINDEX_DEBOUNCE_MS = 1000
@@ -33,7 +34,7 @@ export function handleFileEdited(filePath: string): void {
     setTimeout(async () => {
       reindexTimers.delete(filePath)
       try {
-        await reindexFile(process.cwd(), filePath)
+        await reindexFile(getActiveDirectory(), filePath)
       } catch (err) {
       log.debugCatch("src/hooks/maintenance-impl.ts", err);
         /* best-effort — file may not be ready */
@@ -45,7 +46,7 @@ export function handleFileEdited(filePath: string): void {
 /** Handle session.idle — housekeeping. */
 export function handleSessionIdle(): void {
   try {
-    const root = process.cwd()
+    const root = getActiveDirectory()
 
     const costPruned = pruneOldCostEvents(30)
     if (costPruned > 0) log.info(`Pruned ${costPruned} old cost event(s)`)
