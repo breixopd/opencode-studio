@@ -15,10 +15,12 @@ const mockLoadConfig = mock(() => ({
 }))
 
 const mockUpdateProject = mock(() => {})
+const mockSaveConfig = mock(() => {})
 const mockFindProject = mock(() => "myapp" as string | null)
 
 mock.module("../config/config", () => ({
   loadConfig: mockLoadConfig,
+  saveConfig: mockSaveConfig,
   updateProject: mockUpdateProject,
   findProjectNameForLocal: mockFindProject,
 }))
@@ -31,6 +33,7 @@ describe("studio_preferences", () => {
   beforeEach(() => {
     mockLoadConfig.mockClear()
     mockUpdateProject.mockClear()
+    mockSaveConfig.mockClear()
     mockFindProject.mockClear()
     mockFindProject.mockReturnValue("myapp")
   })
@@ -40,6 +43,7 @@ describe("studio_preferences", () => {
     expect(result).toContain("Project: myapp")
     expect(result).toContain("Remote: /home/dev/myapp")
     expect(result).toContain("gitignored")
+    expect(result).toContain("Remote allowedHosts")
   })
 
   it("saves remote path", async () => {
@@ -79,5 +83,20 @@ describe("studio_preferences", () => {
       ctx,
     )
     expect(result).toContain("free")
+  })
+
+  it("saves remote policy allowlists", async () => {
+    const result = await studio_preferences.execute(
+      {
+        action: "set_remote_policy",
+        allowed_hosts: "dev, staging",
+        allowed_command_prefixes: "npm ,bun ",
+      },
+      ctx,
+    )
+    expect(result).toContain("Remote policy saved")
+    expect(result).toContain("dev")
+    expect(result).toContain("staging")
+    expect(mockSaveConfig).toHaveBeenCalledTimes(1)
   })
 })

@@ -38,7 +38,7 @@ export interface ToolMeta {
 
 export const TOOL_CATALOG: ToolMeta[] = [
   // ——— Code ————————————————
-  { name: "studio_index", category: "Code", phase: 1, description: "Unified code intelligence: search, semantic, research, symbols, refs, importers, impact, hotspots", whenToUse: "for any code query — BM25 + AST graph, not just text search" },
+  { name: "studio_index", category: "Code", phase: 1, description: "Unified code intelligence: search, semantic, similar, research, symbols, refs, importers, impact, hotspots, monorepo", whenToUse: "for any code query — BM25 + AST graph, not just text search" },
   { name: "studio_refactor", category: "Code", phase: 9, description: "Refactor planning: rename analysis, extract, callers, dead code, structure", whenToUse: "before renaming or extracting — shows all affected refs" },
   { name: "studio_grep", category: "Code", phase: 1, description: "Ripgrep search (instant, needs rg on PATH)", whenToUse: "for quick text search before building index" },
   { name: "studio_glob", category: "Code", phase: 1, description: "Find files by pattern (e.g. **/*.ts)", whenToUse: "to find files, not code content" },
@@ -72,15 +72,15 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_retrieve", category: "Memory", phase: null, description: "Fetch full output previously compressed by compress hook", whenToUse: "when you see 'studio_retrieve id=...' in compressed output" },
 
   // ——— Config ————————————————
-  { name: "studio_preferences", category: "Config", phase: null, description: "Model mode, autonomy, local models, remote path, multi-remote env, .studio commit", whenToUse: "to change routing mode, autonomy, or remote config" },
+  { name: "studio_preferences", category: "Config", phase: null, description: "Model mode, autonomy, local models, semantic recall, remote path, multi-remote env, remote exec policy, .studio commit", whenToUse: "to change routing mode, autonomy, or remote config" },
   { name: "studio_models", category: "Config", phase: null, description: "Sync providers, refresh Zen catalog, infer tiers", whenToUse: "when providers change or to check routing" },
-  { name: "studio_setup", category: "Config", phase: null, description: "List SSH hosts and bind one explicitly (host required to persist)", whenToUse: "on first run to set up remote sync" },
+  { name: "studio_setup", category: "Config", phase: null, description: "First-run onboard + SSH host bind (action=status|ssh|onboard)", whenToUse: "on first run: onboard for $5 budget/local; host to bind SSH" },
   { name: "studio_add_project", category: "Config", phase: null, description: "Add local→remote sync mapping", whenToUse: "to add a project mapping" },
   { name: "studio_remove_project", category: "Config", phase: null, description: "Remove a project mapping", whenToUse: "to remove a project mapping" },
   { name: "studio_list_projects", category: "Config", phase: null, description: "List all configured projects", whenToUse: "to see configured projects" },
 
   // ——— Remote ————————————————
-  { name: "studio_remote", category: "Remote", phase: null, description: "SSH exec on remote host (unrestricted, user-trusted)", whenToUse: "to run commands on a remote box (DB, GPU)" },
+  { name: "studio_remote", category: "Remote", phase: null, description: "SSH exec on remote host (blocklist + optional allowlists)", whenToUse: "to run commands on a remote box (DB, GPU)" },
   { name: "studio_sync_start", category: "Remote", phase: null, description: "Start real-time SSH file sync", whenToUse: "to start syncing files to remote" },
   { name: "studio_sync_stop", category: "Remote", phase: null, description: "Stop file sync", whenToUse: "to stop syncing" },
   { name: "studio_tunnel_status", category: "Remote", phase: null, description: "Check SSH tunnel status", whenToUse: "to check tunnel health" },
@@ -91,13 +91,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_cost", category: "Cost", phase: null, description: "Per-session and all-time token usage + $ breakdown by model and agent", whenToUse: "to check spending" },
 
   // ——— Health ————————————————
-  { name: "studio_doctor", category: "Health", phase: null, description: "Health check: config, SSH, tunnel, sync, ripgrep, code index, models", whenToUse: "when something seems broken" },
+  { name: "studio_doctor", category: "Health", phase: null, description: "Health check: config, SSH, tunnel, sync, ripgrep, code index, semantic recall, Ollama, models", whenToUse: "when something seems broken" },
   { name: "studio_report", category: "Health", phase: null, description: "One-shot JSON smoke-test bundle", whenToUse: "for debugging or diagnostics" },
   { name: "studio_help", category: "Health", phase: null, description: "Topic-based help for all studio features", whenToUse: "when you need to know what's available" },
 
   // ——— Standards & CI ————————————————
   { name: "studio_constitution", category: "Code", phase: 3, description: "Generate coding standards from project analysis — linters, formatters, ecosystem rules", whenToUse: "to create a project constitution that's auto-injected into session context" },
-  { name: "studio_ci", category: "Health", phase: null, description: "GitHub Actions CI watcher — check status, start/stop background monitoring (30s)", whenToUse: "to check if CI is passing or monitor it in background" },
+  { name: "studio_ci", category: "Health", phase: null, description: "GitHub Actions CI watcher — status, triage failing runs (logs + root cause + [ci:runId] tasks), start/stop background monitoring (30s)", whenToUse: "to check CI, triage failures with root-cause extraction, or monitor in background" },
 
   // ——— Agents ————————————————
   { name: "studio_agent", category: "Config", phase: null, description: "Manage agent profiles — list, sync (regenerate from catalog), create custom, remove", whenToUse: "to create custom subagents or regenerate studio agent profiles" },
@@ -105,7 +105,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // ——— Advanced ————————————————
   { name: "studio_council", category: "Code", phase: 8, description: "Model Council: multi-lens ensemble review (security, architecture, correctness, maintainability)", whenToUse: "for complex/security-sensitive changes when you want deep multi-perspective review" },
   { name: "studio_browser", category: "Code", phase: 10, description: "Browser verification — checks if web app loads, pages respond. Uses system Chrome headlessly (zero deps)", whenToUse: "for web projects to verify pages load after changes" },
-  { name: "studio_scout", category: "SDLC", phase: 9, description: "Autonomous improvement scout — verify failures, test gaps, polish, research opportunities", whenToUse: "when idle, between tasks, or to find what to polish without the user asking" },
+  { name: "studio_scout", category: "SDLC", phase: 9, description: "Autonomous improvement scout — verify failures, test gaps, security, deps, polish, research opportunities", whenToUse: "when idle, between tasks, or to find what to polish without the user asking" },
 ]
 
 // ——— Derived data (auto-generated, never edit by hand) ————————————————

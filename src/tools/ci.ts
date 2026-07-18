@@ -1,15 +1,25 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
-import { checkCIStatus, startCIWatcher, stopCIWatcher, getCISummary, isGhAvailable } from "../core/ci-watcher"
+import {
+  checkCIStatus,
+  startCIWatcher,
+  stopCIWatcher,
+  getCISummary,
+  isGhAvailable,
+  triageFailedCI,
+  formatTriageReport,
+} from "../core/ci-watcher"
 import { getActiveDirectory } from "../core/active-dir"
 
 export const studio_ci: ToolDefinition = tool({
   description:
-    "GitHub Actions CI watcher — check CI status, start background monitoring (30s interval), or view summary. " +
-      "Requires gh CLI authenticated. Injects failing CI runs into session context.",
+    "GitHub Actions CI watcher — check status, triage failing runs (logs + root cause + optional tasks), " +
+      "start/stop background monitoring (30s). Requires gh CLI authenticated.",
   args: {
     action: tool.schema
-      .enum(["status", "start", "stop", "summary"])
-      .describe("status=check CI now | start=begin background watching | stop=stop watching | summary=view cached status"),
+      .enum(["status", "triage", "start", "stop", "summary"])
+      .describe(
+        "status=check CI now | triage=fetch failed logs + root cause (+ [ci:runId] tasks) | start=begin watching | stop=stop | summary=cached status",
+      ),
   },
   async execute(args) {
     const cwd = getActiveDirectory()
@@ -24,6 +34,11 @@ export const studio_ci: ToolDefinition = tool({
         }
         const summary = getCISummary()
         return summary ?? "CI status unknown."
+      }
+
+      case "triage": {
+        const report = await triageFailedCI(cwd, { createTasks: true })
+        return formatTriageReport(report)
       }
 
       case "start": {

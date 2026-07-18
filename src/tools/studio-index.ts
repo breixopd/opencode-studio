@@ -8,6 +8,9 @@ import {
   findImpactAnalysis,
   findArchitectureHotspots,
 } from "../core/code-index"
+import { similarChunks, getSemanticRecallStatus } from "../core/semantic-recall"
+import { getSemanticRecall } from "../core/project-profile"
+import { buildMonorepoGraph, formatMonorepoGraph } from "../core/monorepo"
 import { getSessionDeduper } from "../core/dedup-session"
 import { optimizeToolOutput } from "../core/token-budget"
 import { grepWorkspace } from "./grep"
@@ -16,20 +19,33 @@ import { getActiveDirectory } from "../core/active-dir"
 export const studio_index: ToolDefinition = tool({
   description:
     "Native code intelligence: tree-sitter AST + SQLite FTS5 + graph. " +
-      "search=rg | semantic=BM25 | research=multi-hop | symbols=name | " +
-      "refs=callers | importers=file-imports | impact=transitive | hotspots=most-referenced.",
+      "search=rg | semantic=BM25 | similar=semantic-recall | research=multi-hop | symbols=name | " +
+      "refs=callers | importers=file-imports | impact=transitive | hotspots=most-referenced | " +
+      "monorepo=workspace packages + cross-package imports.",
   args: {
     action: tool.schema
-      .enum(["search", "semantic", "research", "symbols", "refs", "importers", "impact", "hotspots"])
+      .enum([
+        "search",
+        "semantic",
+        "similar",
+        "research",
+        "symbols",
+        "refs",
+        "importers",
+        "impact",
+        "hotspots",
+        "monorepo",
+      ])
       .describe(
-        "search=ripgrep | semantic=BM25 AST | research=multi-hop | symbols=name lookup | " +
-          "refs=who calls symbol | importers=who imports file | impact=transitive callers | " +
-          "hotspots=most-referenced symbols",
+        "search=ripgrep | semantic=BM25 AST | similar=optional semantic recall (vec/FTS) | " +
+          "research=multi-hop | symbols=name lookup | refs=who calls symbol | " +
+          "importers=who imports file | impact=transitive callers | hotspots=most-referenced | " +
+          "monorepo=packages + cross-package imports",
       ),
     query: tool.schema
       .string()
       .optional()
-      .describe("Symbol name, file path, or search query (required for most actions; not for hotspots)"),
+      .describe("Symbol name, file path, or search query (required for most actions; not for hotspots/monorepo)"),
     path: tool.schema.string().optional().describe("Path prefix or glob filter (search/semantic only)"),
     max: tool.schema.number().optional().describe("Max results (default 15; hotspots default 20)"),
   },
@@ -39,6 +55,11 @@ export const studio_index: ToolDefinition = tool({
     const max = args.max ?? 15
 
     // ——— Graph queries (Phase 2) ————————————————
+
+    if (args.action === "monorepo") {
+      const graph = buildMonorepoGraph(root)
+      return optimizeToolOutput(formatMonorepoGraph(graph), deduper, { budget: 4000 })
+    }
 
     if (args.action === "hotspots") {
       const hits = findArchitectureHotspots(root, args.max ?? 20)
@@ -86,10 +107,33 @@ export const studio_index: ToolDefinition = tool({
       return optimizeToolOutput(out, deduper, { budget: 5000 })
     }
 
-    // ——— Search / semantic / research / symbols ————————————————
+    // ——— Search / semantic / similar / research / symbols ————————————————
 
     const query = (args.query ?? "").trim()
     if (!query) return "query required"
+
+    if (args.action === "similar") {
+      if (!getSemanticRecall()) {
+        return (
+          "Semantic recall is off (default). Enable with studio_preferences set_semantic_recall true. " +
+          "Uses sqlite-vec when available, else enhanced FTS token-overlap."
+        )
+      }
+      const hits = similarChunks(root, query, max)
+      if (!hits.length) {
+        return `No similar chunks for: ${query} (backend: ${getSemanticRecallStatus(root)}). Build index with studio_symbols action=stats first.`
+      }
+      const backend = hits[0]?.backend ?? getSemanticRecallStatus(root)
+      const out =
+        `[similar via ${backend}]\n\n` +
+        hits
+          .map(
+            (h) =>
+              `${h.file}:${h.lineStart}${h.symbolNames ? ` ${h.symbolNames}` : ""} (overlap ${h.score.toFixed(2)})\n${h.content.slice(0, 800)}`,
+          )
+          .join("\n\n---\n\n")
+      return optimizeToolOutput(out, deduper, { budget: 6000 })
+    }
 
     if (args.action === "symbols") {
       const hits = await searchSymbols(query, root, { max: max * 2 })

@@ -63,4 +63,16 @@ describe("code-store", () => {
     expect(stats2.deleted).toBe(1)
     expect(getStats(root).fileCount).toBe(0)
   })
+
+  it("indexes with explicit concurrency pool", async () => {
+    root = mkdtempSync(join(tmpdir(), "studio-store-"))
+    mkdirSync(join(root, "src"))
+    for (let i = 0; i < 6; i++) {
+      writeFileSync(join(root, "src", `f${i}.py`), `def fn_${i}():\n    pass\n`)
+    }
+    const stats = await buildCodeIndexSqlite(root, { force: true, concurrency: 2 })
+    expect(stats.fileCount).toBe(6)
+    expect(stats.added).toBe(6)
+    expect(stats.symbolCount).toBeGreaterThanOrEqual(6)
+  })
 })

@@ -2,10 +2,11 @@
  * Session spend cap — hard stop when session $ exceeds user budget.
  * Addresses the #1 competitor complaint (runaway agent token burn).
  *
- * Scope: tool.execute.before only. When the cap is exceeded we block the
- * expensive tools listed in EXPENSIVE_TOOLS — we do NOT stop LLM turns,
- * chat completions, or cheap/read-only tools. Soft warnings (≥80%) are
- * injected via budgetContextBlock into the system prompt.
+ * Scope: tool.execute.before. When the cap is exceeded we block ALL tools
+ * except ALLOWED_WHEN_OVER_BUDGET — we do NOT stop LLM turns. Soft warnings
+ * (≥80%) and hard-exceed notices are injected via budgetContextBlock.
+ *
+ * Default budget: $5 when never set. Explicit 0/clear → unlimited (null).
  */
 import { getCostSummary, getLastCostSessionId } from "./cost"
 import { getSessionBudgetUsd } from "./project-profile"
@@ -18,6 +19,20 @@ export interface BudgetStatus {
   exceeded: boolean
   ratio: number | null
 }
+
+/** Tools still allowed after the session budget is exceeded. */
+export const ALLOWED_WHEN_OVER_BUDGET = new Set([
+  "studio_cost",
+  "studio_preferences",
+  "studio_help",
+  "studio_doctor",
+  "studio_status",
+  "studio_models",
+  "studio_verify",
+  "studio_handoff",
+  "studio_retrieve",
+  "studio_memory",
+])
 
 export function getBudgetStatus(sessionId?: string): BudgetStatus {
   const budgetUsd = getSessionBudgetUsd()
@@ -41,7 +56,12 @@ export function getBudgetStatus(sessionId?: string): BudgetStatus {
   }
 }
 
-/** Soft warning block for discipline injection (≥80% of budget). */
+/** True when spend has hit/exceeded the session budget (forces free routing). */
+export function shouldForceFreeRouting(sessionId?: string): boolean {
+  return getBudgetStatus(sessionId).exceeded
+}
+
+/** Soft warning / hard-exceed block for discipline injection (≥80% of budget). */
 export function budgetContextBlock(sessionId?: string): string | null {
   const status = getBudgetStatus(sessionId)
   if (status.budgetUsd == null || status.ratio == null) return null
@@ -50,8 +70,9 @@ export function budgetContextBlock(sessionId?: string): string | null {
   if (status.exceeded) {
     return [
       `[studio budget] SESSION BUDGET EXCEEDED: $${status.spentUsd.toFixed(4)} / $${status.budgetUsd.toFixed(2)}.`,
-      `Stop expensive work. Switch to studio_preferences set_model_mode free / set_prefer_local true,`,
-      `or raise budget with studio_preferences set_session_budget <usd>. Say "clear budget" to remove the cap.`,
+      `ALL tools blocked except preferences/cost/help/doctor/status/models/verify/handoff/retrieve/memory.`,
+      `Raise budget with studio_preferences set_session_budget <usd>, or set_session_budget 0 to clear.`,
+      `Routing forced to free/local until budget is raised.`,
     ].join(" ")
   }
 
@@ -62,29 +83,30 @@ export function budgetContextBlock(sessionId?: string): string | null {
 }
 
 /**
- * Tools blocked when over budget (read-only cheap tools still allowed).
- * Keep in sync with high-cost / network / remote side-effect tools in the catalog.
- * LLM turns are NOT stopped — only these tool calls.
+ * Throws if the session budget is exceeded.
+ * Prefer assertBudgetAllowsTool for tool hooks; use this for session-level gates.
  */
-const EXPENSIVE_TOOLS = new Set([
-  "studio_search",
-  "studio_crawl",
-  "studio_fetch",
-  "studio_code_search",
-  "studio_council",
-  "studio_browser",
-  "studio_remote",
-  "studio_deps",
-])
-
-export function assertBudgetAllowsTool(tool: string, sessionId?: string): void {
-  if (!EXPENSIVE_TOOLS.has(tool)) return
+export function assertBudgetAllowsSession(sessionId?: string): void {
   const status = getBudgetStatus(sessionId)
   if (!status.exceeded || status.budgetUsd == null) return
+  log.warn(`Budget session block (spent $${status.spentUsd.toFixed(4)} / $${status.budgetUsd})`)
+  throw new Error(
+    `Session budget exceeded ($${status.spentUsd.toFixed(4)} / $${status.budgetUsd.toFixed(2)}). ` +
+      `All tools blocked except preferences/cost/help/doctor/verify. ` +
+      `studio_preferences set_session_budget <higher> / set_session_budget 0 to clear.`,
+  )
+}
+
+/** Block non-allowlisted tools when over budget. */
+export function assertBudgetAllowsTool(tool: string, sessionId?: string): void {
+  const status = getBudgetStatus(sessionId)
+  if (!status.exceeded || status.budgetUsd == null) return
+  if (ALLOWED_WHEN_OVER_BUDGET.has(tool)) return
   log.warn(`Budget block: ${tool} (spent $${status.spentUsd.toFixed(4)} / $${status.budgetUsd})`)
   throw new Error(
     `Session budget exceeded ($${status.spentUsd.toFixed(4)} / $${status.budgetUsd.toFixed(2)}). ` +
-      `Blocked tool: ${tool}. Use free/local models, finish with studio_verify, or ` +
-      `studio_preferences set_session_budget <higher> / set_session_budget 0 to clear.`,
+      `Blocked tool: ${tool}. Allowed: preferences, cost, help, doctor, status, models, verify, ` +
+      `handoff, retrieve, memory. Raise with studio_preferences set_session_budget <usd> ` +
+      `or set_session_budget 0 to clear.`,
   )
 }

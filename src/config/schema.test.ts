@@ -225,6 +225,29 @@ describe("StudioConfigSchema", () => {
     const result = safeValidateConfig(noExcludes)
     expect(result.success).toBe(false)
   })
+
+  it("accepts optional remote allowlists", () => {
+    const result = safeValidateConfig({
+      ...validConfig,
+      remote: {
+        allowedHosts: ["dev", "staging"],
+        allowedCommandPrefixes: ["npm ", "bun test"],
+      },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.remote?.allowedHosts).toEqual(["dev", "staging"])
+      expect(result.data.remote?.allowedCommandPrefixes).toEqual(["npm ", "bun test"])
+    }
+  })
+
+  it("accepts config without remote (optional)", () => {
+    const result = safeValidateConfig(validConfig)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.remote).toBeUndefined()
+    }
+  })
 })
 
 describe("validateConfig (unsafe)", () => {

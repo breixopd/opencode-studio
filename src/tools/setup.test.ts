@@ -26,6 +26,36 @@ mock.module("../config/ssh-config", () => ({
   parseSSHConfig: mockParseSSHConfig,
 }))
 
+mock.module("../core/model-routing", () => ({
+  getLatestConfig: () => null,
+  clearStudioRoutedAgents: () => {},
+  refreshModelRouting: async () => {},
+}))
+
+mock.module("../core/project-detect", () => ({
+  detectTooling: () => ({
+    projectType: { ecosystem: "Bun", runner: "bun", confidence: "high", markers: ["bun.lock"] },
+    verifyCommands: {
+      test: "bun test",
+      lint: null,
+      typecheck: "bun run typecheck",
+      build: null,
+    },
+    formatter: null,
+    linter: null,
+    conventions: [],
+  }),
+}))
+
+const {
+  setPreferLocalModels,
+  unsetSessionBudgetUsd,
+  setSessionBudgetUsd,
+  getPreferLocalModels,
+  getSessionBudgetUsd,
+  hasExplicitBudget,
+} = await import("../core/project-profile")
+
 const { studio_setup } = await import("./setup")
 
 const ctx: any = null!
@@ -43,6 +73,8 @@ describe("studio_setup", () => {
       projects: {},
       defaultExcludes: [".git/"],
     })
+    setPreferLocalModels(false)
+    unsetSessionBudgetUsd()
   })
 
   it("lists candidates without saving when no host specified", async () => {
@@ -56,11 +88,12 @@ describe("studio_setup", () => {
 
     expect(parsed.status).toBe("candidates")
     expect(parsed.all_hosts).toHaveLength(2)
+    expect(parsed.tip).toContain("onboard")
     expect(mockSaveConfig).not.toHaveBeenCalled()
   })
 
   it("returns already_configured when config exists without force", async () => {
-    mockLoadConfig.mockReturnValueOnce({
+    mockLoadConfig.mockReturnValue({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
       projects: {},
@@ -80,7 +113,7 @@ describe("studio_setup", () => {
   })
 
   it("force without host lists candidates and does not auto-save", async () => {
-    mockLoadConfig.mockReturnValueOnce({
+    mockLoadConfig.mockReturnValue({
       ssh: { user: "dev", host: "existing-host", identityFile: "/tmp/key" },
       tunnel: { localPort: 8443, remotePort: 8443, host: "existing-host" },
       projects: {},
@@ -99,7 +132,7 @@ describe("studio_setup", () => {
   it("returns no_hosts when SSH config is empty", async () => {
     mockHosts = []
 
-    const result = await studio_setup.execute({}, ctx)
+    const result = await studio_setup.execute({ action: "ssh" }, ctx)
     const parsed = JSON.parse(result as string)
 
     expect(parsed.status).toBe("no_hosts")
@@ -138,5 +171,39 @@ describe("studio_setup", () => {
     const parsed = JSON.parse(result as string)
     expect(parsed.status).toBe("not_found")
     expect(mockSaveConfig).not.toHaveBeenCalled()
+  })
+
+  it("onboard applies default $5 budget and returns you're-set card", async () => {
+    unsetSessionBudgetUsd()
+    setPreferLocalModels(false)
+
+    const result = await studio_setup.execute({ action: "onboard", prefer_local: false }, ctx)
+    const parsed = JSON.parse(result as string)
+
+    expect(parsed.status).toBe("onboarded")
+    expect(parsed.session_budget_usd).toBe(5)
+    expect(hasExplicitBudget()).toBe(true)
+    expect(getSessionBudgetUsd()).toBe(5)
+    expect(parsed.message).toContain("You're set")
+    expect(parsed.message).toContain("bun test")
+    expect(parsed.verify_commands.test).toBe("bun test")
+    expect(getPreferLocalModels()).toBe(false)
+  })
+
+  it("onboard can set prefer_local and custom budget", async () => {
+    setPreferLocalModels(false)
+    setSessionBudgetUsd(null)
+
+    const result = await studio_setup.execute(
+      { action: "onboard", prefer_local: true, budget_usd: 8 },
+      ctx,
+    )
+    const parsed = JSON.parse(result as string)
+
+    expect(parsed.status).toBe("onboarded")
+    expect(parsed.prefer_local).toBe(true)
+    expect(getPreferLocalModels()).toBe(true)
+    expect(parsed.session_budget_usd).toBe(8)
+    expect(parsed.actions.some((a: string) => a.includes("prefer_local"))).toBe(true)
   })
 })

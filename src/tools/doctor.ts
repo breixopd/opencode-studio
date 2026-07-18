@@ -10,11 +10,17 @@ import { getActiveSyncProjects } from "../sync/active"
 import { collectStudioRuntime } from "../core/studio-runtime"
 import { describeRoutingForProvider } from "../core/model-routing"
 import { loadModelRegistry } from "../core/model-registry"
-import { getPendingCatalogNotice } from "../core/project-profile"
+import {
+  getPendingCatalogNotice,
+  getPreferLocalModels,
+  hasExplicitBudget,
+} from "../core/project-profile"
+import { getSemanticRecallStatus } from "../core/semantic-recall"
 import { getActiveDirectory } from "../core/active-dir"
+import { probeOllama } from "./setup"
 
 export const studio_doctor: ToolDefinition = tool({
-  description: "Health check: config, SSH, tunnel, sync, code index, model routing.",
+  description: "Health check: config, SSH, tunnel, sync, code index, model routing, semantic recall, Ollama.",
   args: {},
   async execute() {
     const checks: Array<{ name: string; ok: boolean; detail: string }> = []
@@ -138,6 +144,37 @@ export const studio_doctor: ToolDefinition = tool({
           : "install rg; AST index still works for symbols",
     })
 
+    const cwd = getActiveDirectory()
+    const recallStatus = getSemanticRecallStatus(cwd)
+    checks.push({
+      name: "semantic_recall",
+      ok: true,
+      detail:
+        recallStatus === "off"
+          ? "off (default) — studio_preferences set_semantic_recall true"
+          : recallStatus === "vec"
+            ? "on — sqlite-vec loaded"
+            : "on — FTS token-overlap fallback (sqlite-vec not loaded)",
+    })
+
+    const ollamaOk = await probeOllama(400)
+    checks.push({
+      name: "ollama",
+      ok: ollamaOk,
+      detail: ollamaOk
+        ? "reachable on :11434"
+        : "not reachable on :11434 (optional — start Ollama or LM Studio)",
+    })
+
+    if (ollamaOk && (!hasExplicitBudget() || !getPreferLocalModels())) {
+      checks.push({
+        name: "onboard",
+        ok: true,
+        detail:
+          "Ollama reachable — run studio_setup({ action: \"onboard\" }) to lock $5 budget + prefer_local",
+      })
+    }
+
     const catalogNotice = getPendingCatalogNotice()
     const registry = loadModelRegistry()
     checks.push({
@@ -147,7 +184,7 @@ export const studio_doctor: ToolDefinition = tool({
     })
 
     const healthy = checks
-      .filter((c) => !["tunnel", "tasks", "verify_gate"].includes(c.name) || c.ok)
+      .filter((c) => !["tunnel", "tasks", "verify_gate", "ollama", "onboard"].includes(c.name) || c.ok)
       .every((c) => c.ok)
 
     return JSON.stringify({ healthy, runtime, checks }, null, 2)

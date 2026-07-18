@@ -36,11 +36,17 @@ export const TunnelConfigSchema = z.object({
   host: z.string(),
 })
 
+export const RemoteExecConfigSchema = z.object({
+  allowedHosts: z.array(z.string()).optional(),
+  allowedCommandPrefixes: z.array(z.string()).optional(),
+})
+
 export const StudioConfigSchema = z.object({
   ssh: SSHConfigSchema,
   tunnel: TunnelConfigSchema,
   projects: z.record(z.string(), ProjectMappingSchema),
   defaultExcludes: z.array(z.string()),
+  remote: RemoteExecConfigSchema.optional(),
 })
 
 export type ValidatedStudioConfig = z.infer<typeof StudioConfigSchema>

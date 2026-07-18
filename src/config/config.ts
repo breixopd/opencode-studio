@@ -9,11 +9,13 @@ const CONFIG_DIR = join(homedir(), ".config", "opencode-studio")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
 
 function mergeRawConfig(raw: Record<string, unknown>): StudioConfig {
+  const remoteRaw = raw.remote as StudioConfig["remote"] | undefined
   return {
     ssh: { ...DEFAULT_CONFIG.ssh, ...((raw.ssh as object) || {}) },
     tunnel: { ...DEFAULT_CONFIG.tunnel, ...((raw.tunnel as object) || {}) },
     projects: (raw.projects as StudioConfig["projects"]) || {},
     defaultExcludes: (raw.defaultExcludes as string[]) || DEFAULT_EXCLUDES,
+    ...(remoteRaw ? { remote: remoteRaw } : {}),
   }
 }
 

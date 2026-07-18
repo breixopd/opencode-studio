@@ -3,7 +3,7 @@
 > North star: **the only plugin a developer needs to ditch Cursor / Claude Code / Cline setups.**
 > Native first, keyless by default, token-cheap, fast on big repos, smart enough for small models.
 
-Shipped baseline = **v2.0.0-alpha** (first public alpha of the SQLite rewrite). This doc is forward-looking only.
+Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 
 ---
 
@@ -22,26 +22,29 @@ Shipped baseline = **v2.0.0-alpha** (first public alpha of the SQLite rewrite). 
 ## Shipped (alpha)
 
 - Unified SQLite store (`.studio/studio.db`): code index + workspace + cost ledger + diagnostics
-- Graph queries: refs / importers / impact / hotspots
+- Graph queries: refs / importers / impact / hotspots + **monorepo** cross-package imports
+- Parallel index build (promise pool, configurable concurrency)
 - SDLC team + `/start-work` fan-out, verify gate, grind loop, council
-- Autonomous **studio_scout** + autonomy modes (`full` | `suggest` | `off`); `full` auto-creates tasks + mandates verify-first fixes
-- Local model preference for cheap/read-only subagents (picks from connected Ollama / LM Studio / local models)
+- Autonomous **studio_scout** + autonomy modes; `full` auto-creates tasks; security/deps collectors
+- Default **$5 session budget** (clear with `0`); over-budget blocks tools + forces free/local routing
+- First-run **`studio_setup action=onboard`** (local detect, prefer_local, budget, verify card)
+- Local model preference (connected Ollama / LM Studio / local — no hardcoded model ids)
+- Optional semantic recall (`set_semantic_recall`; sqlite-vec when present, else FTS overlap)
+- Local OpenAI-compatible sidecar recipe (README + doctor Ollama probe)
+- **CI triage** (`studio_ci action=triage`) — failed logs + root cause + `[ci:…]` tasks
+- Remote exec policy (destructive blocklist, optional host/prefix allowlists, confirm when autonomy=full)
 - Remote SSH sync + tunnel watchdog + `studio_remote`
-- TUI dashboard, passive context, plan drift, CI watcher, constitution, browser verify
+- TUI dashboard, passive context, plan drift, constitution, browser verify
 
 ---
 
-## Next (post-alpha)
+## Next (deferred)
 
 | Priority | Item | Why |
 |----------|------|-----|
-| P0 | Hard spend caps / session budget kill-switch | ✅ shipped (`set_session_budget`) |
-| P0 | Stronger auto-act on high scout findings when `autonomy=full` | ✅ shipped (creates `[scout:…]` tasks + mandatory implement→verify prompt) |
-| P1 | Worker-pool tree-sitter parse for 10k+ file repos | Perf on monorepos |
-| P1 | Optional sqlite-vec semantic recall (off by default) | Better memory without cloud embeddings |
-| P1 | Deeper CI triage agent on Actions failure | Bugbot-class local alternative |
-| P2 | Cross-repo dependency graph for monorepos | Blast-radius queries |
-| P2 | Local OpenAI-compatible sidecar recipe in docs | Zero-cost read-only subagents on modest hardware |
+| P1 | OpenCode **plugin API v2** migration | Wait until V2 is stable/out — transforms + client hooks may unlock harder budget stops |
+| P2 | True OS-thread WASM workers for parse | Promise pool ships first; revisit if monorepo index still bottlenecks |
+| P2 | Hard stop of LLM turns when over budget | Needs OpenCode hook that can abort generation; tool block + free routing is current best |
 
 ---
 

@@ -6,8 +6,29 @@ import { detectTooling, type VerifyCommands } from "../core/project-detect"
 import { snapshotHead, rollbackToSnapshot, loadSnapshot, checkGrindHealth } from "../core/self-heal"
 import { getActiveDirectory } from "../core/active-dir"
 
+/** Aliases that map a verify category to commands across ecosystems. */
+export const VERIFY_ALIASES: Record<string, string[]> = {
+  lint: ["lint", "clippy", "ruff", "rubocop", "eslint", "phpstan"],
+  typecheck: ["typecheck", "tsc", "mypy", "vet", "check", "analyze"],
+  test: ["test"],
+  build: ["build", "compile", "package"],
+}
+
+/** Filter detected verify commands by only= category (aliases applied). */
+export function filterVerifyCommands(
+  cmds: string[],
+  only?: string | null,
+): string[] {
+  if (!only || only === "all" || only === "snapshot" || only === "rollback") return cmds
+  const aliases = VERIFY_ALIASES[only] ?? [only]
+  return cmds.filter((c) => {
+    const lower = c.toLowerCase()
+    return aliases.some((a) => lower.includes(a))
+  })
+}
+
 /** Detect verify commands from project type — works for ANY language (Python/Rust/Go/Java/etc.). */
-function detectCommands(cwd: string): string[] {
+export function detectCommands(cwd: string): string[] {
   const { verifyCommands } = detectTooling(cwd)
   const cmds: string[] = []
   // Filter out nulls and keep in stable order.
@@ -30,14 +51,6 @@ interface CommandError {
   message?: string
   stdout?: string
   stderr?: string
-}
-
-/** Aliases that map a verify category to commands across ecosystems. */
-const VERIFY_ALIASES: Record<string, string[]> = {
-  lint: ["lint", "clippy", "ruff", "rubocop", "eslint", "phpstan"],
-  typecheck: ["typecheck", "tsc", "mypy", "vet", "check", "analyze"],
-  test: ["test"],
-  build: ["build", "compile", "package"],
 }
 
 /** Run a command asynchronously, returning stdout on success or throwing on failure. */
@@ -104,11 +117,7 @@ export const studio_verify: ToolDefinition = tool({
     }
 
     if (args.only && args.only !== "all") {
-      const aliases = VERIFY_ALIASES[args.only] ?? [args.only]
-      cmds = cmds.filter((c) => {
-        const lower = c.toLowerCase()
-        return aliases.some((a) => lower.includes(a))
-      })
+      cmds = filterVerifyCommands(cmds, args.only)
     }
 
     if (cmds.length === 0) {

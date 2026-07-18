@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeEach } from "bun:test"
-import { detectAutonomyIntent, formatScoutReport, type ScoutFinding } from "./scout"
+import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { detectAutonomyIntent, formatScoutReport, collectSecurityFindings, collectDepsFindings, type ScoutFinding } from "./scout"
 import { setAutonomyMode, getAutonomyMode } from "./project-profile"
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs"
+import { join } from "path"
+import { tmpdir } from "os"
+import { execSync } from "child_process"
 
 function sampleFindings(): ScoutFinding[] {
   return [
@@ -91,5 +95,91 @@ describe("materializeAutoActTasks", () => {
       closeStudioDb(dir)
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe("collectSecurityFindings", () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "scout-sec-"))
+    execSync("git init", { cwd: dir, stdio: "ignore" })
+    execSync("git config user.email test@test.com", { cwd: dir, stdio: "ignore" })
+    execSync("git config user.name Test", { cwd: dir, stdio: "ignore" })
+    mkdirSync(join(dir, "src"), { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("flags .env tracked by git", () => {
+    writeFileSync(join(dir, ".env"), "SECRET=1\n")
+    execSync("git add .env && git commit -m env", { cwd: dir, stdio: "ignore" })
+    const out: ScoutFinding[] = []
+    collectSecurityFindings(out, dir)
+    expect(out.some((f) => f.id === "sec-env-tracked")).toBe(true)
+  })
+
+  it("flags eval( in src", () => {
+    writeFileSync(join(dir, "src", "bad.ts"), "export const x = eval('1+1')\n")
+    const out: ScoutFinding[] = []
+    collectSecurityFindings(out, dir)
+    expect(out.some((f) => f.id === "sec-eval" && f.detail.includes("bad.ts"))).toBe(true)
+  })
+
+  it("flags shell:true child_process usage", () => {
+    writeFileSync(
+      join(dir, "src", "run.ts"),
+      `import { spawn } from "child_process"\nspawn("ls", { shell: true })\n`,
+    )
+    const out: ScoutFinding[] = []
+    collectSecurityFindings(out, dir)
+    expect(out.some((f) => f.id === "sec-shell-true")).toBe(true)
+  })
+
+  it("ignores clean src", () => {
+    writeFileSync(join(dir, "src", "ok.ts"), "export const n = 1\n")
+    const out: ScoutFinding[] = []
+    collectSecurityFindings(out, dir)
+    expect(out).toHaveLength(0)
+  })
+})
+
+describe("collectDepsFindings", () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "scout-deps-"))
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("flags missing lockfile", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "x", dependencies: { lodash: "^4.0.0" } }))
+    const out: ScoutFinding[] = []
+    collectDepsFindings(out, dir)
+    expect(out.some((f) => f.id === "deps-no-lockfile")).toBe(true)
+  })
+
+  it("flags historically risky packages", () => {
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "x", dependencies: { "event-stream": "3.3.4" } }),
+    )
+    writeFileSync(join(dir, "package-lock.json"), "{}")
+    const out: ScoutFinding[] = []
+    collectDepsFindings(out, dir)
+    expect(out.some((f) => f.id === "deps-risky")).toBe(true)
+  })
+
+  it("is quiet when lockfile exists and deps look fine", () => {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "x", dependencies: { zod: "^3.0.0" } }))
+    writeFileSync(join(dir, "bun.lock"), "# lock\n")
+    const out: ScoutFinding[] = []
+    collectDepsFindings(out, dir)
+    expect(out).toHaveLength(0)
   })
 })

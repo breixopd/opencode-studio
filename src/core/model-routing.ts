@@ -1,5 +1,6 @@
 import type { Config } from "@opencode-ai/plugin"
 import { loadUserProfile, type ModelMode } from "./project-profile"
+import { shouldForceFreeRouting } from "./budget"
 import {
   type ModelTier,
   PROVIDER_TIERS,
@@ -114,10 +115,14 @@ function routeAgentModel(
   mode: ModelMode,
   zenCatalog: string[],
 ): string | undefined {
+  // Hard spend kill-switch: force free/local picks when session budget exceeded.
+  if (shouldForceFreeRouting()) {
+    mode = "free"
+  }
   const main = getLastMainModel() ?? config.model
   const mainProvider = main ? parseModelRef(main).provider : undefined
   const tier = agentTier(agentName)
-  const preferLocal = loadUserProfile().preferLocalModels === true
+  const preferLocal = loadUserProfile().preferLocalModels === true || shouldForceFreeRouting()
   const localProvider = preferLocal ? firstLocalProvider(config) : undefined
 
   // Cost-saving path: route fast/read-only (and free-mode) work to local models first.
@@ -165,9 +170,10 @@ const studioRoutedAgents = new Set<string>()
 let latestConfig: Config | null = null
 export function applyStudioModelRouting(config: Config, zenCatalog: string[] = []): void {
   const profile = loadUserProfile()
-  const mode = profile.modelMode ?? "balanced"
+  const mode: ModelMode = shouldForceFreeRouting() ? "free" : (profile.modelMode ?? "balanced")
   const effectiveMain = getLastMainModel() ?? config.model
-  const localProvider = profile.preferLocalModels ? firstLocalProvider(config) : undefined
+  const localProvider =
+    profile.preferLocalModels || shouldForceFreeRouting() ? firstLocalProvider(config) : undefined
   if (!config.small_model) {
     if (localProvider) {
       const small = pickFromProvider(config, localProvider, "fast", zenCatalog)

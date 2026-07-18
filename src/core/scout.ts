@@ -8,8 +8,9 @@
  *   studio_preferences set_autonomy off
  * or by saying "don't scout" / "no autonomy" / "stop suggesting improvements".
  */
-import { existsSync, readdirSync, statSync } from "fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "fs"
 import { basename, dirname, extname, join, relative } from "path"
+import { spawnSync } from "child_process"
 import { getDiagnosticsSummary, getDiagnostics } from "./diagnostics"
 import { getWorkingSet } from "./passive-context"
 import { incompleteTasks, listTasks, createTask } from "./workspace-tasks"
@@ -66,6 +67,8 @@ export function runScout(root = getActiveDirectory(), max = 8): ScoutFinding[] {
     collectHotspotFindings(findings, root)
     collectProcessFindings(findings, root)
     collectCiFindings(findings)
+    collectSecurityFindings(findings, root)
+    collectDepsFindings(findings, root)
   } catch (err) {
     log.debugCatch("scout.run", err)
   }
@@ -280,8 +283,194 @@ function collectCiFindings(out: ScoutFinding[]): void {
       category: "verify",
       title: "CI failing",
       detail: ci.slice(0, 200),
-      action: "studio_ci status, then fix with @studio-implement → studio_verify",
+      action: "studio_ci triage, then fix with @studio-implement → studio_verify",
     })
+  }
+}
+
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".studio", "coverage", ".next", "vendor"])
+const SCAN_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"])
+
+/** Cheap sync walk of project source (skips node_modules / build dirs). */
+function walkSrcFiles(root: string, limit = 400): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    if (out.length >= limit) return
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of entries) {
+      if (SKIP_DIRS.has(name)) continue
+      const p = join(dir, name)
+      try {
+        const st = statSync(p)
+        if (st.isDirectory()) walk(p)
+        else if (SCAN_EXTS.has(extname(name))) out.push(p)
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  const prefer = ["src", "lib", "app"].map((d) => join(root, d)).filter((d) => existsSync(d))
+  if (prefer.length) {
+    for (const d of prefer) walk(d)
+  } else {
+    walk(root)
+  }
+  return out
+}
+
+/**
+ * Security heuristics: tracked .env files, eval( in src, shell:true child_process.
+ * Exported for unit tests.
+ */
+export function collectSecurityFindings(out: ScoutFinding[], root: string): void {
+  // Tracked secrets files via git ls-files (no network).
+  try {
+    const ls = spawnSync("git", ["ls-files", "--", ".env", ".env.local", ".env.production", ".env.development"], {
+      cwd: root,
+      encoding: "utf-8",
+      timeout: 5_000,
+    })
+    if (ls.status === 0 && ls.stdout.trim()) {
+      const tracked = ls.stdout.trim().split("\n").filter(Boolean)
+      if (tracked.length) {
+        out.push({
+          id: "sec-env-tracked",
+          severity: "high",
+          category: "security",
+          title: `${tracked.length} env file(s) tracked by git`,
+          detail: tracked.slice(0, 5).join(", "),
+          action: "Remove from git (git rm --cached), add to .gitignore, rotate any leaked secrets",
+        })
+      }
+    }
+  } catch (err) {
+    log.debugCatch("scout.security.env", err)
+  }
+
+  const evalHits: string[] = []
+  const shellHits: string[] = []
+  for (const file of walkSrcFiles(root)) {
+    let text: string
+    try {
+      text = readFileSync(file, "utf-8")
+    } catch {
+      continue
+    }
+    const rel = relative(root, file)
+    // eval( — skip comments-only false positives lightly
+    if (/(?:^|[^.\w])eval\s*\(/.test(text)) {
+      evalHits.push(rel)
+    }
+    // Dangerous child_process with shell:true
+    if (
+      /(?:child_process|spawn|exec|execFile|spawnSync|execSync)/.test(text) &&
+      /shell\s*:\s*true/.test(text)
+    ) {
+      shellHits.push(rel)
+    }
+  }
+
+  if (evalHits.length) {
+    out.push({
+      id: "sec-eval",
+      severity: "high",
+      category: "security",
+      title: `eval() found in ${evalHits.length} source file(s)`,
+      detail: evalHits.slice(0, 4).join(", "),
+      action: "Replace eval with safe parsing/APIs; never eval untrusted input",
+    })
+  }
+  if (shellHits.length) {
+    out.push({
+      id: "sec-shell-true",
+      severity: "medium",
+      category: "security",
+      title: `child_process shell:true in ${shellHits.length} file(s)`,
+      detail: shellHits.slice(0, 4).join(", "),
+      action: "Prefer spawn(cmd, args, {shell:false}); avoid shell interpolation of untrusted input",
+    })
+  }
+}
+
+/** Known high-severity / abandoned packages worth a cheap local flag (no network). */
+const RISKY_DEPS = new Set([
+  "event-stream",
+  "flatmap-stream",
+  "node-ipc",
+  "ua-parser-js", // historically compromised versions — flag for audit attention
+])
+
+/**
+ * Cheap deps heuristics: missing lockfile, wildcard ranges, known-risky names.
+ * No network — studio_deps audit remains the deep path.
+ * Exported for unit tests.
+ */
+export function collectDepsFindings(out: ScoutFinding[], root: string): void {
+  const pkgPath = join(root, "package.json")
+  if (!existsSync(pkgPath)) return
+
+  const lockfiles = [
+    "package-lock.json",
+    "bun.lock",
+    "bun.lockb",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "npm-shrinkwrap.json",
+  ]
+  const hasLock = lockfiles.some((f) => existsSync(join(root, f)))
+  if (!hasLock) {
+    out.push({
+      id: "deps-no-lockfile",
+      severity: "medium",
+      category: "deps",
+      title: "package.json present but no lockfile",
+      detail: "Missing package-lock.json / bun.lock / yarn.lock / pnpm-lock.yaml",
+      action: "Commit a lockfile for reproducible installs; then studio_deps audit",
+    })
+  }
+
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    const all = { ...pkg.dependencies, ...pkg.devDependencies }
+    const wildcards: string[] = []
+    const risky: string[] = []
+    for (const [name, version] of Object.entries(all)) {
+      if (version === "*" || version === "latest" || version === "x") {
+        wildcards.push(`${name}@${version}`)
+      }
+      if (RISKY_DEPS.has(name)) {
+        risky.push(`${name}@${version}`)
+      }
+    }
+    if (risky.length) {
+      out.push({
+        id: "deps-risky",
+        severity: "high",
+        category: "deps",
+        title: `${risky.length} historically risky package(s)`,
+        detail: risky.slice(0, 5).join(", "),
+        action: "studio_deps audit; remove or pin safe versions of compromised packages",
+      })
+    } else if (wildcards.length) {
+      out.push({
+        id: "deps-wildcard",
+        severity: "low",
+        category: "deps",
+        title: `${wildcards.length} wildcard / floating dependency range(s)`,
+        detail: wildcards.slice(0, 5).join(", "),
+        action: "Pin semver ranges and regenerate lockfile; studio_deps outdated for updates",
+      })
+    }
+  } catch (err) {
+    log.debugCatch("scout.deps", err)
   }
 }
 

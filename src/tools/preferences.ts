@@ -1,6 +1,7 @@
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import {
   loadConfig,
+  saveConfig,
   findProjectNameForLocal,
   updateProject,
 } from "../config/config"
@@ -15,16 +16,29 @@ import {
   type AutonomyMode,
   setPreferLocalModels,
   getPreferLocalModels,
+  setSemanticRecall,
+  getSemanticRecall,
   setSessionBudgetUsd,
   getSessionBudgetUsd,
+  hasExplicitBudget,
 } from "../core/project-profile"
+import { getSemanticRecallStatus } from "../core/semantic-recall"
 import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
 import { invalidateScoutCache } from "../core/scout"
 import { getActiveDirectory } from "../core/active-dir"
 
+function parseCsvList(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export const studio_preferences: ToolDefinition = tool({
   description:
-    "Preferences: model mode, autonomy, local models, session budget, remote path, multi-remote env, .studio commit. " +
+    "Preferences: model mode, autonomy, local models, semantic recall, session budget, remote path, " +
+      "multi-remote env, remote exec allowlists, .studio commit. " +
       "Global settings in ~/.config/opencode-studio/user.json.",
   args: {
     action: tool.schema
@@ -32,10 +46,12 @@ export const studio_preferences: ToolDefinition = tool({
         "set_remote_path",
         "add_remote_env",
         "set_remote_env",
+        "set_remote_policy",
         "allow_studio_commit",
         "set_model_mode",
         "set_autonomy",
         "set_prefer_local",
+        "set_semantic_recall",
         "set_session_budget",
         "show",
       ])
@@ -56,6 +72,14 @@ export const studio_preferences: ToolDefinition = tool({
       .string()
       .optional()
       .describe("SSH host for the remote env (add_remote_env)"),
+    allowed_hosts: tool.schema
+      .string()
+      .optional()
+      .describe("Comma-separated SSH aliases for studio_remote (set_remote_policy). Empty clears."),
+    allowed_command_prefixes: tool.schema
+      .string()
+      .optional()
+      .describe("Comma-separated command prefixes for studio_remote (set_remote_policy). Empty clears."),
     allow: tool.schema
       .boolean()
       .optional()
@@ -72,10 +96,14 @@ export const studio_preferences: ToolDefinition = tool({
       .boolean()
       .optional()
       .describe("Prefer Ollama/LM Studio/local providers for fast/read-only subagents"),
+    semantic_recall: tool.schema
+      .boolean()
+      .optional()
+      .describe("Enable optional semantic recall (sqlite-vec or FTS token-overlap fallback)"),
     budget_usd: tool.schema
       .number()
       .optional()
-      .describe("Session spend cap in USD (0 clears). Blocks expensive tools when exceeded."),
+      .describe("Session spend cap in USD (default $5 if never set; 0 clears → unlimited). Blocks tools when exceeded."),
   },
   async execute(args) {
     const config = loadConfig()
@@ -84,12 +112,29 @@ export const studio_preferences: ToolDefinition = tool({
 
     if (args.action === "show") {
       const budget = getSessionBudgetUsd()
+      const recallStatus = getSemanticRecallStatus(cwd)
       const lines = [
         `Model mode (global): ${getModelMode()}`,
         `Autonomy: ${getAutonomyMode()}`,
         `Prefer local models: ${getPreferLocalModels() ? "yes" : "no"}`,
-        `Session budget: ${budget == null ? "unlimited" : `$${budget.toFixed(2)}`}`,
+        `Semantic recall: ${getSemanticRecall() ? `on (${recallStatus})` : "off"}`,
+        `Session budget: ${
+          budget == null
+            ? "unlimited"
+            : `$${budget.toFixed(2)}${hasExplicitBudget() ? "" : " (default)"}`
+        }`,
       ]
+      const remotePolicy = config.remote
+      lines.push(
+        `Remote allowedHosts: ${
+          remotePolicy?.allowedHosts?.length ? remotePolicy.allowedHosts.join(", ") : "(unrestricted)"
+        }`,
+        `Remote allowedCommandPrefixes: ${
+          remotePolicy?.allowedCommandPrefixes?.length
+            ? remotePolicy.allowedCommandPrefixes.map((p) => JSON.stringify(p)).join(", ")
+            : "(unrestricted)"
+        }`,
+      )
       const notice = getPendingCatalogNotice()
       if (notice) lines.push(`Catalog notice: ${notice}`)
       if (!name || !config.projects[name]) {
@@ -139,12 +184,48 @@ export const studio_preferences: ToolDefinition = tool({
         "picking from models you have loaded (no hardcoded model list)."
     }
 
+    if (args.action === "set_semantic_recall") {
+      if (args.semantic_recall === undefined) return "semantic_recall (boolean) required"
+      const on = setSemanticRecall(args.semantic_recall)
+      const status = getSemanticRecallStatus(cwd)
+      return on
+        ? `Semantic recall enabled (backend: ${status}). Use studio_index action=similar. ` +
+          "sqlite-vec loads if available; otherwise enhanced FTS token-overlap fallback."
+        : "Semantic recall disabled (default)."
+    }
+
     if (args.action === "set_session_budget") {
       const usd = args.budget_usd ?? 0
       const set = setSessionBudgetUsd(usd)
       return set == null
         ? "Session budget cleared (unlimited)."
-        : `Session budget set to $${set.toFixed(2)}. Expensive tools block when exceeded.`
+        : `Session budget set to $${set.toFixed(2)}. Non-allowlisted tools block when exceeded.`
+    }
+
+    if (args.action === "set_remote_policy") {
+      if (args.allowed_hosts === undefined && args.allowed_command_prefixes === undefined) {
+        return "Pass allowed_hosts and/or allowed_command_prefixes (comma-separated; empty string clears)."
+      }
+      const next = { ...(config.remote ?? {}) }
+      if (args.allowed_hosts !== undefined) {
+        const hosts = parseCsvList(args.allowed_hosts) ?? []
+        next.allowedHosts = hosts.length ? hosts : undefined
+      }
+      if (args.allowed_command_prefixes !== undefined) {
+        const prefixes = parseCsvList(args.allowed_command_prefixes) ?? []
+        next.allowedCommandPrefixes = prefixes.length ? prefixes : undefined
+      }
+      const hasPolicy =
+        (next.allowedHosts?.length ?? 0) > 0 || (next.allowedCommandPrefixes?.length ?? 0) > 0
+      config.remote = hasPolicy ? next : undefined
+      saveConfig(config)
+      return (
+        `Remote policy saved.\n` +
+        `allowedHosts: ${config.remote?.allowedHosts?.join(", ") ?? "(none)"}\n` +
+        `allowedCommandPrefixes: ${
+          config.remote?.allowedCommandPrefixes?.map((p) => JSON.stringify(p)).join(", ") ?? "(none)"
+        }`
+      )
     }
 
     if (!name || !config.projects[name]) {

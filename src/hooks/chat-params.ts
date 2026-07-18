@@ -1,5 +1,7 @@
 import { tierForAgent } from "../core/agent-tiers"
 import { getActiveDirectory } from "../core/active-dir"
+import { shouldForceFreeRouting } from "../core/budget"
+import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
 
 /**
  * Chat params hook — temperature tiering + prompt-cache key.
@@ -8,6 +10,9 @@ import { getActiveDirectory } from "../core/active-dir"
  * version. Anthropic/OpenAI use this to identify cacheable prompt prefixes.
  * The discipline hook orders system blocks so the stable prefix (discipline +
  * project profile + rules) comes before the dynamic suffix (plan/tasks/verify).
+ *
+ * When session budget is exceeded, force free routing (without mutating user
+ * model_mode) and keep temperature low.
  */
 export function createChatParamsHook() {
   return async (
@@ -30,6 +35,13 @@ export function createChatParamsHook() {
       output.temperature = Math.max(output.temperature, 0.45)
     } else if (tier === "code") {
       output.temperature = 0.35
+    }
+
+    if (shouldForceFreeRouting(input.sessionID)) {
+      output.temperature = Math.min(output.temperature, 0.2)
+      output.options.studio_budget_force_free = true
+      clearStudioRoutedAgents()
+      void refreshModelRouting()
     }
 
     // Prompt cache key: stable per (project, agent, studio version).

@@ -2,6 +2,18 @@ import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { loadConfig, saveConfig } from "../config/config"
 import { parseSSHConfig } from "../config/ssh-config"
 import type { StudioConfig } from "../config/types"
+import { LOCAL_PROVIDERS } from "../core/model-catalog"
+import { getLatestConfig, clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
+import { detectTooling } from "../core/project-detect"
+import { getActiveDirectory } from "../core/active-dir"
+import {
+  DEFAULT_SESSION_BUDGET_USD,
+  getPreferLocalModels,
+  getSessionBudgetUsd,
+  hasExplicitBudget,
+  setPreferLocalModels,
+  setSessionBudgetUsd,
+} from "../core/project-profile"
 
 function applyHost(existing: StudioConfig, selected: ReturnType<typeof parseSSHConfig>[number]): StudioConfig {
   return {
@@ -23,10 +35,148 @@ function hostSummaries(hosts: ReturnType<typeof parseSSHConfig>) {
   return hosts.map((h) => ({ alias: h.alias, host: h.host, user: h.user, hasKey: !!h.identityFile }))
 }
 
+/** Providers already present in OpenCode config that look local. */
+export function detectConfiguredLocalProviders(): string[] {
+  const config = getLatestConfig()
+  if (!config?.provider) return []
+  const found: string[] = []
+  for (const id of Object.keys(config.provider)) {
+    const lower = id.toLowerCase()
+    if ((LOCAL_PROVIDERS as readonly string[]).includes(lower) || /ollama|lmstudio|local/.test(lower)) {
+      found.push(id)
+    }
+  }
+  return found
+}
+
+/** Probe Ollama's default HTTP port. */
+export async function probeOllama(timeoutMs = 400): Promise<boolean> {
+  try {
+    const res = await fetch("http://127.0.0.1:11434/api/tags", {
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+function sshStatusPayload() {
+  const existing = loadConfig()
+  const hosts = parseSSHConfig()
+  if (hosts.length === 0) {
+    return {
+      status: "no_hosts" as const,
+      message: "No SSH hosts found in ~/.ssh/config. Add hosts to ~/.ssh/config or configure manually.",
+    }
+  }
+  if (existing.ssh.host) {
+    return {
+      status: "already_configured" as const,
+      ssh: { host: existing.ssh.host, user: existing.ssh.user, port: existing.ssh.port },
+      all_hosts: hostSummaries(hosts),
+      message:
+        "Studio SSH is configured. Use studio_setup({ action: \"ssh\", host: '<alias>', force: true }) to switch hosts.",
+    }
+  }
+  return {
+    status: "candidates" as const,
+    all_hosts: hostSummaries(hosts),
+    message: `Found ${hosts.length} SSH host(s). Confirm with studio_setup({ host: "<alias>" }) — nothing was saved.`,
+  }
+}
+
+async function runOnboard(args: {
+  prefer_local?: boolean
+  budget_usd?: number
+}): Promise<string> {
+  const configuredLocal = detectConfiguredLocalProviders()
+  const ollamaReachable = await probeOllama()
+  const localAvailable = configuredLocal.length > 0 || ollamaReachable
+
+  const actions: string[] = []
+  let preferLocal = getPreferLocalModels()
+  const wantPreferLocal = args.prefer_local ?? (localAvailable && !preferLocal ? true : undefined)
+  if (wantPreferLocal === true && !preferLocal) {
+    preferLocal = setPreferLocalModels(true)
+    clearStudioRoutedAgents()
+    await refreshModelRouting()
+    actions.push("prefer_local → true")
+  } else if (wantPreferLocal === false && preferLocal) {
+    preferLocal = setPreferLocalModels(false)
+    clearStudioRoutedAgents()
+    await refreshModelRouting()
+    actions.push("prefer_local → false")
+  }
+
+  let budget = getSessionBudgetUsd()
+  const budgetWasUnset = !hasExplicitBudget()
+  if (budgetWasUnset || (args.budget_usd != null && args.budget_usd > 0)) {
+    const target = args.budget_usd != null && args.budget_usd > 0 ? args.budget_usd : DEFAULT_SESSION_BUDGET_USD
+    if (budgetWasUnset || budget !== target) {
+      budget = setSessionBudgetUsd(target)
+      actions.push(`session_budget → $${(budget ?? target).toFixed(2)}`)
+    }
+  }
+
+  const tooling = detectTooling(getActiveDirectory())
+  const verify = tooling.verifyCommands
+  const verifyLines = [
+    verify.test && `- test: \`${verify.test}\``,
+    verify.lint && `- lint: \`${verify.lint}\``,
+    verify.typecheck && `- typecheck: \`${verify.typecheck}\``,
+    verify.build && `- build: \`${verify.build}\``,
+  ].filter(Boolean)
+
+  const localLine = configuredLocal.length
+    ? configuredLocal.join(", ")
+    : ollamaReachable
+      ? "Ollama reachable on :11434 (not yet in OpenCode provider config)"
+      : "none detected — connect Ollama / LM Studio, then set_prefer_local"
+
+  const card = [
+    `# You're set — OpenCode Studio`,
+    "",
+    `**Project:** ${tooling.projectType.ecosystem || "unknown"} (${tooling.projectType.runner || "n/a"})`,
+    `**Prefer local:** ${preferLocal ? "yes" : "no"}`,
+    `**Session budget:** ${budget == null ? "unlimited" : `$${budget.toFixed(2)}`}${budgetWasUnset ? " (default applied)" : ""}`,
+    `**Local providers:** ${localLine}`,
+    "",
+    verifyLines.length
+      ? `**Verify commands** (studio_verify):\n${verifyLines.join("\n")}`
+      : "**Verify commands:** none auto-detected — set via project tooling or run studio_verify to probe.",
+    "",
+    actions.length ? `**Applied:** ${actions.join("; ")}` : "**Applied:** nothing new (already configured)",
+    "",
+    "**Next:** `studio_doctor` · `studio_help topic=overview` · optional SSH: `studio_setup({ host: \"<alias>\" })`",
+  ].join("\n")
+
+  return JSON.stringify(
+    {
+      status: "onboarded",
+      prefer_local: preferLocal,
+      session_budget_usd: budget,
+      local_providers: configuredLocal,
+      ollama_reachable: ollamaReachable,
+      project_type: tooling.projectType,
+      verify_commands: verify,
+      actions,
+      message: card,
+    },
+    null,
+    2,
+  )
+}
+
 export const studio_setup: ToolDefinition = tool({
   description:
-    "First-time setup wizard for opencode-studio. Lists SSH hosts from ~/.ssh/config and binds only when you pass host=<alias> explicitly (nothing is auto-saved on session start).",
+    "First-run setup: status, SSH host binding, or onboard wizard (local providers, $5 budget default, verify commands). " +
+      "SSH binds only when you pass host=<alias> explicitly.",
   args: {
+    action: tool.schema
+      .enum(["status", "ssh", "onboard"])
+      .optional()
+      .describe("status (default if no host) | ssh | onboard"),
     force: tool.schema
       .boolean()
       .optional()
@@ -35,10 +185,41 @@ export const studio_setup: ToolDefinition = tool({
       .string()
       .optional()
       .describe("SSH host alias to bind (from ~/.ssh/config). Required to persist — omit to list candidates only."),
+    prefer_local: tool.schema
+      .boolean()
+      .optional()
+      .describe("Onboard: set prefer_local (default true when Ollama/local detected)"),
+    budget_usd: tool.schema
+      .number()
+      .optional()
+      .describe(`Onboard: session budget USD (default ${DEFAULT_SESSION_BUDGET_USD} if unset)`),
   },
   async execute(args) {
+    const action = args.action ?? (args.host ? "ssh" : "status")
+
+    if (action === "onboard") {
+      return runOnboard({ prefer_local: args.prefer_local, budget_usd: args.budget_usd })
+    }
+
     const existing = loadConfig()
     const hosts = parseSSHConfig()
+
+    if (action === "status" && !args.host && !args.force) {
+      const ssh = sshStatusPayload()
+      const budget = getSessionBudgetUsd()
+      return JSON.stringify(
+        {
+          ...ssh,
+          prefer_local: getPreferLocalModels(),
+          session_budget_usd: budget,
+          budget_explicit: hasExplicitBudget(),
+          local_providers: detectConfiguredLocalProviders(),
+          tip: "Run studio_setup({ action: \"onboard\" }) for first-run defaults ($5 budget, prefer_local).",
+        },
+        null,
+        2,
+      )
+    }
 
     if (hosts.length === 0) {
       return JSON.stringify({

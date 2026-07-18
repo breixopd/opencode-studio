@@ -18,8 +18,9 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
    { "plugin": ["opencode-studio"] }
    \`\`\`
 2. **Build** — in plugin repo: \`bun run build\`, restart OpenCode.
-3. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
-4. **Verify** — \`studio_doctor\` or \`/smoke-test\`
+3. **First-run** — \`studio_setup({ action: "onboard" })\` sets prefer_local (if Ollama/local) + default **$5** session budget.
+4. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
+5. **Verify** — \`studio_doctor\` or \`/smoke-test\`
 
 **Optional env (never required):**
 - \`TAVILY_API_KEY\` — better web search (falls back to DuckDuckGo)
@@ -32,10 +33,10 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
 | studio_glob | Find files by pattern (\`**/*.ts\`) |
 | studio_grep | Ripgrep search (needs \`rg\` on PATH) |
 | studio_symbols | AST symbol index — search/file/outline/stats/rebuild |
-| studio_index | Unified: search, semantic, research, symbols, **refs, importers, impact, hotspots** |
+| studio_index | Unified: search, semantic, similar, research, symbols, **refs, importers, impact, hotspots, monorepo** |
 
 **Index:** SQLite FTS5 + tree-sitter AST → \`.studio/studio.db\` (WAL mode)
-**Graph queries** (Phase 2): refs=callers, importers=who-imports-file, impact=transitive callers, hotspots=most-referenced
+**Graph queries** (Phase 2): refs=callers, importers=who-imports-file, impact=transitive callers, hotspots=most-referenced, monorepo=workspace packages + cross-package imports
 **AST:** tree-sitter WASM — TS/JS/Python/Go/Rust/Java/Ruby/PHP/C/C++/C#/Swift/Kotlin/Lua/Zig/Elixir and more.
 
 **Workflow for small models:** glob → symbols outline → index semantic → read specific files.`,
@@ -63,8 +64,11 @@ Subagents get models automatically from your OpenCode picker + Zen catalog.
 | studio_preferences set_model_mode balanced | Default: cheap read-only, main model for implement |
 | studio_preferences set_model_mode quality | Main model on all agents |
 | studio_preferences set_prefer_local true | Route fast/read-only agents to Ollama/LM Studio/local |
+| studio_preferences set_semantic_recall true | Optional similar-chunk recall (sqlite-vec or FTS fallback) |
 | studio_models show | Catalog + provider change detection |
 | studio_models refresh_all | Re-sync after adding/removing providers |
+
+**Local tip:** Start Ollama / LM Studio / llama.cpp with an OpenAI-compatible /v1 endpoint, add it as an OpenCode provider, then \`studio_preferences set_prefer_local true\`. Studio routes cheap/read-only agents to models you have loaded — no hardcoded local model list. See README "Local OpenAI-compatible sidecar".
 
 **Local / cost saving:** Connect Ollama (or LM Studio / OpenAI-compatible local). Studio auto-routes to models you have loaded — no hardcoded local model list.
 
@@ -108,7 +112,7 @@ Auto-starts SSH tunnel + file sync on session.created. Tunnel has exponential-ba
 
 | Tool | Purpose |
 |------|---------|
-| studio_setup | First-time SSH/project mapping |
+| studio_setup | First-run onboard (budget/local) + SSH host bind |
 | studio_status | Projects, tunnel, sync state |
 | studio_tunnel_status / restart | Tunnel control |
 | studio_sync_start / stop | Manual sync |
@@ -116,6 +120,12 @@ Auto-starts SSH tunnel + file sync on session.created. Tunnel has exponential-ba
 | studio_preferences set_remote_path | Per-project remote path |
 | studio_preferences add_remote_env | Add multi-remote env (dev/staging) |
 | studio_preferences set_remote_env | Switch active remote env |
+| studio_preferences set_remote_policy | Restrict studio_remote hosts + command prefixes |
+
+**studio_remote safety:**
+- Always blocks destructive patterns: \`rm -rf\`, \`dd \`, \`mkfs\`, \`shutdown\`, \`reboot\`, \`> /dev/\`
+- Optional \`config.remote.allowedHosts\` / \`allowedCommandPrefixes\` — set via \`studio_preferences set_remote_policy\`
+- When allowlists are empty and autonomy=full, pass \`confirm:true\`
 
 Tunnel defaults: local 8443 → remote 8443 (generic TCP forward for remote services).`,
 
@@ -148,10 +158,11 @@ Run \`studio_report\` and paste JSON when debugging.`,
   roadmap: `# Studio roadmap — alpha status
 
 **Shipped:** SQLite FTS5 + graph, token budgets, cost ledger, remote/tunnel, SDLC agents,
-verify gate + grind, scout autonomy, local model preference, council, CI watcher, constitution,
-browser verify, TUI, session spend caps (\`studio_preferences set_session_budget\`).
+verify gate + grind, scout autonomy, local model preference, semantic recall (optional),
+council, CI watcher, constitution, browser verify, TUI, session spend caps,
+local OpenAI-compatible sidecar recipe.
 
-See \`ROADMAP.md\` for post-alpha priorities (worker parse pool, edge/local recipes).`,
+See \`ROADMAP.md\` for post-alpha priorities (worker parse pool, CI triage).`,
 }
 
 export function helpText(topic?: string): string {

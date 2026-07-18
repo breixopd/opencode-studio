@@ -36,10 +36,23 @@ export interface UserProfile {
   pendingCatalogNotice?: string
   /** Prefer local/Ollama/LM Studio providers for fast/read-only subagents when available */
   preferLocalModels?: boolean
-  /** Soft/hard session spend cap in USD (null/0 = unlimited) */
+  /**
+   * Soft/hard session spend cap in USD.
+   * - `undefined` (never set) → default $5 via getSessionBudgetUsd()
+   * - `null` (explicitly cleared / 0) → unlimited
+   * - number > 0 → hard cap
+   */
   sessionBudgetUsd?: number | null
+  /**
+   * Optional semantic recall via sqlite-vec (or FTS token-overlap fallback).
+   * Off by default — enable with studio_preferences set_semantic_recall true.
+   */
+  semanticRecall?: boolean
   updatedAt: string
 }
+
+/** Default session spend cap when the user has never set one. */
+export const DEFAULT_SESSION_BUDGET_USD = 5
 
 function now(): string {
   return new Date().toISOString()
@@ -154,7 +167,11 @@ export function loadUserProfile(): UserProfile {
     modelMode: raw.modelMode,
     autonomyMode: raw.autonomyMode,
     preferLocalModels: raw.preferLocalModels,
-    sessionBudgetUsd: raw.sessionBudgetUsd ?? null,
+    // Preserve undefined (never set → default $5) vs null (explicitly unlimited).
+    sessionBudgetUsd: Object.prototype.hasOwnProperty.call(raw, "sessionBudgetUsd")
+      ? raw.sessionBudgetUsd
+      : undefined,
+    semanticRecall: raw.semanticRecall === true,
     pendingCatalogNotice: raw.pendingCatalogNotice,
     updatedAt: raw.updatedAt ?? now(),
   }
@@ -199,9 +216,22 @@ export function getPreferLocalModels(): boolean {
   return loadUserProfile().preferLocalModels ?? false
 }
 
+export function setSemanticRecall(enabled: boolean): boolean {
+  const profile = loadUserProfile()
+  profile.semanticRecall = enabled
+  saveUserProfile(profile)
+  return enabled
+}
+
+/** Semantic recall preference (default false). */
+export function getSemanticRecall(): boolean {
+  return loadUserProfile().semanticRecall === true
+}
+
 export function setSessionBudgetUsd(usd: number | null): number | null {
   const profile = loadUserProfile()
   if (usd == null || usd <= 0) {
+    // Explicit clear → unlimited (persist null, not omit key).
     profile.sessionBudgetUsd = null
   } else {
     profile.sessionBudgetUsd = usd
@@ -210,10 +240,31 @@ export function setSessionBudgetUsd(usd: number | null): number | null {
   return profile.sessionBudgetUsd ?? null
 }
 
+/**
+ * Effective session budget in USD.
+ * Never-set (`undefined`) → default $5. Explicit null/≤0 → unlimited (`null`).
+ */
 export function getSessionBudgetUsd(): number | null {
-  const v = loadUserProfile().sessionBudgetUsd
+  const profile = loadUserProfile()
+  if (!Object.prototype.hasOwnProperty.call(profile, "sessionBudgetUsd") || profile.sessionBudgetUsd === undefined) {
+    return DEFAULT_SESSION_BUDGET_USD
+  }
+  const v = profile.sessionBudgetUsd
   if (v == null || v <= 0) return null
   return v
+}
+
+/** True when the user has explicitly set or cleared the budget (not the $5 default). */
+export function hasExplicitBudget(): boolean {
+  const profile = loadUserProfile()
+  return Object.prototype.hasOwnProperty.call(profile, "sessionBudgetUsd") && profile.sessionBudgetUsd !== undefined
+}
+
+/** Drop the budget key so the default $5 applies again (onboard / tests). */
+export function unsetSessionBudgetUsd(): void {
+  const profile = loadUserProfile()
+  delete profile.sessionBudgetUsd
+  saveUserProfile(profile)
 }
 
 export function setPendingCatalogNotice(message: string | null): void {

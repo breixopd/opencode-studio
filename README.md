@@ -30,10 +30,41 @@ Common pain with similar products: runaway token cost, agents that wait to be as
 ```
 studio_preferences set_autonomy full|suggest|off
 studio_preferences set_prefer_local true   # use connected Ollama / LM Studio when present
-studio_preferences set_session_budget 5    # hard spend cap ($) — or say "budget $5"
+studio_preferences set_session_budget 5    # hard spend cap ($) — default $5 if never set; 0 = unlimited
 ```
 
 Local routing does **not** hardcode model names — connect Ollama / LM Studio / any OpenAI-compatible local provider and Studio picks from the models you have loaded (same pattern as Zen/provider auto-routing).
+
+## Local OpenAI-compatible sidecar
+
+Run a local OpenAI-compatible server, point OpenCode at it, then prefer local models for cheap/read-only subagents:
+
+1. **Start a sidecar** (pick one):
+   - [Ollama](https://ollama.com) — `ollama serve` (default `http://127.0.0.1:11434`)
+   - [LM Studio](https://lmstudio.ai) — start the local server (often `http://127.0.0.1:1234/v1`)
+   - [llama.cpp](https://github.com/ggerganov/llama.cpp) server — `--port 8080` with OpenAI-compatible `/v1`
+
+2. **Add an OpenAI-compatible provider** in OpenCode config (example for Ollama):
+
+```json
+{
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1" },
+      "models": { "llama3.2": { "name": "Llama 3.2" } }
+    }
+  }
+}
+```
+
+3. **Prefer local routing** in Studio:
+
+```
+studio_preferences set_prefer_local true
+```
+
+`studio_doctor` lightly probes Ollama on `:11434` (optional — missing Ollama does not fail health).
 
 ## Model routing
 
@@ -60,7 +91,7 @@ Local routing does **not** hardcode model names — connect Ollama / LM Studio /
 
 - Push to `main` → build + typecheck + **isolated per-file tests**
 - Tag `v*` → same tests, then `npm publish`
-  - Prerelease versions (`2.0.0-alpha.1`) → dist-tag `alpha` (does not move `latest`)
+  - Prerelease versions (`2.0.0-alpha.2`) → dist-tag `alpha` (does not move `latest`)
   - Stable versions → dist-tag `latest`
 
 **npm auth:** Prefer [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) on the package settings:

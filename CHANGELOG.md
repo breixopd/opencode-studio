@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.0.0-alpha.2 (2026-07-18)
+
+Post-alpha backlog ship: cost kill-switch hardening, CI triage, indexing throughput, monorepo graph, semantic recall, remote policy, onboarding.
+
+### Added
+
+- **Default $5 session budget** (unset → $5; `set_session_budget 0` clears). Over budget: allowlist-only tools + forced free/local routing
+- **`studio_setup action=onboard`** — detect local providers, prefer_local, budget, verify tooling card
+- **`studio_ci action=triage`** — `gh` failed-job logs, root-cause extract, idempotent `[ci:runId]` tasks
+- **Scout security/deps collectors** — tracked `.env`, `eval(`, `shell:true`, lockfile/range heuristics
+- **Parallel code index** — promise pool (`opts.concurrency`, default min(4, CPUs))
+- **`studio_index action=monorepo`** — workspace packages + cross-package import counts
+- **`studio_index action=similar`** + **`set_semantic_recall`** — optional sqlite-vec, FTS fallback
+- **Remote exec policy** — destructive blocklist; optional host/command-prefix allowlists; confirm when autonomy=full
+- Critical-path tests (tool-guards, verify helpers, handoff, remote policy, CI triage helpers)
+- `bun run test:ci` isolated per-file runner
+
+### Docs
+
+- Local OpenAI-compatible sidecar recipe (README + help + doctor `:11434` probe)
+- ROADMAP: backlog items marked shipped; OpenCode plugin V2 deferred
+
+---
+
 ## v2.0.0-alpha.1 (2026-07-18)
 
 First public alpha of the SQLite rewrite. Publishes to npm as dist-tag **`alpha`** (does not replace `latest` 1.0.1).
@@ -10,8 +34,10 @@ First public alpha of the SQLite rewrite. Publishes to npm as dist-tag **`alpha`
 - **`autonomy=full` auto-act** — materializes high/medium findings as `[scout:…]` tasks and mandates implement→verify
 - **Prefer local models** for cheap/read-only subagents
 - **Session spend cap** — `studio_preferences set_session_budget` (or say `budget $5`); blocks expensive tools when exceeded
+- **Optional semantic recall** — `studio_preferences set_semantic_recall true` + `studio_index action=similar` (sqlite-vec if loadable, else enhanced FTS token-overlap; off by default)
+- **Local OpenAI-compatible sidecar recipe** — README section for Ollama / LM Studio / llama.cpp → provider config → `set_prefer_local true`; `studio_doctor` probes `:11434`
 - Plugin binds OpenCode `directory` (worktree-aware) via active-dir
-- CI: per-file isolated tests (fixes mock.module pollution); prerelease npm publish with correct dist-tag
+- CI: per-file isolated tests (fixes mock.module pollution); prerelease npm publish with correct dist-tag; `bun run test:ci`
 
 ### Docs / packaging
 

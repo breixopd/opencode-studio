@@ -9,6 +9,7 @@ import * as log from "./logger"
  */
 import { createHash } from "crypto"
 import { readFileSync, readdirSync, statSync } from "fs"
+import { cpus } from "os"
 import { join, relative } from "path"
 import type { Database } from "bun:sqlite"
 import { DEFAULT_EXCLUDES } from "../config/defaults"
@@ -520,6 +521,39 @@ export function resolveEdges(db: Database): void {
 
 export interface BuildOptions {
   force?: boolean
+  /** Max concurrent file parses. Default: min(4, CPU count). */
+  concurrency?: number
+}
+
+const PROGRESS_EVERY = 50
+
+/** Run async work over items with a fixed concurrency pool. */
+export async function mapPool<T>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<void>,
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  const total = items.length
+  if (total === 0) return
+  const limit = Math.max(1, Math.min(concurrency, total))
+  let next = 0
+  let done = 0
+  await Promise.all(
+    Array.from({ length: limit }, async () => {
+      while (true) {
+        const i = next++
+        if (i >= total) return
+        await fn(items[i]!, i)
+        done++
+        onProgress?.(done, total)
+      }
+    }),
+  )
+}
+
+function defaultIndexConcurrency(): number {
+  return Math.min(4, Math.max(1, cpus().length || 1))
 }
 
 /**
@@ -564,8 +598,22 @@ export async function buildCodeIndexSqlite(
     : findStale(db, discovered)
 
   for (const rel of stale.deleted) deleteFile(db, rel)
-  for (const f of stale.added) await indexFile(db, root, f)
-  for (const f of stale.modified) await indexFile(db, root, f)
+
+  const toIndex = [...stale.added, ...stale.modified]
+  const concurrency = opts?.concurrency ?? defaultIndexConcurrency()
+  if (toIndex.length > 0) {
+    log.info(
+      `Indexing ${toIndex.length} file(s) with concurrency=${concurrency}` +
+        (stale.deleted.length ? ` (${stale.deleted.length} deleted)` : ""),
+    )
+    await mapPool(toIndex, concurrency, async (f) => {
+      await indexFile(db, root, f)
+    }, (done, total) => {
+      if (done === total || done % PROGRESS_EVERY === 0) {
+        log.info(`Index progress: ${done}/${total} files`)
+      }
+    })
+  }
 
   if (stale.added.length || stale.modified.length) resolveEdges(db)
 
