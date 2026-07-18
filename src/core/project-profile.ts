@@ -35,6 +35,8 @@ export interface UserProfile {
   pendingCatalogNotice?: string
   /** Prefer local/Ollama/LM Studio providers for fast/read-only subagents when available */
   preferLocalModels?: boolean
+  /** Soft/hard session spend cap in USD (null/0 = unlimited) */
+  sessionBudgetUsd?: number | null
   updatedAt: string
 }
 
@@ -151,6 +153,7 @@ export function loadUserProfile(): UserProfile {
     modelMode: raw.modelMode,
     autonomyMode: raw.autonomyMode,
     preferLocalModels: raw.preferLocalModels,
+    sessionBudgetUsd: raw.sessionBudgetUsd ?? null,
     pendingCatalogNotice: raw.pendingCatalogNotice,
     updatedAt: raw.updatedAt ?? now(),
   }
@@ -193,6 +196,23 @@ export function setPreferLocalModels(prefer: boolean): boolean {
 
 export function getPreferLocalModels(): boolean {
   return loadUserProfile().preferLocalModels ?? false
+}
+
+export function setSessionBudgetUsd(usd: number | null): number | null {
+  const profile = loadUserProfile()
+  if (usd == null || usd <= 0) {
+    profile.sessionBudgetUsd = null
+  } else {
+    profile.sessionBudgetUsd = usd
+  }
+  saveUserProfile(profile)
+  return profile.sessionBudgetUsd ?? null
+}
+
+export function getSessionBudgetUsd(): number | null {
+  const v = loadUserProfile().sessionBudgetUsd
+  if (v == null || v <= 0) return null
+  return v
 }
 
 export function setPendingCatalogNotice(message: string | null): void {

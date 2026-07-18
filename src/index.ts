@@ -50,7 +50,11 @@ import { createToolGuardsHook } from "./hooks/tool-guards"
 import { createChatMessageHook } from "./hooks/chat-message"
 import { createShellEnvHook } from "./hooks/shell-env"
 
-export const OpenCodeStudio: Plugin = async () => {
+export const OpenCodeStudio: Plugin = async (ctx) => {
+  // Bind OpenCode's project directory (worktree-aware) for tools/hooks.
+  const { setActiveDirectory } = await import("./core/active-dir")
+  setActiveDirectory(ctx?.directory)
+
   return {
     tool: {
       studio_sync_start,

@@ -5,7 +5,7 @@ import { addGlobalRule } from "../core/project-profile"
 import { recordCorrection, routeScope, getRecurringPatterns } from "../core/auto-memory"
 import { isCouncilTriggered } from "../tools/council"
 import { detectAutonomyIntent } from "../core/scout"
-import { setAutonomyMode } from "../core/project-profile"
+import { setAutonomyMode, setSessionBudgetUsd } from "../core/project-profile"
 import * as log from "../core/logger"
 
 const MAIN_AGENTS = new Set(["build", "general", "plan"])
@@ -69,6 +69,22 @@ export function createChatMessageHook() {
     if (autonomyIntent) {
       setAutonomyMode(autonomyIntent)
       log.info(`Autonomy mode set via chat: ${autonomyIntent}`)
+    }
+
+    // "budget $5" / "clear budget" / "session budget 1.50"
+    const budgetClear = /\b(?:clear|remove|no)\s+(?:session\s+)?budget\b|\bbudget\s+off\b/i.test(text)
+    if (budgetClear) {
+      setSessionBudgetUsd(null)
+      log.info("Session budget cleared via chat")
+    } else {
+      const budgetMatch = text.match(/\b(?:session\s+)?budget\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/i)
+      if (budgetMatch) {
+        const usd = Number(budgetMatch[1])
+        if (Number.isFinite(usd)) {
+          setSessionBudgetUsd(usd)
+          log.info(`Session budget set via chat: $${usd}`)
+        }
+      }
     }
 
     const rules = extractRules(text)

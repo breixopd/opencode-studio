@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "fs"
 import { join } from "path"
 import { canHandoff, getActiveTasks } from "../core/workspace"
+import { assertBudgetAllowsTool } from "../core/budget"
 import * as log from "../core/logger"
 
 /**
@@ -8,9 +9,12 @@ import * as log from "../core/logger"
  *
  * 1. studio_handoff: blocked until all tasks done + verify passes (force:true overrides)
  * 2. studio_verify: TDD gate — warns (not blocks) if no test file exists for the active task
+ * 3. session budget: blocks expensive tools when spend cap exceeded
  */
 export function createToolGuardsHook() {
-  return async (input: { tool: string }, output: { args: Record<string, unknown> }) => {
+  return async (input: { tool: string; sessionID?: string }, output: { args: Record<string, unknown> }) => {
+    assertBudgetAllowsTool(input.tool, input.sessionID)
+
     if (input.tool === "studio_handoff") {
       const gate = canHandoff(output.args?.force === true)
       if (!gate.ok) {

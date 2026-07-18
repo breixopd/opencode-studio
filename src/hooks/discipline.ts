@@ -15,6 +15,7 @@ import { getRecurringCorrectionNotices } from "./chat-message"
 import { workingSetContextBlock } from "../core/passive-context"
 import { checkPlanDrift } from "../core/plan-drift"
 import { scoutContextBlock } from "../core/scout"
+import { budgetContextBlock } from "../core/budget"
 import * as log from "../core/logger"
 
 /**
@@ -102,6 +103,9 @@ export function createDisciplineSystemHook() {
     // Autonomous scout — polish/test/research opportunities (respects autonomy opt-out).
     const scout = scoutContextBlock(process.cwd())
     if (scout) { pushIfNotPresent(output.system, scout); log.debugContext("scout", scout.length) }
+
+    const budget = budgetContextBlock(_input.sessionID)
+    if (budget) { pushIfNotPresent(output.system, budget); log.debugContext("budget", budget.length) }
 
     const patterns = getRecurringCorrectionNotices()
     if (patterns) { pushIfNotPresent(output.system, patterns); log.debugContext("patterns", patterns.length) }

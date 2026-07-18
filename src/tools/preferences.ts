@@ -15,13 +15,15 @@ import {
   type AutonomyMode,
   setPreferLocalModels,
   getPreferLocalModels,
+  setSessionBudgetUsd,
+  getSessionBudgetUsd,
 } from "../core/project-profile"
 import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
 import { invalidateScoutCache } from "../core/scout"
 
 export const studio_preferences: ToolDefinition = tool({
   description:
-    "Preferences: model mode, autonomy, local models, remote path, multi-remote env, .studio commit. " +
+    "Preferences: model mode, autonomy, local models, session budget, remote path, multi-remote env, .studio commit. " +
       "Global settings in ~/.config/opencode-studio/user.json.",
   args: {
     action: tool.schema
@@ -33,6 +35,7 @@ export const studio_preferences: ToolDefinition = tool({
         "set_model_mode",
         "set_autonomy",
         "set_prefer_local",
+        "set_session_budget",
         "show",
       ])
       .describe("Preference action"),
@@ -68,6 +71,10 @@ export const studio_preferences: ToolDefinition = tool({
       .boolean()
       .optional()
       .describe("Prefer Ollama/LM Studio/local providers for fast/read-only subagents"),
+    budget_usd: tool.schema
+      .number()
+      .optional()
+      .describe("Session spend cap in USD (0 clears). Blocks expensive tools when exceeded."),
   },
   async execute(args) {
     const config = loadConfig()
@@ -75,10 +82,12 @@ export const studio_preferences: ToolDefinition = tool({
     const name = args.project ?? findProjectNameForLocal(config, cwd)
 
     if (args.action === "show") {
+      const budget = getSessionBudgetUsd()
       const lines = [
         `Model mode (global): ${getModelMode()}`,
         `Autonomy: ${getAutonomyMode()}`,
         `Prefer local models: ${getPreferLocalModels() ? "yes" : "no"}`,
+        `Session budget: ${budget == null ? "unlimited" : `$${budget.toFixed(2)}`}`,
       ]
       const notice = getPendingCatalogNotice()
       if (notice) lines.push(`Catalog notice: ${notice}`)
@@ -127,6 +136,14 @@ export const studio_preferences: ToolDefinition = tool({
       return `Prefer local models: ${prefer ? "yes" : "no"}. ` +
         "Routes fast/read-only subagents to Ollama/LM Studio/local when connected. " +
         "Recommended local tool-calling models: qwen3.5:4b, qwen3:8b, nemotron-nano:4b (via Ollama)."
+    }
+
+    if (args.action === "set_session_budget") {
+      const usd = args.budget_usd ?? 0
+      const set = setSessionBudgetUsd(usd)
+      return set == null
+        ? "Session budget cleared (unlimited)."
+        : `Session budget set to $${set.toFixed(2)}. Expensive tools block when exceeded.`
     }
 
     if (!name || !config.projects[name]) {

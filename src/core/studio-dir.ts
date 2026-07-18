@@ -2,8 +2,9 @@ import { existsSync, mkdirSync } from "fs"
 import { join } from "path"
 import { loadConfig } from "../config/config"
 import { ensureStudioGitignored } from "./gitignore"
+import { getActiveDirectory } from "./active-dir"
 
-export function studioRoot(cwd = process.cwd()): string {
+export function studioRoot(cwd = getActiveDirectory()): string {
   return join(cwd, ".studio")
 }
 
@@ -20,7 +21,7 @@ function applyGitignorePolicy(cwd: string): void {
   ensureStudioGitignored(cwd, allowCommit)
 }
 
-export function ensureStudioDirs(cwd = process.cwd()): string {
+export function ensureStudioDirs(cwd = getActiveDirectory()): string {
   if (ensuredPaths.has(cwd)) return studioRoot(cwd)
 
   const root = studioRoot(cwd)

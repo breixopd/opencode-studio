@@ -1,11 +1,15 @@
 {
   "name": "opencode-studio",
-  "version": "1.0.0-alpha.1",
-  "description": "Autonomous OpenCode plugin — code intelligence, verify-first SDLC, cost ledger, local model routing, remote sync, 40+ tools",
+  "version": "2.0.0-alpha.1",
+  "description": "Autonomous OpenCode plugin — code intelligence, verify-first SDLC, spend caps, local models, remote sync",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "files": ["dist", "rules"],
+  "files": ["dist", "rules", "README.md", "LICENSE", "CHANGELOG.md"],
+  "exports": {
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js"
+  },
   "scripts": {
     "prebuild": "mkdir -p dist && cp src/core/studio-db-schema.sql dist/",
     "build": "bun build src/index.ts src/tui.ts --outdir dist --target bun --external @opencode-ai/plugin --external @opencode-ai/plugin/tui --external @opentui/core --external @opentui/solid --external ssh2 --external web-tree-sitter --external tree-sitter-wasms --external chokidar --external linkedom --external turndown --external @mozilla/readability",

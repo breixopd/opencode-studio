@@ -2,13 +2,13 @@
 
 The one OpenCode plugin for replacing Cursor / Claude Code / Cline-style setups. Native first, keyless by default, token-cheap, fast on big repos, smart enough for small and local models.
 
-**v1.0.0-alpha** — first public alpha.
+**v2.0.0-alpha** — first public alpha of the SQLite rewrite (npm dist-tag `alpha`; npm `latest` is still 1.0.1 until stable).
 
 ```json
-{ "plugin": ["/path/to/opencode-studio/dist/index.js"] }
+{ "plugin": ["opencode-studio@alpha"] }
 ```
 
-Or after publish: `{ "plugin": ["opencode-studio"] }`
+Or local build: `{ "plugin": ["/path/to/opencode-studio/dist/index.js"] }` after `bun install && bun run build`.
 
 ## Why
 
@@ -30,6 +30,7 @@ Common pain with similar products: runaway token cost, agents that wait to be as
 ```
 studio_preferences set_autonomy full|suggest|off
 studio_preferences set_prefer_local true   # Ollama / LM Studio for cheap subagents
+studio_preferences set_session_budget 5    # hard spend cap ($) — or say "budget $5"
 ```
 
 Recommended local tool-calling models on modest hardware: **Qwen3.5 4B**, **Qwen3 8B**, **Nemotron Nano 4B** via Ollama. For tiny sidekick routers, Cactus Compute Needle (26M) behind an OpenAI-compatible endpoint works as provider `local`.

@@ -1,6 +1,29 @@
 # Changelog
 
-## v1.0.0-alpha.1 (2026-07-18)
+## v2.0.0-alpha.1 (2026-07-18)
+
+First public alpha of the SQLite rewrite. Publishes to npm as dist-tag **`alpha`** (does not replace `latest` 1.0.1).
+
+### Added
+
+- **`studio_scout`** + autonomy modes + `@studio-scout` / `/scout`
+- **Prefer local models** for cheap/read-only subagents
+- **Session spend cap** — `studio_preferences set_session_budget` (or say `budget $5`); blocks expensive tools when exceeded
+- Plugin binds OpenCode `directory` (worktree-aware) via active-dir
+- CI: per-file isolated tests (fixes mock.module pollution); prerelease npm publish with correct dist-tag
+
+### Docs / packaging
+
+- README install via `opencode-studio@alpha`
+- package `exports` + files include README/LICENSE/CHANGELOG
+
+---
+
+## v1.0.0-alpha.1 (superseded)
+
+Interim GitHub-only tag; replaced by v2.0.0-alpha.1 for npm semver (> 1.0.1).
+
+---
 
 First public alpha. Includes the full SQLite rewrite formerly developed on `v2-beta`, plus autonomy and local-model cost controls.
 

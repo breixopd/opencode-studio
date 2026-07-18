@@ -47,6 +47,17 @@ export interface CostSummary {
   byAgent: Array<{ agent: string; cost: number; tokens: number; messages: number }>
 }
 
+/** Track latest session for budget checks when hooks omit sessionID. */
+let lastSessionId: string | null = null
+
+export function setLastCostSessionId(sessionId: string): void {
+  if (sessionId) lastSessionId = sessionId
+}
+
+export function getLastCostSessionId(): string | null {
+  return lastSessionId
+}
+
 /** Record a cost event from an AssistantMessage. Idempotent on message_id. */
 export function recordCostEvent(msg: {
   id: string
@@ -60,6 +71,7 @@ export function recordCostEvent(msg: {
   agent?: string
   mode?: string
 }): void {
+  setLastCostSessionId(msg.sessionID)
   const d = openStudioDb(process.cwd())
   const branch = currentBranchSafe()
   const taskId = activeTaskIdSafe()
@@ -106,8 +118,10 @@ export function getCostSummary(opts?: {
     params.push(opts.sessionId)
   }
   if (opts?.sinceMs) {
+    // Accept either a lookback duration (typical) or an absolute epoch ms.
+    const cutoff = opts.sinceMs > 1e12 ? opts.sinceMs : Date.now() - opts.sinceMs
     where.push("created_at >= ?")
-    params.push(opts.sinceMs)
+    params.push(cutoff)
   }
   if (opts?.branch) {
     where.push("branch = ?")

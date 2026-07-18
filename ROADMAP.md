@@ -3,7 +3,7 @@
 > North star: **the only plugin a developer needs to ditch Cursor / Claude Code / Cline setups.**
 > Native first, keyless by default, token-cheap, fast on big repos, smart enough for small models.
 
-Shipped baseline = **v1.0.0-alpha** (first public alpha of the SQLite rewrite). This doc is forward-looking only — no historical audit dumps.
+Shipped baseline = **v2.0.0-alpha** (first public alpha of the SQLite rewrite). This doc is forward-looking only.
 
 ---
 
@@ -35,8 +35,8 @@ Shipped baseline = **v1.0.0-alpha** (first public alpha of the SQLite rewrite). 
 
 | Priority | Item | Why |
 |----------|------|-----|
-| P0 | Stronger auto-act on high scout findings when `autonomy=full` (spawn implement→verify) | Closes the “agents wait to be asked” gap |
-| P0 | Hard spend caps / session budget kill-switch | #1 competitor complaint (runaway token burn) |
+| P0 | Hard spend caps / session budget kill-switch | ✅ shipped (`set_session_budget`) |
+| P0 | Stronger auto-act on high scout findings when `autonomy=full` (spawn implement→verify) | Closes remaining “wait to be asked” gap |
 | P1 | Worker-pool tree-sitter parse for 10k+ file repos | Perf on monorepos |
 | P1 | Optional sqlite-vec semantic recall (off by default) | Better memory without cloud embeddings |
 | P1 | Deeper CI triage agent on Actions failure | Bugbot-class local alternative |
