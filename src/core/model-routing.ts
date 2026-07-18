@@ -3,6 +3,7 @@ import { loadUserProfile, type ModelMode } from "./project-profile"
 import {
   type ModelTier,
   PROVIDER_TIERS,
+  LOCAL_PROVIDERS,
   pickZenModelForTier,
   fetchZenModelIds,
 } from "./model-catalog"
@@ -94,6 +95,12 @@ function agentTier(agentName: string): ModelTier {
   if (REASON_AGENTS.has(agentName) && isTrivialPlan(plan)) return "fast"
   return tierForAgent(agentName)
 }
+function firstLocalProvider(config: Config): string | undefined {
+  return listProviders(config).find((p) =>
+    (LOCAL_PROVIDERS as readonly string[]).includes(p),
+  )
+}
+
 function routeAgentModel(
   config: Config,
   agentName: string,
@@ -103,6 +110,15 @@ function routeAgentModel(
   const main = getLastMainModel() ?? config.model
   const mainProvider = main ? parseModelRef(main).provider : undefined
   const tier = agentTier(agentName)
+  const preferLocal = loadUserProfile().preferLocalModels === true
+  const localProvider = preferLocal ? firstLocalProvider(config) : undefined
+
+  // Cost-saving path: route fast/read-only (and free-mode) work to local models first.
+  if (localProvider && (mode === "free" || READ_ONLY_AGENTS.has(agentName) || agentName === "studio-scout")) {
+    const localPick = pickFromProvider(config, localProvider, tier === "reason" ? "fast" : tier, zenCatalog)
+    if (localPick) return localPick
+  }
+
   if (mode === "quality") {
     return main ?? pickTierModel(config, "reason", zenCatalog, mainProvider)
   }
@@ -114,7 +130,7 @@ function routeAgentModel(
     return pickTierModel(config, tier, zenCatalog, mainProvider)
   }
   // balanced (default) — Cursor/Claude Code style: cheap for read, main for write
-  if (READ_ONLY_AGENTS.has(agentName)) {
+  if (READ_ONLY_AGENTS.has(agentName) || agentName === "studio-scout") {
     if (zenEnabled(config)) {
       const free = pickFromProvider(config, ZEN_PROVIDER, "fast", zenCatalog)
       if (free) return free
@@ -141,10 +157,15 @@ function routeAgentModel(
 const studioRoutedAgents = new Set<string>()
 let latestConfig: Config | null = null
 export function applyStudioModelRouting(config: Config, zenCatalog: string[] = []): void {
-  const mode = loadUserProfile().modelMode ?? "balanced"
+  const profile = loadUserProfile()
+  const mode = profile.modelMode ?? "balanced"
   const effectiveMain = getLastMainModel() ?? config.model
+  const localProvider = profile.preferLocalModels ? firstLocalProvider(config) : undefined
   if (!config.small_model) {
-    if (zenEnabled(config)) {
+    if (localProvider) {
+      const small = pickFromProvider(config, localProvider, "fast", zenCatalog)
+      if (small) config.small_model = small
+    } else if (zenEnabled(config)) {
       const small = pickFromProvider(config, ZEN_PROVIDER, "fast", zenCatalog)
       if (small) config.small_model = small
     } else if (effectiveMain) {
@@ -197,15 +218,19 @@ export function prefetchZenCatalog(): void {
   fetchZenModelIds().catch(() => {})
 }
 export function describeRoutingForProvider(config: Config): string {
-  const mode = loadUserProfile().modelMode ?? "balanced"
+  const profile = loadUserProfile()
+  const mode = profile.modelMode ?? "balanced"
   const main = getLastMainModel() ?? config.model ?? "(unset)"
   const providers = listProviders(config)
   const zen = zenEnabled(config)
+  const local = firstLocalProvider(config)
   return [
     `Model mode: ${mode}`,
     `Main model: ${main}`,
     `Providers: ${providers.join(", ")}`,
     `Zen: ${zen ? "enabled — read-only agents prefer free tier" : "disabled — tiers use your provider tables"}`,
+    `Prefer local: ${profile.preferLocalModels ? "yes" : "no"}${local ? ` (detected: ${local})` : ""}`,
+    "Local tip: Ollama qwen3.5:4b / qwen3:8b for tool calls on small machines; Cactus Needle for tiny sidekick routers.",
     "Per-agent overrides in opencode.json always win.",
     "On rate limits: tries other free Zen → paid Zen → your provider tier → main model.",
   ].join("\n")

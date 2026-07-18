@@ -55,7 +55,14 @@ export function pickZenModelForTier(tier: ModelTier, catalog?: string[]): string
   return free[0]
 }
 
-/** Known cheap/strong models per provider when catalog isn't available. */
+/**
+ * Known cheap/strong models per provider when catalog isn't available.
+ *
+ * Local providers (ollama / lmstudio / local): prefer small tool-calling models
+ * that fit modest hardware (≈4–8GB). Qwen3.5 4B / Qwen3 8B lead 2026 tool-call
+ * evals; Nemotron Nano 4B is a strong alternative. Cactus Compute Needle (26M)
+ * is ideal for tiny tool-routing sidekicks via an OpenAI-compatible endpoint.
+ */
 export const PROVIDER_TIERS: Record<string, Record<ModelTier, string>> = {
   opencode: {
     fast: "deepseek-v4-flash-free",
@@ -77,7 +84,26 @@ export const PROVIDER_TIERS: Record<string, Record<ModelTier, string>> = {
     code: "gemini-3.5-flash",
     reason: "gemini-3.1-pro",
   },
+  // Local / self-hosted — OpenAI-compatible endpoints
+  ollama: {
+    fast: "qwen3.5:4b",
+    code: "qwen3:8b",
+    reason: "qwen3:14b",
+  },
+  lmstudio: {
+    fast: "qwen3.5-4b",
+    code: "qwen3-8b",
+    reason: "qwen3-14b",
+  },
+  local: {
+    fast: "qwen3.5:4b",
+    code: "qwen3:8b",
+    reason: "qwen3:14b",
+  },
 }
+
+/** Providers treated as local/zero-cost for prefer_local routing. */
+export const LOCAL_PROVIDERS = ["ollama", "lmstudio", "local"] as const
 
 export function resetZenCatalogCache(): void {
   zenCatalogCache = null

@@ -77,14 +77,15 @@ src/
     discipline.ts Always-on studio discipline system prompt
     token-budget.ts  Dedup, compact, truncate helpers
     compress.ts   Large output compression with cache + path-traversal-safe retrieval
-    model-routing.ts Autonomous per-agent model routing (free/balanced/quality)
+    model-routing.ts Autonomous per-agent model routing (free/balanced/quality) + prefer_local
+    scout.ts         Autonomous improvement finder (injected unless autonomy=off)
   ssh/           SSH session manager
   sync/          File sync engine
   tunnel/        SSH tunnel w/ exponential-backoff watchdog + heartbeat
   hooks/         OpenCode plugin hooks
     session-start.ts  Event hook: cost capture, model fallback, auto-start
-    discipline.ts     System prompt stable-prefix ordering + dedup
-    chat-message.ts   Model routing + self-improving rule capture
+    discipline.ts     System prompt stable-prefix ordering + scout injection
+    chat-message.ts   Model routing + rule capture + autonomy NL opt-out
     chat-params.ts    Temperature tiering + prompt cache key
     tool-guards.ts    Handoff gate + TDD gate hook
     compaction*.ts    Compaction continue + context injection

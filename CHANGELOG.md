@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.0-alpha.1 (2026-07-18)
+
+First public alpha. Includes the full SQLite rewrite formerly developed on `v2-beta`, plus autonomy and local-model cost controls.
+
+### Added
+
+- **`studio_scout`** — autonomous improvement scout (verify failures, test gaps, polish, hotspots, open concerns)
+- **Autonomy modes** — `studio_preferences set_autonomy full|suggest|off` (default `suggest`); natural language: "don't scout" / "be proactive"
+- **`@studio-scout`** agent + `/scout` command
+- **Prefer local models** — `studio_preferences set_prefer_local true` routes fast/read-only subagents to Ollama / LM Studio / local
+- Discipline + help updated for verify-first autonomous development
+
+### Docs
+
+- README rewritten for public alpha positioning
+- ROADMAP trimmed to shipped baseline + forward priorities
+- Package version aligned to `1.0.0-alpha.1`
+
+---
+
 ## v2.0.0-beta (2026-06-26)
 
 The complete v2 rewrite. This is a breaking pre-release for private beta testing.

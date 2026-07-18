@@ -72,7 +72,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "studio_retrieve", category: "Memory", phase: null, description: "Fetch full output previously compressed by compress hook", whenToUse: "when you see 'studio_retrieve id=...' in compressed output" },
 
   // ——— Config ————————————————
-  { name: "studio_preferences", category: "Config", phase: null, description: "Model mode, remote path, multi-remote env, .studio commit", whenToUse: "to change routing mode or remote config" },
+  { name: "studio_preferences", category: "Config", phase: null, description: "Model mode, autonomy, local models, remote path, multi-remote env, .studio commit", whenToUse: "to change routing mode, autonomy, or remote config" },
   { name: "studio_models", category: "Config", phase: null, description: "Sync providers, refresh Zen catalog, infer tiers", whenToUse: "when providers change or to check routing" },
   { name: "studio_setup", category: "Config", phase: null, description: "First-time SSH host auto-detection + config wizard", whenToUse: "on first run to set up remote sync" },
   { name: "studio_add_project", category: "Config", phase: null, description: "Add local→remote sync mapping", whenToUse: "to add a project mapping" },
@@ -105,6 +105,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // ——— Advanced ————————————————
   { name: "studio_council", category: "Code", phase: 8, description: "Model Council: multi-lens ensemble review (security, architecture, correctness, maintainability)", whenToUse: "for complex/security-sensitive changes when you want deep multi-perspective review" },
   { name: "studio_browser", category: "Code", phase: 10, description: "Browser verification — checks if web app loads, pages respond. Uses system Chrome headlessly (zero deps)", whenToUse: "for web projects to verify pages load after changes" },
+  { name: "studio_scout", category: "SDLC", phase: 9, description: "Autonomous improvement scout — verify failures, test gaps, polish, research opportunities", whenToUse: "when idle, between tasks, or to find what to polish without the user asking" },
 ]
 
 // ——— Derived data (auto-generated, never edit by hand) ————————————————

@@ -54,6 +54,15 @@ export function buildDisciplinePrompt(): string {
   parts.push("- Self-healing verify: snapshot HEAD, auto-rollback on persistent failure")
   parts.push("- Self-improving rules: 'don't X' in chat → auto-saved rule")
   parts.push("- Model Council: type 'council:' or /council to trigger multi-lens review")
+  parts.push("- Autonomous scout: surfaces polish/test/research opportunities without being asked")
+  parts.push("  (studio_scout; opt out: studio_preferences set_autonomy off, or say \"don't scout\")")
+  parts.push("- Prefer local models for cheap subagents: studio_preferences set_prefer_local true")
+  parts.push("")
+  parts.push("AUTONOMY RULES:")
+  parts.push("- Default: look for improvements (tests, verify failures, dead code, research gaps)")
+  parts.push("- When idle / between tasks: run studio_scout; act on high severity; suggest medium/low")
+  parts.push("- Always emphasize verification: write/update tests, run studio_verify before claiming done")
+  parts.push("- Never nag if user opted out of autonomy")
   parts.push("")
 
   // ——— Key tools with when-to-use disambiguation ————————————————

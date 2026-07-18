@@ -38,6 +38,7 @@ import { studio_ci } from "./tools/ci"
 import { studio_agent } from "./tools/agent"
 import { studio_council } from "./tools/council"
 import { studio_browser } from "./tools/browser"
+import { studio_scout } from "./tools/scout"
 import { createEventHook } from "./hooks/session-start"
 import { createDisciplineSystemHook } from "./hooks/discipline"
 import { createConfigInjectHook } from "./hooks/config-inject"
@@ -95,6 +96,7 @@ export const OpenCodeStudio: Plugin = async () => {
       studio_agent,
       studio_council,
       studio_browser,
+      studio_scout,
     },
     config: createConfigInjectHook(),
     "chat.message": createChatMessageHook(),

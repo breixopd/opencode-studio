@@ -90,6 +90,14 @@ const AGENT_DEFS: AgentDef[] = [
     edit: "allow",
     bash: "allow",
   },
+  {
+    name: "studio-scout",
+    description: "Autonomous polish scout — finds improvements without being asked",
+    tools: ["studio_scout", "studio_index", "studio_refactor", "studio_deps", "studio_task", "studio_verify", "studio_ci"],
+    guidance: "Run studio_scout. Rank by severity. High (verify/LSP/CI) → recommend @studio-implement + studio_verify. Medium (test gaps) → studio_task + TDD. Low → suggest unless autonomy=full. Do not edit files. Good: scout → prioritize → verify-first plan. Bad: unprompted mega-refactors.",
+    edit: "deny",
+    bash: "deny",
+  },
 ]
 
 /** Build the agent config from definitions + tool catalog. */
@@ -190,6 +198,12 @@ export function createConfigInjectHook() {
       "council-plan": {
         description: "Model Council — multi-lens architecture review for a goal",
         template: "studio_council action=plan goal='{{args}}'",
+      },
+      scout: {
+        description: "Autonomous improvement scout — find polish/test/research opportunities",
+        template: "Run studio_scout. Summarize findings by severity and propose next steps (verify-first).",
+        agent: "studio-scout",
+        subtask: true,
       },
     }
     for (const [name, def] of Object.entries(commands)) {

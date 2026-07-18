@@ -4,6 +4,8 @@ import { addRule } from "../core/workspace"
 import { addGlobalRule } from "../core/project-profile"
 import { recordCorrection, routeScope, getRecurringPatterns } from "../core/auto-memory"
 import { isCouncilTriggered } from "../tools/council"
+import { detectAutonomyIntent } from "../core/scout"
+import { setAutonomyMode } from "../core/project-profile"
 import * as log from "../core/logger"
 
 const MAIN_AGENTS = new Set(["build", "general", "plan"])
@@ -60,6 +62,13 @@ export function createChatMessageHook() {
       // message and should call studio_council action=review. The chat-message
       // hook can't dispatch tools directly, but the discipline prompt mentions
       // the keyword, so the agent knows what to do.
+    }
+
+    // Natural-language autonomy opt-in/out ("don't scout", "be proactive", …).
+    const autonomyIntent = detectAutonomyIntent(text)
+    if (autonomyIntent) {
+      setAutonomyMode(autonomyIntent)
+      log.info(`Autonomy mode set via chat: ${autonomyIntent}`)
     }
 
     const rules = extractRules(text)

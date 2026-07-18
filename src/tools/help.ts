@@ -62,22 +62,30 @@ Subagents get models automatically from your OpenCode picker + Zen catalog.
 | studio_preferences set_model_mode free | Cheapest models everywhere |
 | studio_preferences set_model_mode balanced | Default: cheap read-only, main model for implement |
 | studio_preferences set_model_mode quality | Main model on all agents |
+| studio_preferences set_prefer_local true | Route fast/read-only agents to Ollama/LM Studio/local |
 | studio_models show | Catalog + provider change detection |
 | studio_models refresh_all | Re-sync after adding/removing providers |
+
+**Local / cost saving:** Connect Ollama (or LM Studio / OpenAI-compatible local). Recommended tool-calling models on small machines: \`qwen3.5:4b\`, \`qwen3:8b\`, \`nemotron-nano:4b\`. For tiny sidekick routers, Cactus Compute Needle (26M) via an OpenAI-compatible endpoint works as a \`local\` provider.
 
 When providers change, studio prompts you to run \`studio_models refresh_all\`.`,
 
   workflow: `# SDLC workflow
 
-Slash commands: /start-work, /deep-dive, /research, /architect, /security, /review, /verify, /plan, /handoff, /smoke-test
+Slash commands: /start-work, /deep-dive, /research, /architect, /security, /review, /verify, /plan, /handoff, /smoke-test, /scout, /council
 
-**Agents:** studio-explore, studio-research, studio-architect, studio-security, studio-implement, studio-review, studio-verify
+**Agents:** studio-explore, studio-research, studio-architect, studio-security, studio-implement, studio-review, studio-verify, studio-scout
+
+**Autonomy (default=suggest):** Agents surface polish/test/research opportunities via studio_scout without being asked.
+- \`studio_preferences set_autonomy full\` — act on findings when idle (verify-first)
+- \`studio_preferences set_autonomy suggest\` — surface only (default)
+- \`studio_preferences set_autonomy off\` — disable (or say "don't scout")
 
 **Gates:** studio_verify must pass before studio_handoff (unless force:true). TDD gate warns if no test file for the active task.
 
 **Memory:** studio_brief, studio_remember, studio_memory, studio_context pin
 
-**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent (Phase 3.6 differentiator).`,
+**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent.`,
 
   cost: `# Cost ledger
 
@@ -120,7 +128,9 @@ Tunnel defaults: local 8443 → remote 8443 (generic TCP forward for remote serv
 - file.edited → debounced incremental reindex (no full rebuild)
 - session.idle → prune old cost/diagnostics, WAL checkpoint
 - Cross-session resume card + pre-flight cost preview auto-injected
-- Self-healing verify: snapshot HEAD, auto-rollback on persistent failure` },
+- Self-healing verify: snapshot HEAD, auto-rollback on persistent failure
+- Autonomous scout (studio_scout): polish/test/research opportunities without being asked
+- Autonomy opt-out: studio_preferences set_autonomy off (or say "don't scout")` },
 
   troubleshooting: `# Troubleshooting
 
@@ -135,37 +145,13 @@ Tunnel defaults: local 8443 → remote 8443 (generic TCP forward for remote serv
 
 Run \`studio_report\` and paste JSON when debugging.`,
 
-  roadmap: `# Studio v2 roadmap — current status
+  roadmap: `# Studio roadmap — alpha status
 
-**Phase 1 — SQLite + FTS5** ✅ Unified .studio/studio.db (code index + workspace state + cost ledger + diagnostics)
-**Phase 2 — Graph queries** ✅ refs, importers, impact, hotspots wired into studio_index
-**Phase 3 — Token optimization** ✅ budget retrieval, stable prompts + cache key, heuristic rerank, chunk stripping, cost ledger
-**Phase 4 — Performance** ✅ async verify, memoized ripgrep, batch reads, lazy-loaded deps
-**Phase 5 — Orchestration** ✅ task board, verify gate, grind loop, task+branch scoping
-**Phase 6 — Remote** ✅ exponential-backoff watchdog, studio_remote run, multi-remote
+**Shipped:** SQLite FTS5 + graph, token budgets, cost ledger, remote/tunnel, SDLC agents,
+verify gate + grind, scout autonomy, local model preference, council, CI watcher, constitution,
+browser verify, TUI.
 
-**Phase 7 — Innovations (shipped):**
-✅ Branch-aware context — tasks scoped per git branch
-✅ Persistent plans — .studio/plans/<id>.md exported on every save
-✅ Per-task cost ledger — studio_cost tool, SQLite-backed, real-time capture
-✅ TDD gate hook — warns when no test file exists for active task
-✅ Self-improving rule capture — "don't X" in chat → auto-saved rule
-✅ Self-healing verify with auto-rollback — snapshot HEAD, auto-revert on persistent failure
-✅ Pre-flight cost preview — estimated cost for remaining work injected into context
-✅ Cross-session resume card — "continue where you left off" synthesized on session start
-✅ studio_deps outdated — keyless registry queries (npm/crates.io/PyPI)
-✅ studio_refactor — rename/extract/dead_code/structure using the symbol graph
-✅ studio_spec — lightweight spec-driven development (requirements + acceptance + tasks)
-✅ studio_git — full git management (status/diff/log/blame/commit/stage/stash/branch/restore)
-✅ LSP diagnostics — real-time type/lint errors captured and injected into context
-✅ Smart maintenance — file.edited → incremental reindex, session.idle → prune/checkpoint
-✅ Multi-language project detection — 21+ ecosystems auto-detected with verify commands + conventions
-✅ Parallel fan-out — concurrent @studio-explore + @studio-security + @studio-architect via /start-work
-✅ Git worktree isolation — real git worktrees for parallel implement agents (studio_branch worktree_create/merge/remove)
-✅ Always-on PR/CI watcher — polls GitHub Actions on 30s interval (studio_ci)
-✅ Constitution generator — coding standards from project analysis (studio_constitution)
-
-All advertised features are implemented. Read \`ROADMAP.md\` for full detail.`,
+See \`ROADMAP.md\` for post-alpha priorities (spend caps, worker parse pool, edge/local recipes).`,
 }
 
 export function helpText(topic?: string): string {

@@ -14,6 +14,7 @@ import { memoryContextBlock } from "../core/auto-memory"
 import { getRecurringCorrectionNotices } from "./chat-message"
 import { workingSetContextBlock } from "../core/passive-context"
 import { checkPlanDrift } from "../core/plan-drift"
+import { scoutContextBlock } from "../core/scout"
 import * as log from "../core/logger"
 
 /**
@@ -97,6 +98,10 @@ export function createDisciplineSystemHook() {
     // Plan drift detection — warn if implementation diverges from plan.
     const drift = checkPlanDrift()
     if (drift) { pushIfNotPresent(output.system, drift); log.debugContext("drift", drift.length) }
+
+    // Autonomous scout — polish/test/research opportunities (respects autonomy opt-out).
+    const scout = scoutContextBlock(process.cwd())
+    if (scout) { pushIfNotPresent(output.system, scout); log.debugContext("scout", scout.length) }
 
     const patterns = getRecurringCorrectionNotices()
     if (patterns) { pushIfNotPresent(output.system, patterns); log.debugContext("patterns", patterns.length) }

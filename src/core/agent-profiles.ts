@@ -95,6 +95,14 @@ function studioAgentDefs(): CustomAgentDef[] {
       edit: "allow",
       bash: "allow",
     },
+    {
+      name: "studio-scout",
+      description: "Autonomous polish scout — finds improvements without being asked",
+      prompt: "Run studio_scout. Rank findings by severity. For high (verify/LSP/CI): recommend immediate fix via @studio-implement + studio_verify. For medium (test gaps): create studio_task and outline TDD steps. For low (polish/hotspots): suggest only unless autonomy=full. Never edit files yourself — report actionable next steps. Good: scout → prioritize → verify-first plan. Bad: refactor everything unprompted or ignore verify failures.",
+      tools: ["studio_scout", "studio_index", "studio_refactor", "studio_deps", "studio_task", "studio_verify", "studio_ci"],
+      edit: "deny",
+      bash: "deny",
+    },
   ]
 }
 

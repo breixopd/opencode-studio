@@ -24,10 +24,17 @@ export interface ProjectProfile {
 
 export type ModelMode = "free" | "balanced" | "quality"
 
+/** Proactive polish/research/scout behaviour. Default: suggest. */
+export type AutonomyMode = "full" | "suggest" | "off"
+
 export interface UserProfile {
   globalRules: string[]
   modelMode?: ModelMode
+  /** full=act on findings when idle; suggest=surface only; off=disabled */
+  autonomyMode?: AutonomyMode
   pendingCatalogNotice?: string
+  /** Prefer local/Ollama/LM Studio providers for fast/read-only subagents when available */
+  preferLocalModels?: boolean
   updatedAt: string
 }
 
@@ -142,6 +149,8 @@ export function loadUserProfile(): UserProfile {
   return {
     globalRules: raw.globalRules ?? [],
     modelMode: raw.modelMode,
+    autonomyMode: raw.autonomyMode,
+    preferLocalModels: raw.preferLocalModels,
     pendingCatalogNotice: raw.pendingCatalogNotice,
     updatedAt: raw.updatedAt ?? now(),
   }
@@ -162,6 +171,28 @@ export function setModelMode(mode: ModelMode): ModelMode {
 
 export function getModelMode(): ModelMode {
   return loadUserProfile().modelMode ?? "balanced"
+}
+
+export function setAutonomyMode(mode: AutonomyMode): AutonomyMode {
+  const profile = loadUserProfile()
+  profile.autonomyMode = mode
+  saveUserProfile(profile)
+  return mode
+}
+
+export function getAutonomyMode(): AutonomyMode {
+  return loadUserProfile().autonomyMode ?? "suggest"
+}
+
+export function setPreferLocalModels(prefer: boolean): boolean {
+  const profile = loadUserProfile()
+  profile.preferLocalModels = prefer
+  saveUserProfile(profile)
+  return prefer
+}
+
+export function getPreferLocalModels(): boolean {
+  return loadUserProfile().preferLocalModels ?? false
 }
 
 export function setPendingCatalogNotice(message: string | null): void {

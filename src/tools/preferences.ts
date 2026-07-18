@@ -5,12 +5,23 @@ import {
   updateProject,
 } from "../config/config"
 import { ensureStudioGitignored } from "../core/gitignore"
-import { setModelMode, getModelMode, type ModelMode, getPendingCatalogNotice } from "../core/project-profile"
+import {
+  setModelMode,
+  getModelMode,
+  type ModelMode,
+  getPendingCatalogNotice,
+  setAutonomyMode,
+  getAutonomyMode,
+  type AutonomyMode,
+  setPreferLocalModels,
+  getPreferLocalModels,
+} from "../core/project-profile"
 import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
+import { invalidateScoutCache } from "../core/scout"
 
 export const studio_preferences: ToolDefinition = tool({
   description:
-    "Preferences: model mode, remote path, multi-remote env, .studio commit. " +
+    "Preferences: model mode, autonomy, local models, remote path, multi-remote env, .studio commit. " +
       "Global settings in ~/.config/opencode-studio/user.json.",
   args: {
     action: tool.schema
@@ -20,6 +31,8 @@ export const studio_preferences: ToolDefinition = tool({
         "set_remote_env",
         "allow_studio_commit",
         "set_model_mode",
+        "set_autonomy",
+        "set_prefer_local",
         "show",
       ])
       .describe("Preference action"),
@@ -47,6 +60,14 @@ export const studio_preferences: ToolDefinition = tool({
       .enum(["free", "balanced", "quality"])
       .optional()
       .describe("Global subagent routing: free | balanced | quality"),
+    autonomy: tool.schema
+      .enum(["full", "suggest", "off"])
+      .optional()
+      .describe("Autonomous scout: full=act when idle | suggest=surface only (default) | off=disabled"),
+    prefer_local: tool.schema
+      .boolean()
+      .optional()
+      .describe("Prefer Ollama/LM Studio/local providers for fast/read-only subagents"),
   },
   async execute(args) {
     const config = loadConfig()
@@ -54,7 +75,11 @@ export const studio_preferences: ToolDefinition = tool({
     const name = args.project ?? findProjectNameForLocal(config, cwd)
 
     if (args.action === "show") {
-      const lines = [`Model mode (global): ${getModelMode()}`]
+      const lines = [
+        `Model mode (global): ${getModelMode()}`,
+        `Autonomy: ${getAutonomyMode()}`,
+        `Prefer local models: ${getPreferLocalModels() ? "yes" : "no"}`,
+      ]
       const notice = getPendingCatalogNotice()
       if (notice) lines.push(`Catalog notice: ${notice}`)
       if (!name || !config.projects[name]) {
@@ -80,6 +105,28 @@ export const studio_preferences: ToolDefinition = tool({
       clearStudioRoutedAgents()
       await refreshModelRouting()
       return `Model mode set to '${mode}'. Subagent routing updated.`
+    }
+
+    if (args.action === "set_autonomy") {
+      if (!args.autonomy) return "autonomy required (full | suggest | off)"
+      const mode = setAutonomyMode(args.autonomy as AutonomyMode)
+      invalidateScoutCache()
+      return `Autonomy set to '${mode}'. ` +
+        (mode === "off"
+          ? "Scout injection disabled."
+          : mode === "full"
+            ? "Agents will proactively polish when idle (tests+verify first)."
+            : "Agents will surface improvements without acting unless high-severity or asked.")
+    }
+
+    if (args.action === "set_prefer_local") {
+      if (args.prefer_local === undefined) return "prefer_local (boolean) required"
+      const prefer = setPreferLocalModels(args.prefer_local)
+      clearStudioRoutedAgents()
+      await refreshModelRouting()
+      return `Prefer local models: ${prefer ? "yes" : "no"}. ` +
+        "Routes fast/read-only subagents to Ollama/LM Studio/local when connected. " +
+        "Recommended local tool-calling models: qwen3.5:4b, qwen3:8b, nemotron-nano:4b (via Ollama)."
     }
 
     if (!name || !config.projects[name]) {
@@ -131,7 +178,6 @@ export const studio_preferences: ToolDefinition = tool({
         const available = Object.keys(remotes).join(", ") || "(none — add with add_remote_env first)"
         return `Remote env '${args.remote_env}' not found. Available: ${available}`
       }
-      // Switch the active remote path to the selected env.
       updateProject(config, name, { remote: env.remote })
       return `Active remote env switched to '${args.remote_env}' for '${name}': ${env.remote}`
     }
