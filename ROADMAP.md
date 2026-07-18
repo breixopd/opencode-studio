@@ -26,6 +26,7 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 - Parallel index build (promise pool, configurable concurrency)
 - SDLC team + `/start-work` fan-out, verify gate, grind loop, council
 - Autonomous **studio_scout** + autonomy modes; `full` auto-creates tasks; security/deps collectors
+- **`full` requires risk accept** + TUI warning toast (`accept_autonomy_risk` / NL / `accept_risk:true`)
 - Default **$5 session budget** (soft until confirmed; disable with `0` / `/budget off` / `disable_budget`)
 - Over-budget: block non-allowlisted tools + force free/local routing (LLM turn abort still deferred — see Next)
 - First-run **`studio_setup action=onboard`** (local detect, prefer_local, budget, verify card)
@@ -33,9 +34,10 @@ Shipped baseline = **v2.0.0-alpha** (SQLite rewrite + post-alpha backlog below).
 - Optional semantic recall (`set_semantic_recall`; sqlite-vec when present, else FTS overlap)
 - Local OpenAI-compatible sidecar recipe (README + doctor Ollama probe)
 - **CI triage** (`studio_ci action=triage`) — failed logs + root cause + `[ci:…]` tasks
-- Remote exec policy (destructive blocklist, optional host/prefix allowlists, confirm when autonomy=full)
+- Remote exec policy (destructive blocklist, optional host/prefix allowlists; risk accept or confirm when autonomy=full)
 - Remote SSH sync + tunnel watchdog + `studio_remote`
-- TUI dashboard, passive context, plan drift, constitution, browser verify
+- TUI dashboard + pending toast bus, passive context, plan drift, constitution, browser verify
+- Structure: `plugin-factory`, scout/code-store splits, `tool-output-budget`, `/studio-*` slash primaries
 
 ---
 

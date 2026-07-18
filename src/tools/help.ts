@@ -3,13 +3,19 @@ import { getModelMode, getPendingCatalogNotice } from "../core/project-profile"
 import { toolListText } from "../core/tool-catalog"
 
 const TOPICS: Record<string, string> = {
-  overview: `# OpenCode Studio
+  get overview() {
+    return `# OpenCode Studio
 
 Zero-config dev platform plugin for OpenCode: remote sync, subagents, native code intelligence, and keyless web search.
 
 **No API keys required** for core features. Optional: TAVILY_API_KEY (web search), SSH for remote sync.
 
-**Quick start:** Add plugin to opencode.json → open a git repo → session auto-starts tunnel/sync → use /start-work or ask the agent.`,
+**Quick start:** Add plugin to opencode.json → open a git repo → session auto-starts tunnel/sync → use \`/studio-start-work\` (or \`/start-work\`) or ask the agent.
+
+**Budget / onboard:** \`/studio-budget\` · \`/budget\` · \`/studio-onboard\` · \`/onboard\`
+
+${toolListText()}`
+  },
 
   setup: `# Setup
 
@@ -19,9 +25,9 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
    \`\`\`
    (Until stable, use dist-tag \`alpha\`; npm \`latest\` may still be 1.x.)
 2. **Build** — in plugin repo: \`bun run build\`, restart OpenCode.
-3. **First-run** — \`studio_setup({ action: "onboard", budget_usd: 5 })\` or \`disable_budget: true\` for unlimited. Soft **$5** until you confirm. Say \"budget \$10\" / \"disable budget\", or \`/budget\` / \`/onboard\`.
+3. **First-run** — \`studio_setup({ action: "onboard", budget_usd: 5 })\` or \`disable_budget: true\` for unlimited. Soft **$5** until you confirm. Say \"budget \$10\" / \"disable budget\", or \`/studio-budget\` / \`/budget\` / \`/studio-onboard\` / \`/onboard\`.
 4. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
-5. **Verify** — \`studio_doctor\` or \`/smoke-test\`
+5. **Verify** — \`studio_doctor\` or \`/studio-smoke-test\`
 
 **Optional env (never required):**
 - \`TAVILY_API_KEY\` — better web search (falls back to DuckDuckGo)
@@ -29,12 +35,12 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
 
   code: `# Code intelligence (native, no 3rd party)
 
-| Tool | Purpose |
-|------|---------|
-| studio_glob | Find files by pattern (\`**/*.ts\`) |
-| studio_grep | Ripgrep search (needs \`rg\` on PATH) |
-| studio_symbols | AST symbol index — search/file/outline/stats/rebuild |
-| studio_index | Unified: search, semantic, similar, research, symbols, **refs, importers, impact, hotspots, monorepo** |
+Use \`studio_help topic=tools\` for the full catalog. Core code tools:
+
+- **studio_glob** — find files by pattern (\`**/*.ts\`)
+- **studio_grep** — ripgrep search (needs \`rg\` on PATH)
+- **studio_symbols** — AST symbol index — search/file/outline/stats/rebuild
+- **studio_index** — unified: search, semantic, similar, research, symbols, **refs, importers, impact, hotspots, monorepo**
 
 **Index:** SQLite FTS5 + tree-sitter AST → \`.studio/studio.db\` (WAL mode)
 **Graph queries** (Phase 2): refs=callers, importers=who-imports-file, impact=transitive callers, hotspots=most-referenced, monorepo=workspace packages + cross-package imports
@@ -44,12 +50,10 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
 
   search: `# Web search (keyless by default)
 
-| Tool | Backend |
-|------|---------|
-| studio_search | DuckDuckGo (no key) or Tavily if TAVILY_API_KEY set |
-| studio_fetch | URL → readable markdown (readability extraction) |
-| studio_crawl | Bounded same-origin crawl |
-| studio_code_search | Public GitHub only (not your repo) |
+- **studio_search** — DuckDuckGo (no key) or Tavily if TAVILY_API_KEY set
+- **studio_fetch** — URL → readable markdown (readability extraction)
+- **studio_crawl** — bounded same-origin crawl
+- **studio_code_search** — public GitHub only (not your repo)
 
 **Tips:**
 - \`studio_search scrape:true\` — fetches and extracts top 3 results
@@ -66,7 +70,7 @@ Subagents get models automatically from your OpenCode picker + Zen catalog.
 | studio_preferences set_model_mode quality | Main model on all agents |
 | studio_preferences set_prefer_local true | Route fast/read-only agents to Ollama/LM Studio/local |
 | studio_preferences set_session_budget 5 | Set spend cap (\$); 0 or disable_budget disables |
-| /budget 5 · /budget off · /onboard | Quick set/disable budget or first-run wizard |
+| /studio-budget 5 · /budget off · /studio-onboard · /onboard | Quick set/disable budget or first-run wizard |
 | studio_preferences set_semantic_recall true | Optional similar-chunk recall (sqlite-vec or FTS fallback) |
 | studio_models show | Catalog + provider change detection |
 | studio_models refresh_all | Re-sync after adding/removing providers |
@@ -79,20 +83,24 @@ When providers change, studio prompts you to run \`studio_models refresh_all\`.`
 
   workflow: `# SDLC workflow
 
-Slash commands: /onboard, /budget, /help, /start-work, /deep-dive, /research, /architect, /security, /review, /plan, /verify, /handoff, /scout, /council, /council-plan, /smoke-test
+**Primary slash commands** (\`studio-*\`, TUI-aligned): /studio-onboard, /studio-budget, /studio-help, /studio-start-work, /studio-deep-dive, /studio-research, /studio-architect, /studio-security, /studio-review, /studio-plan, /studio-verify, /studio-handoff, /studio-scout, /studio-council, /studio-council-plan, /studio-smoke-test, /studio-doctor, /studio-cost
+
+**Short aliases:** /onboard, /budget, /help, /start-work, /deep-dive, /research, /architect, /security, /review, /plan, /verify, /handoff, /scout, /council, /council-plan, /smoke-test, /doctor, /cost
 
 **Agents:** studio-explore, studio-research, studio-architect, studio-security, studio-implement, studio-review, studio-verify, studio-remote, studio-scout
 
 **Autonomy (default=suggest):** Agents surface polish/test/research opportunities via studio_scout without being asked.
-- \`studio_preferences set_autonomy full\` — act on findings when idle (verify-first)
+- \`studio_preferences set_autonomy full accept_risk:true\` — act on findings when idle (verify-first; requires risk accept)
+- \`studio_preferences accept_autonomy_risk\` / say "I accept the risk" — acknowledge full-autonomy risks
 - \`studio_preferences set_autonomy suggest\` — surface only (default)
 - \`studio_preferences set_autonomy off\` — disable (or say "don't scout")
+- \`studio_preferences clear_autonomy_risk\` / say "revoke autonomy risk" — revoke acknowledgment
 
 **Gates:** studio_verify must pass before studio_handoff (unless force:true). TDD gate warns if no test file for the active task.
 
 **Memory:** studio_brief, studio_remember, studio_memory, studio_context pin
 
-**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent. Budget: /budget 5 · /budget off · studio_preferences set_session_budget.`,
+**Cost:** studio_cost — per-session and all-time token usage + $ breakdown by model and agent. Budget: /studio-budget 5 · /budget off · studio_preferences set_session_budget.`,
 
   cost: `# Cost ledger
 
@@ -128,7 +136,7 @@ Auto-starts SSH tunnel + file sync on session.created. Tunnel has exponential-ba
 **studio_remote safety:**
 - Always blocks destructive patterns: \`rm -rf\`, \`dd \`, \`mkfs\`, \`shutdown\`, \`reboot\`, \`> /dev/\`
 - Optional \`config.remote.allowedHosts\` / \`allowedCommandPrefixes\` — set via \`studio_preferences set_remote_policy\`
-- When allowlists are empty and autonomy=full, pass \`confirm:true\`
+- When allowlists are empty and autonomy=full: user risk accept OR \`confirm:true\` (agent-supplied, not host HITL); always warns
 
 Tunnel defaults: local 8443 → remote 8443 (generic TCP forward for remote services).`,
 

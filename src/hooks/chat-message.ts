@@ -5,7 +5,13 @@ import { addGlobalRule } from "../core/project-profile"
 import { recordCorrection, routeScope, getRecurringPatterns } from "../core/auto-memory"
 import { isCouncilTriggered } from "../core/council-intent"
 import { detectAutonomyIntent } from "../core/scout"
-import { setAutonomyMode, setSessionBudgetUsd } from "../core/project-profile"
+import {
+  setAutonomyMode,
+  setSessionBudgetUsd,
+  acceptAutonomyFullRisk,
+  clearAutonomyFullRisk,
+  detectAutonomyRiskIntent,
+} from "../core/project-profile"
 import { detectBudgetIntent } from "../core/budget-intent"
 import * as log from "../core/logger"
 
@@ -65,11 +71,25 @@ export function createChatMessageHook() {
       // the keyword, so the agent knows what to do.
     }
 
+    // Risk accept / revoke before autonomy mode (same message can accept then enable full).
+    const riskIntent = detectAutonomyRiskIntent(text)
+    if (riskIntent === "accept") {
+      acceptAutonomyFullRisk()
+      log.info("Full-autonomy risk accepted via chat")
+    } else if (riskIntent === "clear") {
+      clearAutonomyFullRisk()
+      log.info("Full-autonomy risk cleared via chat")
+    }
+
     // Natural-language autonomy opt-in/out ("don't scout", "be proactive", …).
     const autonomyIntent = detectAutonomyIntent(text)
     if (autonomyIntent) {
-      setAutonomyMode(autonomyIntent)
-      log.info(`Autonomy mode set via chat: ${autonomyIntent}`)
+      try {
+        setAutonomyMode(autonomyIntent)
+        log.info(`Autonomy mode set via chat: ${autonomyIntent}`)
+      } catch (err) {
+        log.info(`Autonomy mode via chat refused: ${(err as Error).message}`)
+      }
     }
 
     // "budget $5" / "clear budget" / "disable budget" / "unlimited budget"

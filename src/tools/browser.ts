@@ -13,11 +13,26 @@
  * No Playwright/Puppeteer needed — CDP is a REST + WebSocket API built into
  * Chrome. We use fetch() for the REST part and Bun's WebSocket for the
  * command channel.
+ *
+ * Hardening: localhost/127.0.0.1 only (no 0.0.0.0), ephemeral CDP port,
+ * try without --no-sandbox first then fall back if Chrome fails to start.
  */
-import { spawn, execSync } from "child_process"
+import { spawn, execSync, type ChildProcess } from "child_process"
+import { createServer } from "net"
 import { existsSync } from "fs"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import * as log from "../core/logger"
+
+const LOCALHOST_HOSTS = new Set(["127.0.0.1", "localhost"])
+
+function isLocalhostUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return LOCALHOST_HOSTS.has(parsed.hostname)
+  } catch {
+    return false
+  }
+}
 
 /** Find the system Chrome/Chromium executable. */
 function findChrome(): string | null {
@@ -55,6 +70,23 @@ function findChrome(): string | null {
   return null
 }
 
+/** Bind an ephemeral port on 127.0.0.1 for CDP (avoids fixed 9333 collisions). */
+function allocateCdpPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address()
+      if (addr && typeof addr === "object") {
+        const { port } = addr
+        server.close((err) => (err ? reject(err) : resolve(port)))
+      } else {
+        server.close(() => reject(new Error("Failed to allocate CDP port")))
+      }
+    })
+    server.on("error", reject)
+  })
+}
+
 /** Check if a dev server is running on common ports. */
 async function findDevServer(): Promise<string | null> {
   const ports = [3000, 3001, 4000, 5000, 5173, 8000, 8080, 8443, 8888, 4200, 4173]
@@ -75,16 +107,16 @@ async function findDevServer(): Promise<string | null> {
 }
 
 /** Launch Chrome headless with remote debugging. */
-function launchChrome(chromePath: string, port: number): ReturnType<typeof spawn> {
+function launchChrome(chromePath: string, port: number, noSandbox: boolean): ChildProcess {
   const args = [
     "--headless",
     "--disable-gpu",
-    "--no-sandbox",
     "--disable-dev-shm-usage",
     `--remote-debugging-port=${port}`,
     "--remote-debugging-address=127.0.0.1",
     "about:blank",
   ]
+  if (noSandbox) args.splice(2, 0, "--no-sandbox")
   const proc = spawn(chromePath, args, { stdio: "ignore" })
   proc.unref?.()
   return proc
@@ -105,6 +137,27 @@ async function waitForChrome(port: number, timeoutMs = 5000): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 200))
   }
   return false
+}
+
+/**
+ * Launch Chrome on a free CDP port. Prefer sandboxed launch; fall back to
+ * --no-sandbox only if the sandbox path fails to become ready.
+ */
+async function launchChromeReady(
+  chromePath: string,
+): Promise<{ proc: ChildProcess; port: number; noSandbox: boolean } | null> {
+  for (const noSandbox of [false, true]) {
+    const port = await allocateCdpPort()
+    const proc = launchChrome(chromePath, port, noSandbox)
+    const ready = await waitForChrome(port, noSandbox ? 5000 : 3500)
+    if (ready) return { proc, port, noSandbox }
+    try {
+      proc.kill()
+    } catch {
+      /* already dead */
+    }
+  }
+  return null
 }
 
 /** Create a new browser tab and navigate to a URL. */
@@ -156,15 +209,9 @@ async function checkPages(baseUrl: string, routes: string[]): Promise<Array<{ ro
 
   for (const route of routes) {
     const url = `${baseUrl}${route}`
-    // SSRF guard: only allow localhost/127.0.0.1 URLs (browser verify is for local dev servers)
-    try {
-      const parsed = new URL(url)
-      if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost" && parsed.hostname !== "0.0.0.0") {
-        results.push({ route, status: 0, title: "", hasContent: false, error: "Only localhost URLs allowed (SSRF protection)" })
-        continue
-      }
-    } catch {
-      results.push({ route, status: 0, title: "", hasContent: false, error: "Invalid URL" })
+    // SSRF guard: only allow localhost/127.0.0.1 (not 0.0.0.0)
+    if (!isLocalhostUrl(url)) {
+      results.push({ route, status: 0, title: "", hasContent: false, error: "Only localhost URLs allowed (SSRF protection)" })
       continue
     }
     try {
@@ -231,25 +278,17 @@ export const studio_browser: ToolDefinition = tool({
 
     if (args.action === "screenshot") {
       // Same localhost-only policy as check/routes (screenshot previously skipped SSRF guard).
-      try {
-        const parsed = new URL(baseUrl)
-        if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost" && parsed.hostname !== "0.0.0.0") {
-          return "Only localhost URLs allowed for screenshot (SSRF protection)."
-        }
-      } catch {
-        return "Invalid URL"
+      if (!isLocalhostUrl(baseUrl)) {
+        return "Only localhost URLs allowed for screenshot (SSRF protection)."
       }
       if (!chromePath) {
         return "System Chrome not found. Set STUDIO_CHROME_PATH or install google-chrome.\nScreenshot requires Chrome headless."
       }
-      // Launch Chrome, take screenshot
-      const port = 9333
-      const proc = launchChrome(chromePath, port)
-      const ready = await waitForChrome(port)
-      if (!ready) {
-        proc.kill()
-        return "Chrome failed to start within 5s. Try STUDIO_CHROME_PATH override."
+      const launched = await launchChromeReady(chromePath)
+      if (!launched) {
+        return "Chrome failed to start within timeout (tried with and without --no-sandbox). Try STUDIO_CHROME_PATH override."
       }
+      const { proc, port } = launched
       const tab = await navigateToPage(port, baseUrl)
       if (!tab) {
         proc.kill()
@@ -265,6 +304,7 @@ export const studio_browser: ToolDefinition = tool({
       return [
         `# Browser Check: ${baseUrl}`,
         `Chrome: ${chromePath}`,
+        `CDP port: ${port}`,
         `Status: ${content.status}`,
         `Title: ${content.title}`,
         `Content length: ${content.text.length} chars`,

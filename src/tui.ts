@@ -140,13 +140,39 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
     { title: "Studio: Plan Write", value: "/studio-plan", category: "Studio" },
   ]))
 
+  /** Drain pending Studio toasts written by tools/hooks (e.g. full-autonomy risk). */
+  function flushStudioToasts(): void {
+    try {
+      const { consumeStudioToast } = require("./core/toast-bus") as typeof import("./core/toast-bus")
+      const pending = consumeStudioToast()
+      if (pending) {
+        ui.toast({
+          variant: pending.variant,
+          title: pending.title,
+          message: pending.message,
+          duration: pending.duration ?? 5000,
+        })
+      }
+    } catch (err) {
+      debugCatch("TUI flushStudioToasts", err)
+    }
+  }
+
   // ——— Session retry → warning toast ————————————————
   cleanups.push(event.on("session.status", (evt: { type: string; properties: { sessionID: string; status: { type: string; attempt?: number; message?: string } } }) => {
     try {
+      flushStudioToasts()
       const { status } = evt.properties
       if (status.type === "retry") {
         ui.toast({ variant: "warning", title: "Retrying", message: `Attempt ${status.attempt}: ${status.message?.slice(0, 100) ?? ""}`, duration: 3000 })
       }
+    } catch (err) { debugCatch("TUI", err) }
+  }))
+
+  // ——— Session idle → drain pending Studio toasts ————————————————
+  cleanups.push(event.on("session.idle", () => {
+    try {
+      flushStudioToasts()
     } catch (err) { debugCatch("TUI", err) }
   }))
 
@@ -166,6 +192,7 @@ export const tui: TuiPlugin = async (api: TuiPluginApi) => {
 
   cleanups.push(event.on("message.updated", (evt: { type: string; properties: { info?: { role?: string; agent?: string; sessionID?: string; id?: string; time?: { created?: number; completed?: number }; cost?: number; tokens?: { input: number; output: number }; finish?: string; error?: { message?: string }; modelID?: string; providerID?: string } } }) => {
     try {
+      flushStudioToasts()
       const info = evt.properties?.info
       if (!info) return
 

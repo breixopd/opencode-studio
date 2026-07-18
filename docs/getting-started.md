@@ -53,8 +53,8 @@ Studio initializes `.studio/studio.db` and injects agents/commands.
 On first session Studio asks once about a spend cap (soft default **$5** until you confirm).
 
 ```text
-/onboard
-/budget 5
+/studio-onboard
+/studio-budget 5
 /budget off
 ```
 
@@ -83,22 +83,20 @@ studio_doctor
 
 | Goal | Command |
 |------|---------|
-| Full SDLC | `/start-work <goal>` |
-| Explore | `/deep-dive <question>` |
-| Plan | `/plan <goal>` |
-| Verify | `/verify` |
-| Handoff | `/handoff` |
-| Help | `/help` or `studio_help topic=overview` |
+| Full SDLC | `/studio-start-work <goal>` |
+| Explore | `/studio-deep-dive <question>` |
+| Plan | `/studio-plan <goal>` |
+| Verify | `/studio-verify` |
+| Handoff | `/studio-handoff` |
+| Help | `/studio-help` or `studio_help topic=overview` |
 
 ## Mental model
 
-1. **Slash commands** — `/verify`, `/budget`, `/start-work` (canonical names; no `/studio-` prefix)
+1. **Slash commands** — primary `/studio-*` (short aliases like `/verify` still work)
 2. **Tools** — agent calls `studio_verify`, `studio_cost`, …
-3. **Natural language** — e.g. `don't scout`, `budget $10`
+3. **Natural language** — e.g. `don't scout`, `budget $10`, `I accept the risk`
 
 Prefer slash or tools when you want deterministic behavior.
-
-> **Note:** The TUI command palette may show `/studio-*` aliases (e.g. `/studio-verify`). Injected OpenCode commands use the bare names above (`/verify`). Prefer the bare names.
 
 ## Autonomy (scout)
 
@@ -107,14 +105,16 @@ Default mode is **suggest**: Studio surfaces polish/test/research opportunities 
 | Mode | Behavior |
 |------|----------|
 | `suggest` (default) | Inject findings; act on high severity; suggest the rest |
-| `full` | When idle, proactively fix high/medium (verify-first) |
+| `full` | When idle, proactively fix high/medium (verify-first) — requires risk accept + TUI toast |
 | `off` | No scout injection |
 
 ```text
+studio_preferences accept_autonomy_risk
+studio_preferences set_autonomy full accept_risk:true
 studio_preferences set_autonomy off
 ```
 
-Or say `don't scout`.
+Or say `don't scout` / `I accept the risk` / `revoke autonomy risk`. See [Security](./security.md).
 
 ## Optional: SSH remote
 

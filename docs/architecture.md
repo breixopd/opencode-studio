@@ -6,7 +6,7 @@ Short overview of plugin layers. Detail lives in source under `src/`.
 
 ```
 OpenCode host
-  └─ Plugin entry: src/index.ts (+ optional src/tui.ts)
+  └─ Plugin entry: src/index.ts → plugin-factory (+ optional src/tui.ts)
        ├─ REGISTERED_TOOLS (~44 tools)     → tools/*
        └─ hooks (config, chat, system, …)  → hooks/*
             └─ domain logic                → core/*
@@ -15,13 +15,13 @@ OpenCode host
 ```
 
 **Dependency direction (intended):**  
-`index → tools/hooks → core → (config | sync | ssh | tunnel)`
+`index → plugin-factory → tools/hooks → core → (config | sync | ssh | tunnel)`
 
 ## Layers
 
 | Layer | Path | Role |
 |-------|------|------|
-| Entry | `src/index.ts`, `src/tui.ts` | Register tools + hooks; optional TUI |
+| Entry | `src/index.ts`, `src/plugin-factory.ts`, `src/tui.ts` | Register tools + hooks; optional TUI |
 | Hooks | `src/hooks/` | Session lifecycle, prompt injection, tool guards, config inject |
 | Tools | `src/tools/` | OpenCode `tool()` wrappers (I/O boundary) |
 | Core | `src/core/` | SQLite, index, budget, scout, routing, SDLC state |
@@ -32,10 +32,10 @@ OpenCode host
 
 | Cluster | Examples |
 |---------|----------|
-| Code intelligence | `code-store`, `code-query`, `tree-sitter-parser`, `monorepo` |
+| Code intelligence | `code-store`, `code-store-discover`, `code-store-index`, `code-query`, `tree-sitter-parser`, `monorepo` |
 | Workspace / SDLC | `workspace-*`, plans, tasks, verify gate |
-| Cost / budget | `cost`, `budget`, `budget-intent` |
-| Autonomy | `scout`, `discipline`, `constitution` |
+| Cost / budget | `cost`, `budget`, `budget-intent`, `tool-output-budget` |
+| Autonomy | `scout/*`, `toast-bus`, `discipline`, `constitution` |
 | Model routing | `model-routing`, `model-registry`, `agent-defs` |
 | Catalog | `tool-catalog` — SSOT for tool metadata |
 

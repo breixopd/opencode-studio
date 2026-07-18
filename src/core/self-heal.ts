@@ -7,31 +7,15 @@
  *
  * This is a moat feature — Cursor/Claude Code have no such loop.
  */
-import { spawn } from "child_process"
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs"
 import { dirname, join } from "path"
 import { getVerifyRetryHint } from "./workspace"
 import { MAX_VERIFY_GRIND } from "../core/workspace"
+import { gitExec as git } from "./git-exec"
 import * as log from "./logger"
 
 const MAX_GRIND = MAX_VERIFY_GRIND
 const SNAPSHOT_FILE = "self-heal-snapshot.json"
-
-/** Run a git command, returning trimmed stdout. */
-function git(args: string[], cwd: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("git", args, { cwd, timeout: 10_000 })
-    let stdout = ""
-    let stderr = ""
-    proc.stdout?.on("data", (d) => (stdout += d.toString()))
-    proc.stderr?.on("data", (d) => (stderr += d.toString()))
-    proc.on("error", reject)
-    proc.on("close", (code) => {
-      if (code === 0) resolve(stdout.trim())
-      else reject(new Error(stderr.trim() || `git ${args.join(" ")} failed`))
-    })
-  })
-}
 
 export interface Snapshot {
   commitHash: string

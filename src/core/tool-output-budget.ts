@@ -1,5 +1,5 @@
 /**
- * Token optimization helpers.
+ * Tool output budget helpers.
  *
  * 1. tokenEst — cheap heuristic (~4 chars/token, like Probe/others)
  * 2. truncateToTokenBudget — cap any text by estimated tokens

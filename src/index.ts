@@ -39,16 +39,7 @@ import { studio_agent } from "./tools/agent"
 import { studio_council } from "./tools/council"
 import { studio_browser } from "./tools/browser"
 import { studio_scout } from "./tools/scout"
-import { createEventHook } from "./hooks/session-start"
-import { createDisciplineSystemHook } from "./hooks/discipline"
-import { createConfigInjectHook } from "./hooks/config-inject"
-import { createCompressOutputHook } from "./hooks/compress-output"
-import { createCompactionHook } from "./hooks/compaction"
-import { createChatParamsHook } from "./hooks/chat-params"
-import { createCompactionContinueHook } from "./hooks/compaction-continue"
-import { createToolGuardsHook } from "./hooks/tool-guards"
-import { createChatMessageHook } from "./hooks/chat-message"
-import { createShellEnvHook } from "./hooks/shell-env"
+import { createStudioPlugin, asPlugin } from "./plugin-factory"
 
 /** Tools registered on the plugin — must stay in sync with ALL_TOOL_NAMES. */
 export const REGISTERED_TOOLS: Record<string, ToolDefinition> = {
@@ -98,24 +89,7 @@ export const REGISTERED_TOOLS: Record<string, ToolDefinition> = {
   studio_scout,
 }
 
-export const OpenCodeStudio: Plugin = async (ctx) => {
-  // Bind OpenCode's project directory (worktree-aware) for tools/hooks.
-  const { setActiveDirectory } = await import("./core/active-dir")
-  setActiveDirectory(ctx?.directory)
-
-  return {
-    tool: { ...REGISTERED_TOOLS },
-    config: createConfigInjectHook(),
-    "chat.message": createChatMessageHook(),
-    "experimental.chat.system.transform": createDisciplineSystemHook(),
-    "chat.params": createChatParamsHook(),
-    "shell.env": createShellEnvHook(),
-    "tool.execute.before": createToolGuardsHook(),
-    "tool.execute.after": createCompressOutputHook(),
-    "experimental.session.compacting": createCompactionHook(),
-    "experimental.compaction.autocontinue": createCompactionContinueHook(),
-    event: createEventHook(),
-  }
-}
+export const OpenCodeStudio: Plugin = asPlugin(async (ctx) => createStudioPlugin(ctx, REGISTERED_TOOLS))
 
 export default OpenCodeStudio
+export { createStudioHooks, createStudioPlugin, asPlugin } from "./plugin-factory"

@@ -8,7 +8,7 @@
  * use and cleaned up after a TTL to prevent memory leaks on long-running
  * processes with many sessions.
  */
-import { OutputDeduplicator } from "./token-budget"
+import { OutputDeduplicator } from "./tool-output-budget"
 
 const dedupers = new Map<string, { deduper: OutputDeduplicator; lastAccess: number }>()
 const TTL_MS = 30 * 60 * 1000 // 30 minutes since last access

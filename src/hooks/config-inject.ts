@@ -32,6 +32,154 @@ function buildAgentConfig(): NonNullable<Config["agent"]> {
   return config
 }
 
+type CommandDef = NonNullable<Config["command"]>[string]
+
+/**
+ * Primary slash commands use `studio-*` names (aligned with TUI palette).
+ * Short aliases (`verify`, `budget`, …) share the same templates for muscle memory.
+ */
+function buildCommands(): NonNullable<Config["command"]> {
+  const deepDive: CommandDef = {
+    description: "Explore codebase",
+    template: "Explore: {{args}}",
+    agent: "studio-explore",
+    subtask: true,
+  }
+  const research: CommandDef = {
+    description: "Research docs/examples",
+    template: "Research: {{args}}",
+    agent: "studio-research",
+    subtask: true,
+  }
+  const architect: CommandDef = {
+    description: "Review architecture/plan",
+    template: "Review architecture for: {{args}}",
+    agent: "studio-architect",
+    subtask: true,
+  }
+  const security: CommandDef = {
+    description: "Security review",
+    template: "Security review: {{args}}",
+    agent: "studio-security",
+    subtask: true,
+  }
+  const review: CommandDef = {
+    description: "Code review",
+    template: "Code review: {{args}}",
+    agent: "studio-review",
+    subtask: true,
+  }
+  const verify: CommandDef = {
+    description: "Run checks",
+    template: "Run studio_verify.",
+    agent: "studio-verify",
+    subtask: true,
+  }
+  const plan: CommandDef = {
+    description: "Write a plan",
+    template: "studio_plan write for: {{args}}",
+  }
+  const handoff: CommandDef = {
+    description: "Ship handoff",
+    template: "studio_handoff for: {{args}}",
+  }
+  const smokeTest: CommandDef = {
+    description: "Run full studio smoke test and collect report",
+    template:
+      "Smoke test (use free models for subagents):\n1) studio_help topic=overview\n2) studio_doctor\n3) studio_brief show\n4) studio_symbols action=stats\n5) studio_plan write for: add greet.ts + test\n6) studio_task create \"Add greet\"\n7) @studio-explore (read-only)\n8) implement greet in src/greet.ts + test\n9) studio_context pin \"smoke test contract\"\n10) studio_verify\n11) studio_handoff summary=\"smoke\" (expect pass after verify)\n12) studio_report — paste FULL JSON",
+  }
+  const help: CommandDef = {
+    description: "Studio help — setup, tools, workflow",
+    template: "studio_help topic={{args}}",
+  }
+  const startWork: CommandDef = {
+    description: "Full SDLC workflow with smart parallel fan-out",
+    template:
+      `SDLC for {{args}}:\n1) studio_brief show\n2) ${startWorkFanOutStep()}\n3) Synthesize agent findings\n4) studio_spec (generate requirements + acceptance)\n5) studio_plan\n6) studio_task\n7) @studio-implement\n8) @studio-review\n9) studio_verify (only=snapshot first)\n10) studio_handoff`,
+  }
+  const council: CommandDef = {
+    description: "Model Council — multi-lens review (security, architecture, correctness, maintainability)",
+    template: "studio_council action=review {{args}}",
+  }
+  const councilPlan: CommandDef = {
+    description: "Model Council — multi-lens architecture review for a goal",
+    template: "studio_council action=plan goal='{{args}}'",
+  }
+  const scout: CommandDef = {
+    description: "Autonomous improvement scout — find polish/test/research opportunities",
+    template: "Run studio_scout. Summarize findings by severity and propose next steps (verify-first).",
+    agent: "studio-scout",
+    subtask: true,
+  }
+  const budget: CommandDef = {
+    description: "Set or disable session spend cap (e.g. 5, 10, off, disable)",
+    template:
+      "Session budget request: {{args}}\n" +
+      "If a number (e.g. 5 or $10): studio_preferences set_session_budget <usd>.\n" +
+      "If off/disable/unlimited/0/clear: studio_preferences set_session_budget 0.\n" +
+      "If empty or \"status\": studio_preferences show and report the current session budget.\n" +
+      "Confirm the new budget to the user in one line.",
+  }
+  const onboard: CommandDef = {
+    description: "First-run studio setup (local models + session budget)",
+    template:
+      "Run first-run onboarding.\n" +
+      "If user specified a budget amount in {{args}}, pass budget_usd.\n" +
+      "If they said disable/off/unlimited, pass disable_budget: true.\n" +
+      "Otherwise: studio_setup({ action: \"onboard\" }).\n" +
+      "Show the you're-set card and ask if they want to change the budget.",
+  }
+  const doctor: CommandDef = {
+    description: "Health check — config, SSH, index, models",
+    template: "Run studio_doctor and summarize Pass / Warn / Fail.",
+  }
+  const cost: CommandDef = {
+    description: "Session / all-time cost report",
+    template: "studio_cost {{args}}",
+  }
+
+  // Primary studio-* names first (TUI palette alignment), then short aliases.
+  return {
+    "studio-deep-dive": deepDive,
+    "studio-research": research,
+    "studio-architect": architect,
+    "studio-security": security,
+    "studio-review": review,
+    "studio-verify": verify,
+    "studio-plan": plan,
+    "studio-handoff": handoff,
+    "studio-smoke-test": smokeTest,
+    "studio-help": help,
+    "studio-start-work": startWork,
+    "studio-council": council,
+    "studio-council-plan": councilPlan,
+    "studio-scout": scout,
+    "studio-budget": budget,
+    "studio-onboard": onboard,
+    "studio-doctor": doctor,
+    "studio-cost": cost,
+    // Short aliases (muscle memory)
+    "deep-dive": deepDive,
+    research,
+    architect,
+    security,
+    review,
+    verify,
+    plan,
+    handoff,
+    "smoke-test": smokeTest,
+    help,
+    "start-work": startWork,
+    council,
+    "council-plan": councilPlan,
+    scout,
+    budget,
+    onboard,
+    doctor,
+    cost,
+  }
+}
+
 export function createConfigInjectHook() {
   return async (config: Config) => {
     ensureStudioReady()
@@ -42,99 +190,7 @@ export function createConfigInjectHook() {
     }
 
     config.command ??= {}
-    const commands: NonNullable<Config["command"]> = {
-      "deep-dive": {
-        description: "Explore codebase",
-        template: "Explore: {{args}}",
-        agent: "studio-explore",
-        subtask: true,
-      },
-      research: {
-        description: "Research docs/examples",
-        template: "Research: {{args}}",
-        agent: "studio-research",
-        subtask: true,
-      },
-      architect: {
-        description: "Review architecture/plan",
-        template: "Review architecture for: {{args}}",
-        agent: "studio-architect",
-        subtask: true,
-      },
-      security: {
-        description: "Security review",
-        template: "Security review: {{args}}",
-        agent: "studio-security",
-        subtask: true,
-      },
-      review: {
-        description: "Code review",
-        template: "Code review: {{args}}",
-        agent: "studio-review",
-        subtask: true,
-      },
-      verify: {
-        description: "Run checks",
-        template: "Run studio_verify.",
-        agent: "studio-verify",
-        subtask: true,
-      },
-      plan: {
-        description: "Write a plan",
-        template: "studio_plan write for: {{args}}",
-      },
-      handoff: {
-        description: "Ship handoff",
-        template: "studio_handoff for: {{args}}",
-      },
-      "smoke-test": {
-        description: "Run full studio smoke test and collect report",
-        template:
-          "Smoke test (use free models for subagents):\n1) studio_help topic=overview\n2) studio_doctor\n3) studio_brief show\n4) studio_symbols action=stats\n5) studio_plan write for: add greet.ts + test\n6) studio_task create \"Add greet\"\n7) @studio-explore (read-only)\n8) implement greet in src/greet.ts + test\n9) studio_context pin \"smoke test contract\"\n10) studio_verify\n11) studio_handoff summary=\"smoke\" (expect pass after verify)\n12) studio_report — paste FULL JSON",
-      },
-      help: {
-        description: "Studio help — setup, tools, workflow",
-        template: "studio_help topic={{args}}",
-      },
-      "start-work": {
-        description: "Full SDLC workflow with smart parallel fan-out",
-        template:
-          `SDLC for {{args}}:\n1) studio_brief show\n2) ${startWorkFanOutStep()}\n3) Synthesize agent findings\n4) studio_spec (generate requirements + acceptance)\n5) studio_plan\n6) studio_task\n7) @studio-implement\n8) @studio-review\n9) studio_verify (only=snapshot first)\n10) studio_handoff`,
-      },
-      council: {
-        description: "Model Council — multi-lens review (security, architecture, correctness, maintainability)",
-        template: "studio_council action=review {{args}}",
-      },
-      "council-plan": {
-        description: "Model Council — multi-lens architecture review for a goal",
-        template: "studio_council action=plan goal='{{args}}'",
-      },
-      scout: {
-        description: "Autonomous improvement scout — find polish/test/research opportunities",
-        template: "Run studio_scout. Summarize findings by severity and propose next steps (verify-first).",
-        agent: "studio-scout",
-        subtask: true,
-      },
-      budget: {
-        description: "Set or disable session spend cap (e.g. 5, 10, off, disable)",
-        template:
-          "Session budget request: {{args}}\n" +
-          "If a number (e.g. 5 or $10): studio_preferences set_session_budget <usd>.\n" +
-          "If off/disable/unlimited/0/clear: studio_preferences set_session_budget 0.\n" +
-          "If empty or \"status\": studio_preferences show and report the current session budget.\n" +
-          "Confirm the new budget to the user in one line.",
-      },
-      onboard: {
-        description: "First-run studio setup (local models + session budget)",
-        template:
-          "Run first-run onboarding.\n" +
-          "If user specified a budget amount in {{args}}, pass budget_usd.\n" +
-          "If they said disable/off/unlimited, pass disable_budget: true.\n" +
-          "Otherwise: studio_setup({ action: \"onboard\" }).\n" +
-          "Show the you're-set card and ask if they want to change the budget.",
-      },
-    }
-    for (const [name, def] of Object.entries(commands)) {
+    for (const [name, def] of Object.entries(buildCommands())) {
       if (!config.command![name]) config.command![name] = def
     }
 

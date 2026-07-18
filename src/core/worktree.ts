@@ -6,26 +6,10 @@
  * Each worktree gets its own branch, so parallel agents can edit different
  * files without merge conflicts.
  */
-import { spawn } from "child_process"
 import { join, resolve, sep } from "path"
 import { existsSync, mkdirSync } from "fs"
+import { gitExec as git } from "./git-exec"
 import * as log from "./logger"
-
-/** Run a git command, returning trimmed stdout. */
-function git(args: string[], cwd: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("git", args, { cwd, timeout: 10_000 })
-    let stdout = ""
-    let stderr = ""
-    proc.stdout?.on("data", (d) => (stdout += d.toString()))
-    proc.stderr?.on("data", (d) => (stderr += d.toString()))
-    proc.on("error", reject)
-    proc.on("close", (code) => {
-      if (code === 0) resolve(stdout.trim())
-      else reject(new Error(stderr.trim() || `git ${args.join(" ")} failed`))
-    })
-  })
-}
 
 export interface Worktree {
   path: string

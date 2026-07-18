@@ -1,6 +1,6 @@
 {
   "name": "opencode-studio",
-  "version": "2.0.0-alpha.4",
+  "version": "2.0.0-alpha.5",
   "description": "Autonomous OpenCode plugin — code intelligence, verify-first SDLC, spend caps, local models, remote sync",
   "type": "module",
   "main": "./dist/index.js",

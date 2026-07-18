@@ -1,23 +1,7 @@
-import { spawn } from "child_process"
 import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 import { recordVerifyFailure } from "../core/workspace"
 import { getActiveDirectory } from "../core/active-dir"
-
-/** Run a git command asynchronously, returning trimmed stdout. */
-function git(args: string[], cwd: string, timeoutMs = 30_000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("git", args, { cwd, timeout: timeoutMs })
-    let stdout = ""
-    let stderr = ""
-    proc.stdout?.on("data", (d) => (stdout += d.toString()))
-    proc.stderr?.on("data", (d) => (stderr += d.toString()))
-    proc.on("error", reject)
-    proc.on("close", (code) => {
-      if (code === 0) resolve(stdout.trim())
-      else reject(new Error(stderr.trim() || stdout.trim() || `git ${args.join(" ")} failed (exit ${code})`))
-    })
-  })
-}
+import { gitExec as git } from "../core/git-exec"
 
 const MAX_DIFF_CHARS = 8000
 const MAX_LOG_LINES = 30

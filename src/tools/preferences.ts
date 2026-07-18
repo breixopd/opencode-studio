@@ -21,6 +21,10 @@ import {
   setSessionBudgetUsd,
   getSessionBudgetUsd,
   hasExplicitBudget,
+  acceptAutonomyFullRisk,
+  clearAutonomyFullRisk,
+  hasAcceptedAutonomyFullRisk,
+  AUTONOMY_FULL_RISK_REQUIRED,
 } from "../core/project-profile"
 import { getSemanticRecallStatus } from "../core/semantic-recall"
 import { clearStudioRoutedAgents, refreshModelRouting } from "../core/model-routing"
@@ -37,7 +41,7 @@ function parseCsvList(raw: string | undefined): string[] | undefined {
 
 export const studio_preferences: ToolDefinition = tool({
   description:
-    "Preferences: model mode, autonomy, local models, semantic recall, session budget, remote path, " +
+    "Preferences: model mode, autonomy (+ risk accept/clear), local models, semantic recall, session budget, remote path, " +
       "multi-remote env, remote exec allowlists, .studio commit. " +
       "Global settings in ~/.config/opencode-studio/user.json.",
   args: {
@@ -50,6 +54,8 @@ export const studio_preferences: ToolDefinition = tool({
         "allow_studio_commit",
         "set_model_mode",
         "set_autonomy",
+        "accept_autonomy_risk",
+        "clear_autonomy_risk",
         "set_prefer_local",
         "set_semantic_recall",
         "set_session_budget",
@@ -92,6 +98,10 @@ export const studio_preferences: ToolDefinition = tool({
       .enum(["full", "suggest", "off"])
       .optional()
       .describe("Autonomous scout: full=act when idle | suggest=surface only (default) | off=disabled"),
+    accept_risk: tool.schema
+      .boolean()
+      .optional()
+      .describe("Required (or prior accept_autonomy_risk) when set_autonomy full — persists risk acknowledgment + warning toast"),
     prefer_local: tool.schema
       .boolean()
       .optional()
@@ -128,6 +138,7 @@ export const studio_preferences: ToolDefinition = tool({
       const lines = [
         `Model mode (global): ${getModelMode()}`,
         `Autonomy: ${getAutonomyMode()}`,
+        `Autonomy full risk accepted: ${hasAcceptedAutonomyFullRisk() ? "yes" : "no"}`,
         `Prefer local models: ${getPreferLocalModels() ? "yes" : "no"}`,
         `Semantic recall: ${getSemanticRecall() ? `on (${recallStatus})` : "off"}`,
         `Session budget: ${budgetLine}`,
@@ -170,16 +181,39 @@ export const studio_preferences: ToolDefinition = tool({
       return `Model mode set to '${mode}'. Subagent routing updated.`
     }
 
+    if (args.action === "accept_autonomy_risk") {
+      acceptAutonomyFullRisk()
+      return (
+        "Full-autonomy risk accepted (persisted). You can now set_autonomy full. " +
+        "Warning toast queued for the TUI. Revoke with clear_autonomy_risk or say \"revoke autonomy risk\"."
+      )
+    }
+
+    if (args.action === "clear_autonomy_risk") {
+      clearAutonomyFullRisk()
+      return "Full-autonomy risk acceptance cleared. set_autonomy full will require accept_risk again."
+    }
+
     if (args.action === "set_autonomy") {
       if (!args.autonomy) return "autonomy required (full | suggest | off)"
-      const mode = setAutonomyMode(args.autonomy as AutonomyMode)
-      invalidateScoutCache()
-      return `Autonomy set to '${mode}'. ` +
-        (mode === "off"
-          ? "Scout injection disabled."
-          : mode === "full"
-            ? "Agents will proactively polish when idle (tests+verify first)."
-            : "Agents will surface improvements without acting unless high-severity or asked.")
+      try {
+        const mode = setAutonomyMode(args.autonomy as AutonomyMode, {
+          acceptRisk: args.accept_risk === true,
+        })
+        invalidateScoutCache()
+        return `Autonomy set to '${mode}'. ` +
+          (mode === "off"
+            ? "Scout injection disabled."
+            : mode === "full"
+              ? "Agents will proactively polish when idle (tests+verify first). Risk accepted."
+              : "Agents will surface improvements without acting unless high-severity or asked.")
+      } catch (err) {
+        const msg = (err as Error).message
+        if (msg.includes("risk acceptance") || msg === AUTONOMY_FULL_RISK_REQUIRED) {
+          return msg
+        }
+        throw err
+      }
     }
 
     if (args.action === "set_prefer_local") {

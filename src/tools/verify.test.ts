@@ -7,6 +7,8 @@ import {
   VERIFY_ALIASES,
   detectCommands,
   filterVerifyCommands,
+  splitArgv,
+  KNOWN_RUNNER_RE,
 } from "./verify"
 
 describe("studio_verify helpers", () => {
@@ -64,5 +66,20 @@ describe("studio_verify helpers", () => {
 
   it("filterVerifyCommands matches clippy via lint aliases", () => {
     expect(filterVerifyCommands(["cargo clippy", "cargo test"], "lint")).toEqual(["cargo clippy"])
+  })
+
+  it("KNOWN_RUNNER_RE matches bun/npm/pnpm/yarn/deno", () => {
+    expect(KNOWN_RUNNER_RE.test("bun run test")).toBe(true)
+    expect(KNOWN_RUNNER_RE.test("npm run lint")).toBe(true)
+    expect(KNOWN_RUNNER_RE.test("pnpm test")).toBe(true)
+    expect(KNOWN_RUNNER_RE.test("yarn build")).toBe(true)
+    expect(KNOWN_RUNNER_RE.test("deno test")).toBe(true)
+    expect(KNOWN_RUNNER_RE.test("cargo test")).toBe(false)
+    expect(KNOWN_RUNNER_RE.test("pytest")).toBe(false)
+  })
+
+  it("splitArgv handles simple and quoted args", () => {
+    expect(splitArgv("bun run test")).toEqual(["bun", "run", "test"])
+    expect(splitArgv('npm run "my script"')).toEqual(["npm", "run", "my script"])
   })
 })

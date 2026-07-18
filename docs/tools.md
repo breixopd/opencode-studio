@@ -107,28 +107,28 @@ See [Budget](./budget.md).
 
 ## Slash commands
 
-Injected via `src/hooks/config-inject.ts` (OpenCode `config.command`). Canonical names have **no** `/studio-` prefix.
+Injected via `src/hooks/config-inject.ts` (OpenCode `config.command`). **Primary** names are `/studio-*` (aligned with the TUI palette). Short aliases (`/verify`, `/budget`, …) still work.
 
-| Slash | Behavior |
-|-------|----------|
-| `/onboard` | First-run setup (`studio_setup` onboard) |
-| `/budget` | Set / disable / status session budget |
-| `/help` | `studio_help topic=…` |
-| `/start-work` | Full SDLC fan-out |
-| `/deep-dive` | `@studio-explore` |
-| `/research` | `@studio-research` |
-| `/architect` | `@studio-architect` |
-| `/security` | `@studio-security` |
-| `/review` | `@studio-review` |
-| `/plan` | `studio_plan write` |
-| `/verify` | `@studio-verify` → `studio_verify` |
-| `/handoff` | `studio_handoff` |
-| `/scout` | `@studio-scout` |
-| `/council` | `studio_council action=review` |
-| `/council-plan` | `studio_council action=plan` |
-| `/smoke-test` | Multi-step smoke script |
-
-The TUI palette may list `/studio-*` aliases; prefer the table above.
+| Primary | Alias | Behavior |
+|---------|-------|----------|
+| `/studio-onboard` | `/onboard` | First-run setup (`studio_setup` onboard) |
+| `/studio-budget` | `/budget` | Set / disable / status session budget |
+| `/studio-help` | `/help` | `studio_help topic=…` |
+| `/studio-start-work` | `/start-work` | Full SDLC fan-out |
+| `/studio-deep-dive` | `/deep-dive` | `@studio-explore` |
+| `/studio-research` | `/research` | `@studio-research` |
+| `/studio-architect` | `/architect` | `@studio-architect` |
+| `/studio-security` | `/security` | `@studio-security` |
+| `/studio-review` | `/review` | `@studio-review` |
+| `/studio-plan` | `/plan` | `studio_plan write` |
+| `/studio-verify` | `/verify` | `@studio-verify` → `studio_verify` |
+| `/studio-handoff` | `/handoff` | `studio_handoff` |
+| `/studio-scout` | `/scout` | `@studio-scout` |
+| `/studio-council` | `/council` | `studio_council action=review` |
+| `/studio-council-plan` | `/council-plan` | `studio_council action=plan` |
+| `/studio-smoke-test` | `/smoke-test` | Multi-step smoke script |
+| `/studio-doctor` | `/doctor` | `studio_doctor` |
+| `/studio-cost` | `/cost` | `studio_cost` |
 
 ## Agents
 
@@ -150,7 +150,8 @@ The TUI palette may list `/studio-*` aliases; prefer the table above.
 |--------|----------|--------|
 | Budget | `budget $5`, `disable budget`, `budget off` | Set or clear session budget |
 | Autonomy | `don't scout`, `be proactive`, `suggest only` | Change autonomy mode |
-| Council | `council: review auth` | Keyword trigger (prefer `/council` for reliability) |
+| Risk | `I accept the risk`, `revoke autonomy risk` | Accept/clear full-autonomy risk (toast on accept) |
+| Council | `council: review auth` | Keyword trigger (prefer `/studio-council` for reliability) |
 
 ---
 

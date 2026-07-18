@@ -5,9 +5,9 @@ import {
   optimizeToolOutput,
   tokenEst,
   truncateToTokenBudget,
-} from "./token-budget"
+} from "./tool-output-budget"
 
-describe("token-budget", () => {
+describe("tool-output-budget", () => {
   it("tokenEst approximates chars/4", () => {
     expect(tokenEst("")).toBe(0)
     expect(tokenEst("ab")).toBe(1)

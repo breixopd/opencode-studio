@@ -1,39 +1,17 @@
-/**
- * Autonomous improvement scout — finds polish, test gaps, research opportunities,
- * and verification issues without the user asking.
- *
- * Runs cheap heuristics (diagnostics, working set, tasks, verify state, index
- * hotspots, missing tests). Findings are injected into session context when
- * autonomy is enabled (default). User can disable via:
- *   studio_preferences set_autonomy off
- * or by saying "don't scout" / "no autonomy" / "stop suggesting improvements".
- */
 import { existsSync, readdirSync, readFileSync, statSync } from "fs"
 import { basename, dirname, extname, join, relative } from "path"
 import { spawnSync } from "child_process"
-import { getDiagnosticsSummary, getDiagnostics } from "./diagnostics"
-import { getWorkingSet } from "./passive-context"
-import { incompleteTasks, listTasks, createTask } from "./workspace-tasks"
-import { getActivePlan } from "./workspace-plans"
-import { getVerifyState, getVerifyRetryHint } from "./workspace-verify"
-import { loadProjectProfile, getAutonomyMode, type AutonomyMode } from "./project-profile"
-import { findHotspots } from "./code-query"
-import { getCISummary } from "./ci-watcher"
-import { constitutionContextBlock } from "./constitution"
-import * as log from "./logger"
-import { getActiveDirectory } from "./active-dir"
-
-export type ScoutSeverity = "high" | "medium" | "low"
-
-export interface ScoutFinding {
-  id: string
-  severity: ScoutSeverity
-  category: "verify" | "tests" | "polish" | "research" | "security" | "deps" | "process"
-  title: string
-  detail: string
-  /** Suggested next action for the agent */
-  action: string
-}
+import { getDiagnosticsSummary, getDiagnostics } from "../diagnostics"
+import { getWorkingSet } from "../passive-context"
+import { incompleteTasks, listTasks } from "../workspace-tasks"
+import { getActivePlan } from "../workspace-plans"
+import { getVerifyState, getVerifyRetryHint } from "../workspace-verify"
+import { loadProjectProfile } from "../project-profile"
+import { findHotspots } from "../code-query"
+import { getCISummary } from "../ci-watcher"
+import { constitutionContextBlock } from "../constitution"
+import * as log from "../logger"
+import type { ScoutFinding } from "./types"
 
 const CODE_EXTS = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
@@ -43,42 +21,7 @@ const CODE_EXTS = new Set([
 
 const TEST_HINTS = /(?:\.test\.|\.spec\.|_test\.|_spec\.|\/tests?\/|\/__tests__\/|test_)/i
 
-/** Cache scout results briefly so discipline hook stays cheap. */
-let cache: { at: number; root: string; findings: ScoutFinding[] } | null = null
-const CACHE_MS = 45_000
-
-export function invalidateScoutCache(): void {
-  cache = null
-}
-
-export function runScout(root = getActiveDirectory(), max = 8): ScoutFinding[] {
-  if (cache && cache.root === root && Date.now() - cache.at < CACHE_MS) {
-    return cache.findings.slice(0, max)
-  }
-
-  const findings: ScoutFinding[] = []
-
-  try {
-    collectVerifyFindings(findings, root)
-    collectDiagnosticFindings(findings, root)
-    collectTestGapFindings(findings, root)
-    collectTaskFindings(findings)
-    collectPlanFindings(findings)
-    collectHotspotFindings(findings, root)
-    collectProcessFindings(findings, root)
-    collectCiFindings(findings)
-    collectSecurityFindings(findings, root)
-    collectDepsFindings(findings, root)
-  } catch (err) {
-    log.debugCatch("scout.run", err)
-  }
-
-  const ranked = rankFindings(findings).slice(0, max)
-  cache = { at: Date.now(), root, findings: ranked }
-  return ranked
-}
-
-function collectVerifyFindings(out: ScoutFinding[], _root: string): void {
+export function collectVerifyFindings(out: ScoutFinding[], _root: string): void {
   const state = getVerifyState()
   const hint = getVerifyRetryHint()
   if (state && !state.passed) {
@@ -103,7 +46,7 @@ function collectVerifyFindings(out: ScoutFinding[], _root: string): void {
   }
 }
 
-function collectDiagnosticFindings(out: ScoutFinding[], root: string): void {
+export function collectDiagnosticFindings(out: ScoutFinding[], root: string): void {
   const summary = getDiagnosticsSummary(root)
   if (summary.errors > 0) {
     const top = getDiagnostics(root, "error", 3)
@@ -128,7 +71,7 @@ function collectDiagnosticFindings(out: ScoutFinding[], root: string): void {
   }
 }
 
-function collectTestGapFindings(out: ScoutFinding[], root: string): void {
+export function collectTestGapFindings(out: ScoutFinding[], root: string): void {
   const working = getWorkingSet(8)
   const gaps: string[] = []
   for (const file of working) {
@@ -165,7 +108,6 @@ function looksLikeTestCompanionMissing(file: string, root: string): boolean {
     join(root, "test", `${base}.test${ext}`),
   ]
   if (candidates.some((c) => existsSync(c))) return false
-  // Also accept sibling *test* files that mention the base name
   try {
     const siblings = readdirSync(dir)
     if (siblings.some((s) => TEST_HINTS.test(s) && s.includes(base))) return false
@@ -175,7 +117,7 @@ function looksLikeTestCompanionMissing(file: string, root: string): boolean {
   return true
 }
 
-function collectTaskFindings(out: ScoutFinding[]): void {
+export function collectTaskFindings(out: ScoutFinding[]): void {
   const open = incompleteTasks()
   const all = listTasks()
   const blocked = all.filter((t) => t.status === "blocked")
@@ -189,7 +131,6 @@ function collectTaskFindings(out: ScoutFinding[]): void {
       action: "Unblock or re-scope with studio_task; research unknowns with @studio-research",
     })
   }
-  // When the board is empty and verify isn't failing, nudge proactive polish.
   if (open.length === 0 && blocked.length === 0) {
     const verify = getVerifyState()
     if (!verify || verify.passed) {
@@ -205,7 +146,7 @@ function collectTaskFindings(out: ScoutFinding[]): void {
   }
 }
 
-function collectPlanFindings(out: ScoutFinding[]): void {
+export function collectPlanFindings(out: ScoutFinding[]): void {
   const plan = getActivePlan()
   if (plan && (!plan.testStrategy || plan.testStrategy.trim().length < 20)) {
     out.push({
@@ -219,7 +160,7 @@ function collectPlanFindings(out: ScoutFinding[]): void {
   }
 }
 
-function collectHotspotFindings(out: ScoutFinding[], root: string): void {
+export function collectHotspotFindings(out: ScoutFinding[], root: string): void {
   try {
     const hotspots = findHotspots(root, 5)
     const heavy = hotspots.filter((h) => h.inDegree >= 8)
@@ -238,7 +179,7 @@ function collectHotspotFindings(out: ScoutFinding[], root: string): void {
   }
 }
 
-function collectProcessFindings(out: ScoutFinding[], root: string): void {
+export function collectProcessFindings(out: ScoutFinding[], root: string): void {
   const profile = loadProjectProfile(root)
   if (profile.openConcerns.length >= 2) {
     out.push({
@@ -251,7 +192,6 @@ function collectProcessFindings(out: ScoutFinding[], root: string): void {
     })
   }
   if (!constitutionContextBlock(root)) {
-    // Only suggest if project looks non-trivial
     try {
       const pkg = join(root, "package.json")
       const py = join(root, "pyproject.toml")
@@ -274,7 +214,7 @@ function collectProcessFindings(out: ScoutFinding[], root: string): void {
   }
 }
 
-function collectCiFindings(out: ScoutFinding[]): void {
+export function collectCiFindings(out: ScoutFinding[]): void {
   const ci = getCISummary()
   if (ci && /fail/i.test(ci)) {
     out.push({
@@ -328,7 +268,6 @@ function walkSrcFiles(root: string, limit = 400): string[] {
  * Exported for unit tests.
  */
 export function collectSecurityFindings(out: ScoutFinding[], root: string): void {
-  // Tracked secrets files via git ls-files (no network).
   try {
     const ls = spawnSync("git", ["ls-files", "--", ".env", ".env.local", ".env.production", ".env.development"], {
       cwd: root,
@@ -362,11 +301,9 @@ export function collectSecurityFindings(out: ScoutFinding[], root: string): void
       continue
     }
     const rel = relative(root, file)
-    // eval( — skip comments-only false positives lightly
     if (/(?:^|[^.\w])eval\s*\(/.test(text)) {
       evalHits.push(rel)
     }
-    // Dangerous child_process with shell:true
     if (
       /(?:child_process|spawn|exec|execFile|spawnSync|execSync)/.test(text) &&
       /shell\s*:\s*true/.test(text)
@@ -402,7 +339,7 @@ const RISKY_DEPS = new Set([
   "event-stream",
   "flatmap-stream",
   "node-ipc",
-  "ua-parser-js", // historically compromised versions — flag for audit attention
+  "ua-parser-js",
 ])
 
 /**
@@ -472,123 +409,6 @@ export function collectDepsFindings(out: ScoutFinding[], root: string): void {
   } catch (err) {
     log.debugCatch("scout.deps", err)
   }
-}
-
-function rankFindings(findings: ScoutFinding[]): ScoutFinding[] {
-  const weight: Record<ScoutSeverity, number> = { high: 0, medium: 1, low: 2 }
-  const seen = new Set<string>()
-  return findings
-    .filter((f) => {
-      if (seen.has(f.id)) return false
-      seen.add(f.id)
-      return true
-    })
-    .sort((a, b) => weight[a.severity] - weight[b.severity])
-}
-
-/** Context block for discipline injection. Null when autonomy is off or nothing found. */
-export function scoutContextBlock(root = getActiveDirectory()): string | null {
-  const mode = getAutonomyMode()
-  if (mode === "off") return null
-
-  const findings = runScout(root, mode === "full" ? 8 : 5)
-  if (!findings.length) return null
-
-  const lines = [
-    "[studio scout] Autonomous improvement opportunities (opt out: studio_preferences set_autonomy off, or say \"don't scout\"):",
-  ]
-  for (const f of findings) {
-    lines.push(`- [${f.severity}/${f.category}] ${f.title}: ${f.detail}`)
-    lines.push(`  → ${f.action}`)
-  }
-  if (mode === "suggest") {
-    lines.push("Mode=suggest: surface these; only act on high severity or when idle unless user asks.")
-  } else {
-    const created = materializeAutoActTasks(findings)
-    if (created.length) {
-      lines.push(
-        `Mode=full auto-act: created ${created.length} task(s): ${created.map((t) => t.title).join("; ")}`,
-      )
-    }
-    const top = findings.find((f) => f.severity === "high") ?? findings.find((f) => f.severity === "medium")
-    if (top) {
-      lines.push(
-        `Mode=full MANDATORY NEXT (verify-first): @studio-implement — ${top.action} then studio_verify. ` +
-          `Do this before new feature work. Ask before large refactors.`,
-      )
-    } else {
-      lines.push("Mode=full: when idle, proactively fix medium/low items (tests+verify first). Ask before large refactors.")
-    }
-  }
-  return lines.join("\n")
-}
-
-const SCOUT_TASK_TAG = /^\[scout:([^\]]+)\]\s*/
-
-/**
- * When autonomy=full, turn high (and top medium) findings into studio_tasks
- * so the board + agent both have concrete work — not just prompt text.
- * Idempotent: skips findings that already have an open scout-tagged task.
- */
-export function materializeAutoActTasks(findings: ScoutFinding[]): Array<{ id: string; title: string }> {
-  const open = incompleteTasks()
-  const existingIds = new Set(
-    open
-      .map((t) => t.title.match(SCOUT_TASK_TAG)?.[1])
-      .filter((id): id is string => Boolean(id)),
-  )
-
-  const actionable = findings.filter(
-    (f) => f.severity === "high" || (f.severity === "medium" && f.category !== "polish"),
-  )
-  const created: Array<{ id: string; title: string }> = []
-  for (const f of actionable.slice(0, 3)) {
-    if (existingIds.has(f.id)) continue
-    const title = `[scout:${f.id}] ${f.title}`.slice(0, 500)
-    const task = createTask(title, [
-      f.detail.slice(0, 400),
-      `Action: ${f.action}`,
-      "Verify-first: implement → studio_verify before handoff",
-      `scout-id:${f.id}`,
-    ])
-    created.push({ id: task.id, title: task.title })
-    existingIds.add(f.id)
-    log.info(`Auto-act task created: ${task.title}`)
-  }
-  return created
-}
-
-/** Detect natural-language autonomy opt-out / opt-in from user chat. */
-export function detectAutonomyIntent(text: string): AutonomyMode | null {
-  const t = text.toLowerCase()
-  if (
-    /\b(don'?t scout|no scout|stop scout|disable scout|no autonomy|turn off autonomy|stop suggesting(?: improvements)?|don'?t (?:be )?proactive|leave me alone)\b/.test(t)
-  ) {
-    return "off"
-  }
-  if (/\b(full autonomy|be proactive|autonomy on|enable scout|scout on|autonomous mode)\b/.test(t)) {
-    return "full"
-  }
-  if (/\b(suggest only|suggestions only|autonomy suggest)\b/.test(t)) {
-    return "suggest"
-  }
-  return null
-}
-
-/** Format scout findings for the studio_scout tool. */
-export function formatScoutReport(findings: ScoutFinding[], mode: AutonomyMode): string {
-  if (!findings.length) {
-    return `Autonomy=${mode}. No improvement opportunities found right now. Run studio_verify or continue feature work.`
-  }
-  const lines = [`# Studio Scout (autonomy=${mode})`, ""]
-  for (const f of findings) {
-    lines.push(`## [${f.severity}] ${f.title}`)
-    lines.push(f.detail)
-    lines.push(`**Next:** ${f.action}`)
-    lines.push("")
-  }
-  lines.push("Create tasks with studio_task for anything you will act on. Always studio_verify before handoff.")
-  return lines.join("\n")
 }
 
 /** Cheap repo size signal for tests — not used in prod path. */

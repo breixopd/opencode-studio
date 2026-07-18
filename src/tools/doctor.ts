@@ -19,11 +19,59 @@ import { getSemanticRecallStatus } from "../core/semantic-recall"
 import { getActiveDirectory } from "../core/active-dir"
 import { probeOllama } from "./setup"
 
+/** Checks that may be not-ok without failing overall health (progressive disclosure). */
+const WARN_ONLY = new Set(["tunnel", "tasks", "verify_gate", "ollama", "onboard", "sync"])
+
+type Check = { name: string; ok: boolean; detail: string; advisory?: boolean }
+
+function formatDoctorReport(healthy: boolean, checks: Check[]): string {
+  const pass: Check[] = []
+  const warn: Check[] = []
+  const fail: Check[] = []
+
+  for (const c of checks) {
+    if (c.advisory || (!c.ok && WARN_ONLY.has(c.name))) {
+      warn.push(c)
+    } else if (!c.ok) {
+      fail.push(c)
+    } else {
+      pass.push(c)
+    }
+  }
+
+  const lines = [
+    "# studio_doctor",
+    "",
+    `**${healthy ? "Healthy" : "Unhealthy"}** — Pass: ${pass.length} · Warn: ${warn.length} · Fail: ${fail.length}`,
+    "",
+  ]
+
+  if (fail.length > 0) {
+    lines.push(`## Fail (${fail.length})`)
+    for (const c of fail) lines.push(`✗ **${c.name}** — ${c.detail}`)
+    lines.push("")
+  }
+
+  if (warn.length > 0) {
+    lines.push(`## Warn (${warn.length})`)
+    for (const c of warn) lines.push(`⚠ **${c.name}** — ${c.detail}`)
+    lines.push("")
+  }
+
+  if (pass.length > 0) {
+    lines.push(`## Pass (${pass.length})`)
+    for (const c of pass) lines.push(`✓ **${c.name}** — ${c.detail}`)
+    lines.push("")
+  }
+
+  return lines.join("\n").trimEnd()
+}
+
 export const studio_doctor: ToolDefinition = tool({
   description: "Health check: config, SSH, tunnel, sync, code index, model routing, semantic recall, Ollama.",
   args: {},
   async execute() {
-    const checks: Array<{ name: string; ok: boolean; detail: string }> = []
+    const checks: Check[] = []
 
     let config
     try {
@@ -31,7 +79,7 @@ export const studio_doctor: ToolDefinition = tool({
       checks.push({ name: "config", ok: true, detail: "Auto-configured" })
     } catch (err) {
       checks.push({ name: "config", ok: false, detail: (err as Error).message })
-      return JSON.stringify({ healthy: false, checks }, null, 2)
+      return formatDoctorReport(false, checks)
     }
 
     const runtime = collectStudioRuntime({
@@ -170,6 +218,7 @@ export const studio_doctor: ToolDefinition = tool({
       checks.push({
         name: "onboard",
         ok: true,
+        advisory: true,
         detail:
           "Ollama reachable — run studio_setup({ action: \"onboard\" }) to lock $5 budget + prefer_local",
       })
@@ -184,9 +233,9 @@ export const studio_doctor: ToolDefinition = tool({
     })
 
     const healthy = checks
-      .filter((c) => !["tunnel", "tasks", "verify_gate", "ollama", "onboard"].includes(c.name) || c.ok)
+      .filter((c) => !WARN_ONLY.has(c.name) || c.ok)
       .every((c) => c.ok)
 
-    return JSON.stringify({ healthy, runtime, checks }, null, 2)
+    return formatDoctorReport(healthy, checks)
   },
 })

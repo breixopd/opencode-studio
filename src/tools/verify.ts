@@ -53,10 +53,37 @@ interface CommandError {
   stderr?: string
 }
 
-/** Run a command asynchronously, returning stdout on success or throwing on failure. */
-function runCommand(cmd: string, cwd: string, timeoutMs: number): Promise<string> {
+/** Known package runners — prefer argv spawn (shell:false) over shell:true. */
+export const KNOWN_RUNNER_RE = /^(bun|npm|pnpm|yarn|deno)\s/
+
+/** Split a simple argv string (no nested shell metacharacters expected). */
+export function splitArgv(cmd: string): string[] {
+  const parts = cmd.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)
+  if (!parts?.length) return [cmd]
+  return parts.map((p) => {
+    if (
+      (p.startsWith('"') && p.endsWith('"')) ||
+      (p.startsWith("'") && p.endsWith("'"))
+    ) {
+      return p.slice(1, -1)
+    }
+    return p
+  })
+}
+
+function spawnOnce(
+  cmd: string,
+  cwd: string,
+  timeoutMs: number,
+  useShell: boolean,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, { cwd, shell: true, timeout: timeoutMs })
+    const proc = useShell
+      ? spawn(cmd, { cwd, shell: true, timeout: timeoutMs })
+      : (() => {
+          const [exe, ...args] = splitArgv(cmd)
+          return spawn(exe, args, { cwd, shell: false, timeout: timeoutMs })
+        })()
     let stdout = ""
     let stderr = ""
     proc.stdout?.on("data", (d) => (stdout += d.toString()))
@@ -69,6 +96,26 @@ function runCommand(cmd: string, cwd: string, timeoutMs: number): Promise<string
       }
     })
   })
+}
+
+/**
+ * Run a verify command. For bun/npm/pnpm/yarn/deno, try shell:false argv first;
+ * fall back to shell:true for other ecosystems (or if argv spawn fails to start).
+ */
+export async function runCommand(cmd: string, cwd: string, timeoutMs: number): Promise<string> {
+  if (KNOWN_RUNNER_RE.test(cmd)) {
+    try {
+      return await spawnOnce(cmd, cwd, timeoutMs, false)
+    } catch (err) {
+      // Spawn failure (ENOENT etc.) → fall back to shell. Non-zero exit is a real failure.
+      const e = err as NodeJS.ErrnoException & CommandError
+      if (e.code === "ENOENT" || e.message?.includes("ENOENT") || !("stdout" in e)) {
+        return spawnOnce(cmd, cwd, timeoutMs, true)
+      }
+      throw err
+    }
+  }
+  return spawnOnce(cmd, cwd, timeoutMs, true)
 }
 
 export const studio_verify: ToolDefinition = tool({

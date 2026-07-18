@@ -10,7 +10,15 @@ import {
   syncHandoffToProfile,
   projectContextBlock,
   addGlobalRule,
+  setAutonomyMode,
+  getAutonomyMode,
+  acceptAutonomyFullRisk,
+  clearAutonomyFullRisk,
+  hasAcceptedAutonomyFullRisk,
+  detectAutonomyRiskIntent,
+  AUTONOMY_FULL_RISK_REQUIRED,
 } from "./project-profile"
+import { consumeStudioToast } from "./toast-bus"
 import { clearActiveDirectory, setActiveDirectory } from "./active-dir"
 
 describe("project-profile", () => {
@@ -59,5 +67,61 @@ describe("project-profile", () => {
     const rules = addGlobalRule("always run bun test")
     expect(rules).toContain("always run bun test")
     expect(projectContextBlock()).toContain("always run bun test")
+  })
+})
+
+describe("autonomy full risk acceptance", () => {
+  beforeEach(() => {
+    clearAutonomyFullRisk()
+    setAutonomyMode("suggest")
+    consumeStudioToast() // drain any leftover
+  })
+
+  afterEach(() => {
+    clearAutonomyFullRisk()
+    setAutonomyMode("suggest")
+    consumeStudioToast()
+  })
+
+  it("refuses full without acceptance", () => {
+    expect(() => setAutonomyMode("full")).toThrow(AUTONOMY_FULL_RISK_REQUIRED)
+    expect(getAutonomyMode()).toBe("suggest")
+  })
+
+  it("accepts with acceptRisk and emits toast", () => {
+    expect(setAutonomyMode("full", { acceptRisk: true })).toBe("full")
+    expect(hasAcceptedAutonomyFullRisk()).toBe(true)
+    expect(getAutonomyMode()).toBe("full")
+    const toast = consumeStudioToast()
+    expect(toast?.title).toContain("Full autonomy")
+    expect(toast?.variant).toBe("warning")
+  })
+
+  it("allows full after prior acceptAutonomyFullRisk", () => {
+    acceptAutonomyFullRisk()
+    consumeStudioToast()
+    expect(setAutonomyMode("full")).toBe("full")
+  })
+
+  it("keeps acceptance when leaving full", () => {
+    setAutonomyMode("full", { acceptRisk: true })
+    consumeStudioToast()
+    setAutonomyMode("suggest")
+    expect(hasAcceptedAutonomyFullRisk()).toBe(true)
+    expect(setAutonomyMode("full")).toBe("full")
+  })
+
+  it("clearAutonomyFullRisk revokes", () => {
+    acceptAutonomyFullRisk()
+    clearAutonomyFullRisk()
+    expect(hasAcceptedAutonomyFullRisk()).toBe(false)
+    expect(() => setAutonomyMode("full")).toThrow()
+  })
+
+  it("detects NL risk intents", () => {
+    expect(detectAutonomyRiskIntent("I accept the risk")).toBe("accept")
+    expect(detectAutonomyRiskIntent("please accept autonomy risk")).toBe("accept")
+    expect(detectAutonomyRiskIntent("revoke autonomy risk now")).toBe("clear")
+    expect(detectAutonomyRiskIntent("fix the bug")).toBeNull()
   })
 })

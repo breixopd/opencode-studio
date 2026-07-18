@@ -24,16 +24,19 @@ Common pain with similar products: runaway token cost, agents that wait to be as
 | Mode | Behavior |
 |------|----------|
 | `suggest` (default) | Inject scout findings; act on high severity; suggest the rest |
-| `full` | When idle, proactively fix high/medium items (tests + verify first) |
+| `full` | When idle, proactively fix high/medium items (tests + verify first) — **requires risk accept** |
 | `off` | No scout injection |
 
 ```
-studio_preferences set_autonomy full|suggest|off
+studio_preferences accept_autonomy_risk   # or say "I accept the risk" (shows a TUI warning toast)
+studio_preferences set_autonomy full accept_risk:true
+studio_preferences set_autonomy suggest|off
+studio_preferences clear_autonomy_risk    # or say "revoke autonomy risk"
 studio_preferences set_prefer_local true   # use connected Ollama / LM Studio when present
 studio_setup({ action: "onboard", budget_usd: 5 })   # first-run: set budget
 studio_setup({ action: "onboard", disable_budget: true })  # or disable (unlimited)
 studio_preferences set_session_budget 10   # change later; 0 = disable (unlimited)
-# Or: "budget $5" / "disable budget" · /budget 5 · /budget off · /onboard
+# Or: "budget $5" / "disable budget" · /studio-budget 5 · /budget off · /studio-onboard
 ```
 
 On first session (budget not confirmed), Studio asks once: keep soft default **$5**, set a custom cap, or disable. Soft $5 applies until you choose. Docs: [docs/budget.md](docs/budget.md).

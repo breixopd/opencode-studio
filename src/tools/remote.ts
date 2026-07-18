@@ -4,6 +4,7 @@ import { createSession, execCommand, closeSession } from "../ssh/manager"
 import { parseSSHConfig } from "../config/ssh-config"
 import { loadConfig } from "../config/config"
 import { checkRemotePolicy } from "../core/remote-policy"
+import { hasAcceptedAutonomyFullRisk } from "../core/project-profile"
 import * as log from "../core/logger"
 
 // Re-export policy helpers for callers that imported from tools/remote
@@ -26,7 +27,8 @@ export const studio_remote: ToolDefinition = tool({
       "Destructive patterns (rm -rf, dd, mkfs, shutdown, reboot, > /dev/) are always blocked. " +
       "Shell chaining (; | & ` $() && ||) is always rejected. " +
       "Optional config.remote.allowedHosts / allowedCommandPrefixes restrict targets. " +
-      "When allowlists are empty and autonomy=full, pass confirm:true (agent-supplied, not host HITL).",
+      "When allowlists are empty and autonomy=full: allowed if user risk accepted OR confirm:true " +
+      "(confirm is agent-supplied, not host HITL — user risk accept is the real acknowledgment). Always warns.",
   args: {
     host: tool.schema
       .string()
@@ -39,7 +41,10 @@ export const studio_remote: ToolDefinition = tool({
     confirm: tool.schema
       .boolean()
       .optional()
-      .describe("Required when autonomy=full and remote allowlists are empty (agent-supplied, not host HITL)"),
+      .describe(
+        "Agent-supplied override when autonomy=full and allowlists empty (not host HITL). " +
+          "Prefer user risk acceptance via accept_autonomy_risk.",
+      ),
   },
   async execute(args) {
     if (!args.command?.trim()) {
@@ -49,6 +54,7 @@ export const studio_remote: ToolDefinition = tool({
     const config = loadConfig()
     const policy = checkRemotePolicy(args.host, args.command, config.remote, {
       confirm: args.confirm === true,
+      riskAccepted: hasAcceptedAutonomyFullRisk(),
     })
     if (!policy.ok) return `✗ ${policy.reason}`
     if (policy.warn) log.warn(policy.warn)

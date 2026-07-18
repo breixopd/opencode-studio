@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.0.0-alpha.5 (2026-07-18)
+
+Full-autonomy risk accept + toast, structure splits (oh-my patterns), security/UX leftovers.
+
+### Added
+- **Autonomy `full` risk accept** — `accept_risk:true`, `accept_autonomy_risk`, or say "I accept the risk"; persists in user profile; revoke via `clear_autonomy_risk`
+- **TUI warning toast** on risk accept (`toast-bus` → pending toast drained by TUI)
+- **`plugin-factory`** — `createStudioHooks` / `createStudioPlugin` assembly (thin `index.ts`)
+- Scout package split (`core/scout/*`); code-store discover/index split; unified `git-exec`
+- `token-budget` → **`tool-output-budget`** (no shim)
+- Slash primaries **`/studio-*`** with short aliases (`/verify`, `/budget`, …)
+
+### Security
+- Compress cache redacts common secrets before write
+- Browser: localhost/`127.0.0.1` only; ephemeral CDP port; sandbox-first Chrome launch
+- Verify known runners prefer `shell:false` argv
+- Remote unrestricted under `full`: risk accepted **or** `confirm:true` (user accept is the real ack)
+
+### UX
+- Help derived from `toolListText()` / catalog
+- Doctor Pass/Warn/Fail grouping
+
+---
+
 ## v2.0.0-alpha.4 (2026-07-18)
 
 Platform audit Phase 0: docs site, safer verify/remote/CI, layering fixes.

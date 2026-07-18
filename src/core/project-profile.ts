@@ -33,6 +33,14 @@ export interface UserProfile {
   modelMode?: ModelMode
   /** full=act on findings when idle; suggest=surface only; off=disabled */
   autonomyMode?: AutonomyMode
+  /**
+   * Explicit user acknowledgment of full-autonomy risks.
+   * Required before setAutonomyMode("full") without acceptRisk.
+   * Kept when leaving full until clearAutonomyFullRisk().
+   */
+  autonomyFullRiskAccepted?: boolean
+  /** ISO timestamp when autonomyFullRiskAccepted was last set true */
+  autonomyFullRiskAcceptedAt?: string
   pendingCatalogNotice?: string
   /** Prefer local/Ollama/LM Studio providers for fast/read-only subagents when available */
   preferLocalModels?: boolean
@@ -49,6 +57,22 @@ export interface UserProfile {
    */
   semanticRecall?: boolean
   updatedAt: string
+}
+
+/** Error message when enabling full autonomy without risk acceptance. */
+export const AUTONOMY_FULL_RISK_REQUIRED =
+  'Full autonomy requires explicit risk acceptance. ' +
+  'Pass accept_risk:true, run studio_preferences accept_autonomy_risk, ' +
+  'or say "I accept the risk" / "accept autonomy risk".'
+
+const AUTONOMY_FULL_RISK_TOAST = {
+  variant: "warning" as const,
+  title: "Full autonomy — risk accepted",
+  message:
+    "Remote exec may be unrestricted; agents can pass confirm:true (not host HITL). " +
+    "Spend caps block tools, not LLM turns. Say \"revoke autonomy risk\" or " +
+    "studio_preferences clear_autonomy_risk.",
+  duration: 8000,
 }
 
 /** Default session spend cap when the user has never set one. */
@@ -166,6 +190,8 @@ export function loadUserProfile(): UserProfile {
     globalRules: raw.globalRules ?? [],
     modelMode: raw.modelMode,
     autonomyMode: raw.autonomyMode,
+    autonomyFullRiskAccepted: raw.autonomyFullRiskAccepted === true,
+    autonomyFullRiskAcceptedAt: raw.autonomyFullRiskAcceptedAt,
     preferLocalModels: raw.preferLocalModels,
     // Preserve undefined (never set → default $5) vs null (explicitly unlimited).
     sessionBudgetUsd: Object.prototype.hasOwnProperty.call(raw, "sessionBudgetUsd")
@@ -194,7 +220,18 @@ export function getModelMode(): ModelMode {
   return loadUserProfile().modelMode ?? "balanced"
 }
 
-export function setAutonomyMode(mode: AutonomyMode): AutonomyMode {
+export function setAutonomyMode(
+  mode: AutonomyMode,
+  opts?: { acceptRisk?: boolean },
+): AutonomyMode {
+  if (mode === "full") {
+    if (opts?.acceptRisk) {
+      acceptAutonomyFullRisk()
+    } else if (!hasAcceptedAutonomyFullRisk()) {
+      throw new Error(AUTONOMY_FULL_RISK_REQUIRED)
+    }
+  }
+  // Keep risk acceptance when leaving full — only clearAutonomyFullRisk() revokes it.
   const profile = loadUserProfile()
   profile.autonomyMode = mode
   saveUserProfile(profile)
@@ -203,6 +240,45 @@ export function setAutonomyMode(mode: AutonomyMode): AutonomyMode {
 
 export function getAutonomyMode(): AutonomyMode {
   return loadUserProfile().autonomyMode ?? "suggest"
+}
+
+/** Persist full-autonomy risk acceptance and emit a TUI warning toast. */
+export function acceptAutonomyFullRisk(): void {
+  const profile = loadUserProfile()
+  profile.autonomyFullRiskAccepted = true
+  profile.autonomyFullRiskAcceptedAt = now()
+  saveUserProfile(profile)
+  try {
+    // Lazy import avoids circular deps if toast-bus ever reads profile.
+    const { emitStudioToast } = require("./toast-bus") as typeof import("./toast-bus")
+    emitStudioToast(AUTONOMY_FULL_RISK_TOAST)
+  } catch (err) {
+    log.debugCatch("src/core/project-profile.ts:acceptAutonomyFullRisk toast", err)
+  }
+}
+
+export function hasAcceptedAutonomyFullRisk(): boolean {
+  return loadUserProfile().autonomyFullRiskAccepted === true
+}
+
+/** Revoke full-autonomy risk acceptance (does not change autonomyMode). */
+export function clearAutonomyFullRisk(): void {
+  const profile = loadUserProfile()
+  profile.autonomyFullRiskAccepted = false
+  delete profile.autonomyFullRiskAcceptedAt
+  saveUserProfile(profile)
+}
+
+/** Natural-language risk accept / revoke from user chat. */
+export function detectAutonomyRiskIntent(text: string): "accept" | "clear" | null {
+  const t = text.toLowerCase()
+  if (/\b(accept autonomy risk|i accept the risk|accept the risk)\b/.test(t)) {
+    return "accept"
+  }
+  if (/\b(revoke autonomy risk|clear autonomy risk)\b/.test(t)) {
+    return "clear"
+  }
+  return null
 }
 
 export function setPreferLocalModels(prefer: boolean): boolean {

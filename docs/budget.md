@@ -17,7 +17,7 @@ First session: Studio prompts once — keep $5, set a custom cap, or disable.
 ### Slash
 
 ```text
-/budget 5
+/studio-budget 5
 /budget 10
 /budget off
 /budget status
@@ -58,6 +58,8 @@ Still allowed when over budget: `studio_cost`, `studio_preferences`, `studio_hel
 Raise with `studio_preferences set_session_budget <usd>`, or `set_session_budget 0` to clear.
 
 **Tip:** before large exploratory loops, use `studio_preferences set_model_mode free` and/or `set_prefer_local true`.
+
+**Full autonomy note:** spend caps block tools, not LLM turns. Enabling `autonomy=full` also requires explicit risk acceptance (see [Security](./security.md)).
 
 ## Cost ledger (`studio_cost`)
 

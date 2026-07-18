@@ -14,7 +14,8 @@ Studio does **not** replace OpenCode’s permission system — it layers on top.
 ├─────────────────────────────────────────────┤
 │ 3. Studio budget / autonomy gates           │
 │    tool blocks when over budget             │
-│    confirm:true on remote when autonomy=full│
+│    full autonomy requires risk acceptance   │
+│    remote: risk accept OR confirm:true      │
 └─────────────────────────────────────────────┘
 ```
 
@@ -59,7 +60,12 @@ Empty allowlists = unrestricted hosts/prefixes (still subject to the blocklist).
 
 ### Autonomy = full
 
-When allowlists are empty and autonomy is `full`, remote exec expects `confirm:true` on the tool call.
+When allowlists are empty and autonomy is `full`, unrestricted remote exec is allowed if:
+
+1. **User risk accepted** (`accept_autonomy_risk` / say "I accept the risk"), **or**
+2. **`confirm:true`** on the tool call
+
+`confirm` is **agent-supplied** (not host HITL). User risk acceptance is the real acknowledgment. Studio always emits a warning when unrestricted.
 
 ### Tunnel / sync
 
@@ -68,8 +74,9 @@ Tunnel auto-starts when SSH is bound (watchdog with backoff). File sync maps loc
 ## Layer 3 — Budget & autonomy
 
 - **Budget exceeded** blocks many tools (cost control, not ACLs) — see [Budget](./budget.md)
-- **Autonomy `full`** increases unattended action; use `suggest` or `off` on untrusted repos
+- **Autonomy `full`** requires explicit risk acceptance first (`accept_risk:true`, `accept_autonomy_risk`, or NL). Increases unattended action; use `suggest` or `off` on untrusted repos
 - Say `don't scout` or `studio_preferences set_autonomy off`
+- Revoke risk with `clear_autonomy_risk` or say `revoke autonomy risk` (acceptance is kept when leaving full until cleared)
 
 ## Data locations
 
@@ -101,6 +108,18 @@ Keep `.studio/` gitignored unless you explicitly allow commits via preferences.
 - `/security` or `@studio-security` — review pass
 - `studio_constitution` — project standards injection
 - Scout may surface security/deps findings when autonomy ≠ `off`
+- **Compress cache** — large tool outputs are redacted for AWS keys (`AKIA…`), OpenAI `sk-…`, GitHub `ghp_…`, PEM private keys, and `Bearer` tokens before writing `.studio/cache/`
+
+## Browser verify (`studio_browser`)
+
+- Only `127.0.0.1` / `localhost` URLs (not `0.0.0.0`)
+- CDP uses an ephemeral free port on loopback (not fixed 9333)
+- Chrome launch tries sandboxed first; falls back to `--no-sandbox` only if needed
+
+## Verify shell
+
+- `bun` / `npm` / `pnpm` / `yarn` / `deno` commands spawn with `shell:false` (argv) first
+- Other ecosystems still use `shell:true`
 
 ## Incident: unwanted agent action
 

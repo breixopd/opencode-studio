@@ -99,4 +99,65 @@ describe("studio_preferences", () => {
     expect(result).toContain("staging")
     expect(mockSaveConfig).toHaveBeenCalledTimes(1)
   })
+
+  it("refuses set_autonomy full without accept_risk", async () => {
+    const { clearAutonomyFullRisk, setAutonomyMode, consumeToast } = await importRiskHelpers()
+    clearAutonomyFullRisk()
+    setAutonomyMode("suggest")
+    consumeToast()
+
+    const result = await studio_preferences.execute(
+      { action: "set_autonomy", autonomy: "full" },
+      ctx,
+    )
+    expect(result).toContain("risk acceptance")
+    expect(result).not.toContain("Autonomy set to 'full'")
+  })
+
+  it("set_autonomy full with accept_risk succeeds", async () => {
+    const { clearAutonomyFullRisk, setAutonomyMode, hasAccepted, consumeToast } =
+      await importRiskHelpers()
+    clearAutonomyFullRisk()
+    setAutonomyMode("suggest")
+    consumeToast()
+
+    const result = await studio_preferences.execute(
+      { action: "set_autonomy", autonomy: "full", accept_risk: true },
+      ctx,
+    )
+    expect(result).toContain("Autonomy set to 'full'")
+    expect(hasAccepted()).toBe(true)
+    consumeToast()
+    clearAutonomyFullRisk()
+    setAutonomyMode("suggest")
+  })
+
+  it("accept_autonomy_risk and clear_autonomy_risk", async () => {
+    const { clearAutonomyFullRisk, hasAccepted, consumeToast } = await importRiskHelpers()
+    clearAutonomyFullRisk()
+    consumeToast()
+
+    const accepted = await studio_preferences.execute({ action: "accept_autonomy_risk" }, ctx)
+    expect(accepted).toContain("risk accepted")
+    expect(hasAccepted()).toBe(true)
+    consumeToast()
+
+    const show = await studio_preferences.execute({ action: "show" }, ctx)
+    expect(show).toContain("Autonomy full risk accepted: yes")
+
+    const cleared = await studio_preferences.execute({ action: "clear_autonomy_risk" }, ctx)
+    expect(cleared).toContain("cleared")
+    expect(hasAccepted()).toBe(false)
+  })
 })
+
+async function importRiskHelpers() {
+  const profile = await import("../core/project-profile")
+  const toast = await import("../core/toast-bus")
+  return {
+    clearAutonomyFullRisk: profile.clearAutonomyFullRisk,
+    setAutonomyMode: profile.setAutonomyMode,
+    hasAccepted: profile.hasAcceptedAutonomyFullRisk,
+    consumeToast: toast.consumeStudioToast,
+  }
+}

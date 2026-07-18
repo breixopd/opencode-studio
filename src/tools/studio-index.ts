@@ -12,7 +12,7 @@ import { similarChunks, getSemanticRecallStatus } from "../core/semantic-recall"
 import { getSemanticRecall } from "../core/project-profile"
 import { buildMonorepoGraph, formatMonorepoGraph } from "../core/monorepo"
 import { getSessionDeduper } from "../core/dedup-session"
-import { optimizeToolOutput } from "../core/token-budget"
+import { optimizeToolOutput } from "../core/tool-output-budget"
 import { grepWorkspace } from "./grep"
 import { getActiveDirectory } from "../core/active-dir"
 

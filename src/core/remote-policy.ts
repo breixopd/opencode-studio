@@ -25,15 +25,26 @@ export type RemotePolicyResult =
   | { ok: true; warn?: string }
   | { ok: false; reason: string }
 
+export type RemotePolicyOpts = {
+  autonomy?: string
+  confirm?: boolean
+  /** User has accepted full-autonomy risk via preferences / NL. */
+  riskAccepted?: boolean
+}
+
 /**
  * Validate host + command against config.remote allowlists and the global
  * destructive blocklist. Pure — safe to unit-test without SSH.
+ *
+ * Under autonomy=full with empty allowlists: allowed if riskAccepted OR
+ * confirm:true. confirm is agent-supplied (not host HITL); user risk accept
+ * is the real acknowledgment. Always warn when unrestricted.
  */
 export function checkRemotePolicy(
   hostAlias: string,
   command: string,
   remote: RemoteExecConfig | undefined,
-  opts?: { autonomy?: string; confirm?: boolean },
+  opts?: RemotePolicyOpts,
 ): RemotePolicyResult {
   const cmd = command.trim()
   const lower = cmd.toLowerCase()
@@ -90,25 +101,31 @@ export function checkRemotePolicy(
   const unrestricted = hosts.length === 0 && prefixes.length === 0
   if (unrestricted) {
     const autonomy = opts?.autonomy ?? getAutonomyMode()
-    if (autonomy === "full" && !opts?.confirm) {
+    const riskAccepted = opts?.riskAccepted === true
+    const confirmed = opts?.confirm === true
+
+    if (autonomy === "full" && !riskAccepted && !confirmed) {
       return {
         ok: false,
         reason:
-          "Autonomy is full and remote allowlists are empty — pass confirm:true to run " +
-          "unrestricted studio_remote, or set remote.allowedHosts / allowedCommandPrefixes. " +
-          "Note: confirm is agent-supplied (not host HITL).",
+          "Autonomy is full and remote allowlists are empty — accept full-autonomy risk " +
+          '(studio_preferences accept_autonomy_risk / say "I accept the risk"), ' +
+          "set remote.allowedHosts / allowedCommandPrefixes, or pass confirm:true. " +
+          "Note: confirm is agent-supplied (not host HITL); user risk accept is the real acknowledgment.",
       }
     }
-    const confirmNote =
-      opts?.confirm === true
-        ? " confirm:true was agent-supplied (not host HITL)."
-        : ""
+
+    const ackParts: string[] = []
+    if (riskAccepted) ackParts.push("user risk accepted")
+    if (confirmed) ackParts.push("confirm:true was agent-supplied (not host HITL)")
+    const ackNote = ackParts.length ? ` ${ackParts.join("; ")}.` : ""
+
     return {
       ok: true,
       warn:
         "WARNING: remote exec is unrestricted (no allowedHosts / allowedCommandPrefixes). " +
         "Command runs as the SSH user with no sandbox." +
-        confirmNote,
+        ackNote,
     }
   }
 

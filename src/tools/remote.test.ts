@@ -60,27 +60,41 @@ describe("checkRemotePolicy", () => {
     expect(result.ok).toBe(true)
   })
 
-  it("requires confirm when autonomy=full and allowlists empty", () => {
+  it("requires risk accept or confirm when autonomy=full and allowlists empty", () => {
     const blocked = checkRemotePolicy("dev", "npm test", undefined, {
       autonomy: "full",
       confirm: false,
+      riskAccepted: false,
     })
     expect(blocked.ok).toBe(false)
     if (!blocked.ok) {
+      expect(blocked.reason).toContain("accept full-autonomy risk")
       expect(blocked.reason).toContain("confirm:true")
       expect(blocked.reason).toContain("agent-supplied")
       expect(blocked.reason).toContain("not host HITL")
     }
 
-    const ok = checkRemotePolicy("dev", "npm test", undefined, {
+    const viaConfirm = checkRemotePolicy("dev", "npm test", undefined, {
       autonomy: "full",
       confirm: true,
+      riskAccepted: false,
     })
-    expect(ok.ok).toBe(true)
-    if (ok.ok) {
-      expect(ok.warn).toContain("unrestricted")
-      expect(ok.warn).toContain("agent-supplied")
-      expect(ok.warn).toContain("not host HITL")
+    expect(viaConfirm.ok).toBe(true)
+    if (viaConfirm.ok) {
+      expect(viaConfirm.warn).toContain("unrestricted")
+      expect(viaConfirm.warn).toContain("agent-supplied")
+      expect(viaConfirm.warn).toContain("not host HITL")
+    }
+
+    const viaRisk = checkRemotePolicy("dev", "npm test", undefined, {
+      autonomy: "full",
+      confirm: false,
+      riskAccepted: true,
+    })
+    expect(viaRisk.ok).toBe(true)
+    if (viaRisk.ok) {
+      expect(viaRisk.warn).toContain("unrestricted")
+      expect(viaRisk.warn).toContain("user risk accepted")
     }
   })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { detectAutonomyIntent, formatScoutReport, collectSecurityFindings, collectDepsFindings, type ScoutFinding } from "./scout"
-import { setAutonomyMode, getAutonomyMode } from "./project-profile"
+import { setAutonomyMode, getAutonomyMode, clearAutonomyFullRisk } from "./project-profile"
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
@@ -61,12 +61,20 @@ describe("scout report formatting", () => {
 
 describe("autonomy mode preference", () => {
   beforeEach(() => {
+    clearAutonomyFullRisk()
     setAutonomyMode("suggest")
   })
 
   it("persists autonomy mode", () => {
     expect(setAutonomyMode("off")).toBe("off")
     expect(getAutonomyMode()).toBe("off")
+    setAutonomyMode("suggest")
+  })
+
+  it("requires risk accept for full", () => {
+    expect(() => setAutonomyMode("full")).toThrow()
+    expect(setAutonomyMode("full", { acceptRisk: true })).toBe("full")
+    clearAutonomyFullRisk()
     setAutonomyMode("suggest")
   })
 })
