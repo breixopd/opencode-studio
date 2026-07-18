@@ -89,6 +89,7 @@ function sshStatusPayload() {
 async function runOnboard(args: {
   prefer_local?: boolean
   budget_usd?: number
+  disable_budget?: boolean
 }): Promise<string> {
   const configuredLocal = detectConfiguredLocalProviders()
   const ollamaReachable = await probeOllama()
@@ -109,14 +110,22 @@ async function runOnboard(args: {
     actions.push("prefer_local → false")
   }
 
+  // Budget: disable_budget / budget_usd=0 → unlimited; positive → set; omit → default $5 if never chosen
   let budget = getSessionBudgetUsd()
-  const budgetWasUnset = !hasExplicitBudget()
-  if (budgetWasUnset || (args.budget_usd != null && args.budget_usd > 0)) {
-    const target = args.budget_usd != null && args.budget_usd > 0 ? args.budget_usd : DEFAULT_SESSION_BUDGET_USD
-    if (budgetWasUnset || budget !== target) {
-      budget = setSessionBudgetUsd(target)
-      actions.push(`session_budget → $${(budget ?? target).toFixed(2)}`)
-    }
+  const disable =
+    args.disable_budget === true ||
+    (args.budget_usd !== undefined && args.budget_usd <= 0)
+
+  if (disable) {
+    setSessionBudgetUsd(null)
+    budget = null
+    actions.push("session_budget → unlimited (disabled)")
+  } else if (args.budget_usd != null && args.budget_usd > 0) {
+    budget = setSessionBudgetUsd(args.budget_usd)
+    actions.push(`session_budget → $${(budget ?? args.budget_usd).toFixed(2)}`)
+  } else if (!hasExplicitBudget()) {
+    budget = setSessionBudgetUsd(DEFAULT_SESSION_BUDGET_USD)
+    actions.push(`session_budget → $${DEFAULT_SESSION_BUDGET_USD.toFixed(2)} (default — say "disable budget" anytime)`)
   }
 
   const tooling = detectTooling(getActiveDirectory())
@@ -134,12 +143,17 @@ async function runOnboard(args: {
       ? "Ollama reachable on :11434 (not yet in OpenCode provider config)"
       : "none detected — connect Ollama / LM Studio, then set_prefer_local"
 
+  const budgetLabel =
+    budget == null
+      ? "unlimited (disabled)"
+      : `$${budget.toFixed(2)}${hasExplicitBudget() ? "" : " (default)"}`
+
   const card = [
     `# You're set — OpenCode Studio`,
     "",
     `**Project:** ${tooling.projectType.ecosystem || "unknown"} (${tooling.projectType.runner || "n/a"})`,
     `**Prefer local:** ${preferLocal ? "yes" : "no"}`,
-    `**Session budget:** ${budget == null ? "unlimited" : `$${budget.toFixed(2)}`}${budgetWasUnset ? " (default applied)" : ""}`,
+    `**Session budget:** ${budgetLabel}`,
     `**Local providers:** ${localLine}`,
     "",
     verifyLines.length
@@ -148,6 +162,7 @@ async function runOnboard(args: {
     "",
     actions.length ? `**Applied:** ${actions.join("; ")}` : "**Applied:** nothing new (already configured)",
     "",
+    "**Budget later:** `studio_preferences set_session_budget 10` · `set_session_budget 0` to disable · say \"budget $5\" / \"disable budget\"",
     "**Next:** `studio_doctor` · `studio_help topic=overview` · optional SSH: `studio_setup({ host: \"<alias>\" })`",
   ].join("\n")
 
@@ -156,6 +171,7 @@ async function runOnboard(args: {
       status: "onboarded",
       prefer_local: preferLocal,
       session_budget_usd: budget,
+      budget_disabled: budget == null,
       local_providers: configuredLocal,
       ollama_reachable: ollamaReachable,
       project_type: tooling.projectType,
@@ -170,7 +186,8 @@ async function runOnboard(args: {
 
 export const studio_setup: ToolDefinition = tool({
   description:
-    "First-run setup: status, SSH host binding, or onboard wizard (local providers, $5 budget default, verify commands). " +
+    "First-run setup: status, SSH host binding, or onboard wizard (local providers, session budget, verify commands). " +
+      "Onboard: pass budget_usd to set, disable_budget=true or budget_usd=0 to disable (unlimited). " +
       "SSH binds only when you pass host=<alias> explicitly.",
   args: {
     action: tool.schema
@@ -192,13 +209,23 @@ export const studio_setup: ToolDefinition = tool({
     budget_usd: tool.schema
       .number()
       .optional()
-      .describe(`Onboard: session budget USD (default ${DEFAULT_SESSION_BUDGET_USD} if unset)`),
+      .describe(
+        `Onboard: session budget USD (omit = default $${DEFAULT_SESSION_BUDGET_USD} if never set; 0 = disable/unlimited)`,
+      ),
+    disable_budget: tool.schema
+      .boolean()
+      .optional()
+      .describe("Onboard: disable session spend cap (unlimited). Same as budget_usd=0."),
   },
   async execute(args) {
     const action = args.action ?? (args.host ? "ssh" : "status")
 
     if (action === "onboard") {
-      return runOnboard({ prefer_local: args.prefer_local, budget_usd: args.budget_usd })
+      return runOnboard({
+        prefer_local: args.prefer_local,
+        budget_usd: args.budget_usd,
+        disable_budget: args.disable_budget,
+      })
     }
 
     const existing = loadConfig()
@@ -213,8 +240,11 @@ export const studio_setup: ToolDefinition = tool({
           prefer_local: getPreferLocalModels(),
           session_budget_usd: budget,
           budget_explicit: hasExplicitBudget(),
+          budget_disabled: hasExplicitBudget() && budget == null,
           local_providers: detectConfiguredLocalProviders(),
-          tip: "Run studio_setup({ action: \"onboard\" }) for first-run defaults ($5 budget, prefer_local).",
+          tip:
+            "First-run: studio_setup({ action: \"onboard\", budget_usd: 5 }) or disable_budget: true. " +
+            "Later: say \"budget $10\" / \"disable budget\".",
         },
         null,
         2,

@@ -103,7 +103,13 @@ export const studio_preferences: ToolDefinition = tool({
     budget_usd: tool.schema
       .number()
       .optional()
-      .describe("Session spend cap in USD (default $5 if never set; 0 clears → unlimited). Blocks tools when exceeded."),
+      .describe(
+        "Session spend cap USD. set_session_budget: >0 sets cap; 0 or omit with action clears → unlimited. Default soft $5 until first set.",
+      ),
+    disable_budget: tool.schema
+      .boolean()
+      .optional()
+      .describe("When true with set_session_budget, disables the spend cap (same as budget_usd=0)."),
   },
   async execute(args) {
     const config = loadConfig()
@@ -113,16 +119,18 @@ export const studio_preferences: ToolDefinition = tool({
     if (args.action === "show") {
       const budget = getSessionBudgetUsd()
       const recallStatus = getSemanticRecallStatus(cwd)
+      const budgetLine =
+        !hasExplicitBudget()
+          ? `$${budget?.toFixed(2) ?? "5.00"} (soft default — not confirmed; run /onboard or set/disable)`
+          : budget == null
+            ? "unlimited (disabled)"
+            : `$${budget.toFixed(2)}`
       const lines = [
         `Model mode (global): ${getModelMode()}`,
         `Autonomy: ${getAutonomyMode()}`,
         `Prefer local models: ${getPreferLocalModels() ? "yes" : "no"}`,
         `Semantic recall: ${getSemanticRecall() ? `on (${recallStatus})` : "off"}`,
-        `Session budget: ${
-          budget == null
-            ? "unlimited"
-            : `$${budget.toFixed(2)}${hasExplicitBudget() ? "" : " (default)"}`
-        }`,
+        `Session budget: ${budgetLine}`,
       ]
       const remotePolicy = config.remote
       lines.push(
@@ -195,11 +203,15 @@ export const studio_preferences: ToolDefinition = tool({
     }
 
     if (args.action === "set_session_budget") {
-      const usd = args.budget_usd ?? 0
-      const set = setSessionBudgetUsd(usd)
-      return set == null
-        ? "Session budget cleared (unlimited)."
-        : `Session budget set to $${set.toFixed(2)}. Non-allowlisted tools block when exceeded.`
+      if (args.disable_budget === true || (args.budget_usd !== undefined && args.budget_usd <= 0)) {
+        setSessionBudgetUsd(null)
+        return "Session budget disabled (unlimited). Soft default no longer applies. Re-enable with set_session_budget <usd> or say \"budget $5\"."
+      }
+      if (args.budget_usd === undefined) {
+        return "Pass budget_usd (>0 to set) or disable_budget: true (unlimited). Example: set_session_budget budget_usd=5"
+      }
+      const set = setSessionBudgetUsd(args.budget_usd)
+      return `Session budget set to $${(set ?? args.budget_usd).toFixed(2)}. Non-allowlisted tools block when exceeded. Disable anytime with set_session_budget 0 or \"disable budget\".`
     }
 
     if (args.action === "set_remote_policy") {

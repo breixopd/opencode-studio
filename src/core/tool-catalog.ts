@@ -74,7 +74,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   // ——— Config ————————————————
   { name: "studio_preferences", category: "Config", phase: null, description: "Model mode, autonomy, local models, semantic recall, remote path, multi-remote env, remote exec policy, .studio commit", whenToUse: "to change routing mode, autonomy, or remote config" },
   { name: "studio_models", category: "Config", phase: null, description: "Sync providers, refresh Zen catalog, infer tiers", whenToUse: "when providers change or to check routing" },
-  { name: "studio_setup", category: "Config", phase: null, description: "First-run onboard + SSH host bind (action=status|ssh|onboard)", whenToUse: "on first run: onboard for $5 budget/local; host to bind SSH" },
+  { name: "studio_setup", category: "Config", phase: null, description: "First-run onboard (budget set/disable + local) + SSH host bind", whenToUse: "on first run: onboard with budget_usd or disable_budget; host to bind SSH" },
   { name: "studio_add_project", category: "Config", phase: null, description: "Add local→remote sync mapping", whenToUse: "to add a project mapping" },
   { name: "studio_remove_project", category: "Config", phase: null, description: "Remove a project mapping", whenToUse: "to remove a project mapping" },
   { name: "studio_list_projects", category: "Config", phase: null, description: "List all configured projects", whenToUse: "to see configured projects" },

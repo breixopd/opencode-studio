@@ -204,6 +204,31 @@ describe("studio_setup", () => {
     expect(parsed.prefer_local).toBe(true)
     expect(getPreferLocalModels()).toBe(true)
     expect(parsed.session_budget_usd).toBe(8)
+    expect(parsed.budget_disabled).toBe(false)
     expect(parsed.actions.some((a: string) => a.includes("prefer_local"))).toBe(true)
+  })
+
+  it("onboard can disable budget with disable_budget or budget_usd=0", async () => {
+    unsetSessionBudgetUsd()
+
+    const result = await studio_setup.execute(
+      { action: "onboard", prefer_local: false, disable_budget: true },
+      ctx,
+    )
+    const parsed = JSON.parse(result as string)
+
+    expect(parsed.status).toBe("onboarded")
+    expect(parsed.session_budget_usd).toBeNull()
+    expect(parsed.budget_disabled).toBe(true)
+    expect(hasExplicitBudget()).toBe(true)
+    expect(getSessionBudgetUsd()).toBeNull()
+    expect(parsed.message).toContain("unlimited")
+
+    unsetSessionBudgetUsd()
+    const zero = JSON.parse(
+      (await studio_setup.execute({ action: "onboard", prefer_local: false, budget_usd: 0 }, ctx)) as string,
+    )
+    expect(zero.session_budget_usd).toBeNull()
+    expect(zero.budget_disabled).toBe(true)
   })
 })

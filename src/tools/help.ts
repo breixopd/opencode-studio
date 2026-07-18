@@ -18,7 +18,7 @@ Zero-config dev platform plugin for OpenCode: remote sync, subagents, native cod
    { "plugin": ["opencode-studio"] }
    \`\`\`
 2. **Build** — in plugin repo: \`bun run build\`, restart OpenCode.
-3. **First-run** — \`studio_setup({ action: "onboard" })\` sets prefer_local (if Ollama/local) + default **$5** session budget.
+3. **First-run** — \`studio_setup({ action: "onboard", budget_usd: 5 })\` or \`disable_budget: true\` for unlimited. Soft **$5** until you confirm. Say \"budget \$10\" / \"disable budget\", or \`/budget\` / \`/onboard\`.
 4. **SSH (optional)** — ~/.ssh/config with a Host entry; run \`studio_setup({ host: "<alias>" })\` to bind (nothing is auto-saved).
 5. **Verify** — \`studio_doctor\` or \`/smoke-test\`
 

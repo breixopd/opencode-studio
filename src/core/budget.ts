@@ -9,7 +9,11 @@
  * Default budget: $5 when never set. Explicit 0/clear → unlimited (null).
  */
 import { getCostSummary, getLastCostSessionId } from "./cost"
-import { getSessionBudgetUsd } from "./project-profile"
+import {
+  DEFAULT_SESSION_BUDGET_USD,
+  getSessionBudgetUsd,
+  hasExplicitBudget,
+} from "./project-profile"
 import * as log from "./logger"
 
 export interface BudgetStatus {
@@ -109,4 +113,20 @@ export function assertBudgetAllowsTool(tool: string, sessionId?: string): void {
       `handoff, retrieve, memory. Raise with studio_preferences set_session_budget <usd> ` +
       `or set_session_budget 0 to clear.`,
   )
+}
+
+/**
+ * First-session prompt when the user has never confirmed a budget.
+ * Soft $5 still applies until they set or disable — agent must ask once.
+ */
+export function budgetFirstRunPrompt(): string | null {
+  if (hasExplicitBudget()) return null
+  return [
+    `[studio budget] FIRST RUN — session spend cap not confirmed yet.`,
+    `Soft default $${DEFAULT_SESSION_BUDGET_USD} is active until you choose.`,
+    `Ask the user once (before heavy work):`,
+    `(A) Keep default $${DEFAULT_SESSION_BUDGET_USD} — studio_setup({ action: "onboard" }) or studio_preferences set_session_budget ${DEFAULT_SESSION_BUDGET_USD}`,
+    `(B) Set a custom cap — studio_preferences set_session_budget <usd> or say "budget $10"`,
+    `(C) Disable (unlimited) — studio_setup({ action: "onboard", disable_budget: true }) or set_session_budget 0 / say "disable budget"`,
+  ].join(" ")
 }

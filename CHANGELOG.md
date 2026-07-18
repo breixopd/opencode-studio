@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.0.0-alpha.3 (2026-07-18)
+
+Budget UX polish: set or disable on first run, first-session confirm prompt, `/budget` + `/onboard` commands.
+
+### Added / fixed
+
+- **Onboard** accepts `budget_usd` or `disable_budget: true` / `budget_usd: 0` (unlimited)
+- **First-run prompt** when budget never confirmed (soft $5 until choose)
+- **NL:** "disable budget", "unlimited budget", "budget off", "no spend cap"
+- **Commands:** `/budget` and `/onboard`
+
+---
+
 ## v2.0.0-alpha.2 (2026-07-18)
 
 Post-alpha backlog ship: cost kill-switch hardening, CI triage, indexing throughput, monorepo graph, semantic recall, remote policy, onboarding.

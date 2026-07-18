@@ -30,9 +30,13 @@ Common pain with similar products: runaway token cost, agents that wait to be as
 ```
 studio_preferences set_autonomy full|suggest|off
 studio_preferences set_prefer_local true   # use connected Ollama / LM Studio when present
-studio_preferences set_session_budget 5    # hard spend cap ($) — default $5 if never set; 0 = unlimited
+studio_setup({ action: "onboard", budget_usd: 5 })   # first-run: set budget
+studio_setup({ action: "onboard", disable_budget: true })  # or disable (unlimited)
+studio_preferences set_session_budget 10   # change later; 0 / disable_budget = off
+# Or say: "budget $5" / "disable budget" / /budget 5 / /budget off / /onboard
 ```
 
+On first session (budget not confirmed), Studio asks once: keep soft default **$5**, set a custom cap, or disable. Soft $5 applies until you choose.
 Local routing does **not** hardcode model names — connect Ollama / LM Studio / any OpenAI-compatible local provider and Studio picks from the models you have loaded (same pattern as Zen/provider auto-routing).
 
 ## Local OpenAI-compatible sidecar

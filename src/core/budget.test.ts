@@ -101,4 +101,14 @@ describe("session budget", () => {
     expect(loadUserProfile().sessionBudgetUsd).toBeNull()
     expect(getSessionBudgetUsd()).toBeNull()
   })
+
+  it("first-run prompt until budget is confirmed", async () => {
+    unsetSessionBudgetUsd()
+    const { budgetFirstRunPrompt } = await import("./budget")
+    expect(budgetFirstRunPrompt()).toContain("FIRST RUN")
+    setSessionBudgetUsd(5)
+    expect(budgetFirstRunPrompt()).toBeNull()
+    setSessionBudgetUsd(null)
+    expect(budgetFirstRunPrompt()).toBeNull()
+  })
 })

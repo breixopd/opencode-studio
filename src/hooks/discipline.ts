@@ -15,7 +15,7 @@ import { getRecurringCorrectionNotices } from "./chat-message"
 import { workingSetContextBlock } from "../core/passive-context"
 import { checkPlanDrift } from "../core/plan-drift"
 import { scoutContextBlock } from "../core/scout"
-import { budgetContextBlock } from "../core/budget"
+import { budgetContextBlock, budgetFirstRunPrompt } from "../core/budget"
 import { sshSetupSuggestion } from "../core/auto"
 import * as log from "../core/logger"
 import { getActiveDirectory } from "../core/active-dir"
@@ -105,6 +105,9 @@ export function createDisciplineSystemHook() {
     // Autonomous scout — polish/test/research opportunities (respects autonomy opt-out).
     const scout = scoutContextBlock(getActiveDirectory())
     if (scout) { pushIfNotPresent(output.system, scout); log.debugContext("scout", scout.length) }
+
+    const budgetFirst = budgetFirstRunPrompt()
+    if (budgetFirst) { pushIfNotPresent(output.system, budgetFirst); log.debugContext("budget-first-run", budgetFirst.length) }
 
     const budget = budgetContextBlock(_input.sessionID)
     if (budget) { pushIfNotPresent(output.system, budget); log.debugContext("budget", budget.length) }

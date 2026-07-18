@@ -115,6 +115,24 @@ export function createConfigInjectHook() {
         agent: "studio-scout",
         subtask: true,
       },
+      budget: {
+        description: "Set or disable session spend cap (e.g. 5, 10, off, disable)",
+        template:
+          "Session budget request: {{args}}\n" +
+          "If a number (e.g. 5 or $10): studio_preferences set_session_budget <usd>.\n" +
+          "If off/disable/unlimited/0/clear: studio_preferences set_session_budget 0.\n" +
+          "If empty or \"status\": studio_preferences show and report the current session budget.\n" +
+          "Confirm the new budget to the user in one line.",
+      },
+      onboard: {
+        description: "First-run studio setup (local models + session budget)",
+        template:
+          "Run first-run onboarding.\n" +
+          "If user specified a budget amount in {{args}}, pass budget_usd.\n" +
+          "If they said disable/off/unlimited, pass disable_budget: true.\n" +
+          "Otherwise: studio_setup({ action: \"onboard\" }).\n" +
+          "Show the you're-set card and ask if they want to change the budget.",
+      },
     }
     for (const [name, def] of Object.entries(commands)) {
       if (!config.command![name]) config.command![name] = def
